@@ -36,6 +36,6 @@ hyp:
   label_smooth: 0.1
   strategy:
     mixup: 0.2 25 # ratio and mixup_epoch, on which epoch to delete mixup, support ce and bce
-    focal: 1 2 # on start_epo (except warm_epoch)
+    focal: 1 2 # turn-on-or-off and start_epo (except warm_epoch)
   optimizer: sgd # sgd or adam
   scheduler: cosine # linear or cosine
