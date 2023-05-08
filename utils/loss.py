@@ -3,6 +3,8 @@ import torch.nn as nn
 from typing import Callable
 from functools import wraps
 
+__all__ = ['create_Lossfn', 'list_lossfns']
+
 LOSS = {}
 
 def register_loss(fn: Callable):

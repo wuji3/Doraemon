@@ -2,9 +2,11 @@ from torch.optim import SGD, Adam
 from typing import Callable
 from functools import wraps
 
+__all__ = ['create_Optimizer', 'list_optimizers']
+
 OPTIMIZER = {}
 
-def register_method(fn: Callable):
+def register_optimizer(fn: Callable):
     key = fn.__name__
     if key in OPTIMIZER:
         raise ValueError(f"An entry is already registered under the name '{key}'.")
@@ -15,11 +17,11 @@ def register_method(fn: Callable):
 
     return wrapper
 
-@register_method
+@register_optimizer
 def sgd(*args, **kwargs):
     return SGD(*args, **kwargs)
 
-@register_method
+@register_optimizer
 def adam(*args, **kwargs):
     return Adam(*args, **kwargs)
 

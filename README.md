@@ -1,4 +1,4 @@
-# vision_cls
+# vision_classification
 Provide baseline to solve different kinds of vision classification tasks
 ## introduce
   params setting refer to configs/complete.yaml, include model, data, hyp 
