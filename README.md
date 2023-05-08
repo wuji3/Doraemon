@@ -3,7 +3,7 @@ Provide baseline to solve different kinds of vision classification tasks
 ## introduce
   params setting refer to configs/complete.yaml, include model, data, hyp 
     
-  model: support BN freeze, backbone freeze. set out_channels as you like, maybe not equal to num_classes if you want to do training strategy
+  model: support BN freeze, backbone freeze. set out_channels as you like, maybe not equal to num_classes if you want to do training strategy  
   data: support custom-style data augment, all the data augment are placed in utils/augment.py, eg: cutout, colerjitter...  
   hyp: support many loss function eg: ce and bce, support custom-style training stategy, eg: focalloss and mixup  
     
