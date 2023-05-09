@@ -68,79 +68,36 @@ def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimize
                     bar_format='{l_bar}{bar:10}{r_bar}')
 
     tloss, fitness = 0., 0.,
-    if is_mixup:
-        for i, (images, labels) in pbar:  # progress bar
-            images, labels = images.to(device, non_blocking=True), labels.to(device)
-            images, targets_a, targets_b = mixup_data(images, labels, device, lam)
-            with torch.cuda.amp.autocast(enabled=cuda):
+
+    for i, (images, labels) in pbar:  # progress bar
+        images, labels = images.to(device, non_blocking=True), labels.to(device)
+        with torch.cuda.amp.autocast(enabled=cuda):
+            # mixup
+            if is_mixup:
+                images, targets_a, targets_b = mixup_data(images, labels, device, lam)
                 loss = mixup_criterion(criterion, model(images), targets_a, targets_b, lam)
-
-            # scale + backward + grad_clip + step + zero_grad
-            update(model, loss, scaler, optimizer)
-
-            if rank in {-1, 0}:
-                tloss = (tloss * i + loss.item()) / (i + 1)  # update mean losses
-                mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if cuda else 0)  # (GB)
-                pbar.desc = f"{f'{epoch + 1}/{epochs}':>10}{mem:>10}{tloss:>12.3g}" + ' ' * 36
-
-                if i == len(pbar) - 1:  # last batch
-                    logger.log(f'epoch:{epoch + 1:d}  t_loss:{tloss:4f}  lr:{optimizer.param_groups[0]["lr"]:.5f}')
-                    logger.log(f'{"name":}{"nums":>6}{"top1":>6}{"top5":>6}')
-
-                    # val
-                    top1, top5, v_loss = val(model, val_dataloader, device, pbar, True, criterion, logger)
-                    logger.log(f'v_loss:{v_loss:4f}  mtop1:{top1:.3g}  mtop5:{top5:.3g}')
-
-                    fitness = top1  # define fitness as top1 accuracy
-
-    else:
-        for i, (images, labels) in pbar:  # progress bar
-            images, labels = images.to(device, non_blocking=True), labels.to(device)
-
-            with torch.cuda.amp.autocast(enabled=cuda):
+            else:
                 loss = criterion(model(images), labels)
+        # scale + backward + grad_clip + step + zero_grad
+        update(model, loss, scaler, optimizer)
 
-            # scale + backward + grad_clip + step + zero_grad
-            update(model, loss, scaler, optimizer)
+        if rank in {-1, 0}:
+            tloss = (tloss * i + loss.item()) / (i + 1)  # update mean losses
+            mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if cuda else 0)  # (GB)
+            pbar.desc = f"{f'{epoch + 1}/{epochs}':>10}{mem:>10}{tloss:>12.3g}" + ' ' * 36
+            pbar.postfix = f'lr:{optimizer.param_groups[0]["lr"]:.5f}'
 
-            if rank in {-1, 0}:
-                tloss = (tloss * i + loss.item()) / (i + 1)  # update mean losses
-                mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if cuda else 0)  # (GB)
-                pbar.desc = f"{f'{epoch + 1}/{epochs}':>10}{mem:>10}{tloss:>12.3g}" + ' ' * 36
+            if i == len(pbar) - 1:  # last batch
+                logger.log(f'epoch:{epoch + 1:d}  t_loss:{tloss:4f}  lr:{optimizer.param_groups[0]["lr"]:.5f}')
+                logger.log(f'{"name":}{"nums":>6}{"top1":>6}{"top5":>6}')
 
-                if i == len(pbar) - 1:  # last batch
-                    logger.log(f'epoch:{epoch + 1:d}  t_loss:{tloss:4f}  lr:{optimizer.param_groups[0]["lr"]:.5f}')
-                    logger.log(f'{"name":}{"nums":>12}{"top1":>10}{"top5":>10}')
+                # val
+                top1, top5, v_loss = val(model, val_dataloader, device, pbar, True, criterion, logger)
+                logger.log(f'v_loss:{v_loss:4f}  mtop1:{top1:.3g}  mtop5:{top5:.3g}')
 
-                    # val
-                    top1, top5, v_loss = val(model, val_dataloader, device, pbar, True, criterion, logger)
-                    logger.log(f'v_loss:{v_loss:4f}  mtop1:{top1:.3g}  mtop5:{top5:.3g}')
+                fitness = top1  # define fitness as top1 accuracy
 
-                    fitness = top1  # define fitness as top1 accuracy
+    schduler.step()  # step epoch-wise
 
-    schduler.step() # step epoch-wise
-
-
-    # for i, (images, labels) in pbar: # progress bar
-    #     images, labels = images.to(device, non_blocking=True), labels.to(device)
-    #
-    #     if is_mixup:
-    #         images, targets_a, targets_b = mixup_data(images, labels, device, lam)
-    #         with torch.cuda.amp.autocast(enabled=cuda):
-    #             loss = mixup_criterion(criterion, model(images), targets_a, targets_b, lam)
-    #     else:
-    #         with torch.cuda.amp.autocast(enabled=cuda):
-    #             loss = criterion(model(images), labels)
-    #
-    #     # backward
-    #     scaler.scale(loss).backward()
-    #
-    #     # optimize
-    #     scaler.unscale_(optimizer) # unscale gradients
-    #     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0) # clip gradients
-    #     scaler.step(optimizer)
-    #     scaler.update()
-    #
-    #     optimizer.zero_grad()
     return fitness
 

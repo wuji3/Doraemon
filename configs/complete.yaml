@@ -1,5 +1,5 @@
 model:
-  choice: torchvision-shufflenet_v2_x1_0 # torchvision- or custom-
+  choice: torchvision-resnext50_32x4d # torchvision- or custom-
   num_classes: 6 # out_channels of fc, maybe be not equal to num_classes of train_dir. eg: maybe more than num_classes
   pretrained: True
   backbone_freeze: False
@@ -9,7 +9,7 @@ data:
   root: ./data # -train -val
   nw: 4 # if not multi-nw, set to 0
   train:
-    bs: 1024 # all gpus if DDP
+    bs: 8 # all gpus if DDP
     augment: # refer to utils/augment.py
       color_jitter
       random_cutout
@@ -18,7 +18,7 @@ data:
       normalize # default use ImageNet1K mean & var, if not pretrained, del normalize
     aug_epoch: 25 # augment for epochs, on which epoch to weaken, except warm_epoch
   val:
-    bs: 2
+    bs: 8
     augment:
       to_tensor
       normalize
@@ -29,7 +29,7 @@ hyp:
   momentum: 0.937
   weight_decay: 0.0005
   warmup_momentum: 0.8
-  warm_ep: 1 # out of epochs, imp linear
+  warm_ep: 2 # out of epochs, imp linear
   loss:
     ce: False
     bce: True

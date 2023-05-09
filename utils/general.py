@@ -63,9 +63,9 @@ def check_cfgs(cfgs):
     hyp_cfg = cfgs['hyp']
 
     assert model_cfg['choice'].split('-')[0] in {'torchvision', 'custom'}, 'if from torchvision, torchvision-ModelName; if from your own, custom-ModelName'
-    assert (model_cfg['pretrained'] and ('normalize' in data_cfg['train']['augment'].split())) or \
-           (not model_cfg['pretrained']) and ('normalize' not in data_cfg['train']['augment'].split()),\
-           'if not pretrained, normalize is not necessary'
+    assert (model_cfg['pretrained'] and ('normalize' in data_cfg['train']['augment'].split()) and ('normalize' in data_cfg['val']['augment'].split())) or \
+           (not model_cfg['pretrained']) and ('normalize' not in data_cfg['train']['augment'].split()) and ('normalize' not in data_cfg['val']['augment'].split()),\
+           'if not pretrained, normalize is not necessary, or normalize is necessary'
 
     assert reduce(lambda x, y: int(x) + int(y), list(hyp_cfg['loss'].values())) == 1, 'ce or bce'
     if hyp_cfg['strategy']['focal'].split()[0] == '1': assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
@@ -73,6 +73,27 @@ def check_cfgs(cfgs):
     assert hyp_cfg['scheduler'] in {'linear', 'cosine'}, 'scheduler support linear or cosine'
     mixup, mixup_milestone = map(eval, hyp_cfg['strategy']['mixup'].split())
     assert mixup >= 0 and mixup <= 1 and isinstance(mixup_milestone, int), 'mixup_ratio[0,1], mixup_milestone be int'
+
+class _Init_Nc_Torchvision:
+
+    def __init__(self):
+        self.models = {
+            'mobilenet',  # mobilenet_v2, mobilenet_v3_large, mobilenet_v3_small
+            'shufflenet',  # shufflenet_v2_x0_5, shufflenet_v2_x1_0, shufflenet_v2_x1_5, shufflenet_v2_x2_0
+            'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152', 'resnext50', 'resnext101', # res-series
+            'convnext',  # convnext_tiny, convnext_small, convnext_base, convnext_large
+            'efficientnet'  # efficientnet_b0 -> efficientnet_b7, efficientnet_v2_s, efficientnet_v2_m, efficientnet_v2_l
+        }
+
+    def init_nc(self, model: nn.Module, choice: str, nc: int) -> None:
+        model_name = choice.split('_')[0]
+        assert model_name in self.models, 'Not supported model'
+        if model_name in {'mobilenet', 'convnext', 'efficientnet'}: # self.classify
+            m = getattr(model, 'classifier')
+            if isinstance(m, nn.Sequential):
+                m[-1] = nn.Linear(m[-1].in_features, nc)
+        else: # self.fc
+            model.fc = nn.Linear(model.fc.in_features, nc)
 
 class SmartModel:
     def __init__(self, model_cfgs: dict):
@@ -87,6 +108,8 @@ class SmartModel:
         model_cfgs_copy = deepcopy(model_cfgs)
         model_cfgs_copy['kind'], model_cfgs_copy['choice'] = model_cfgs['choice'].split('-')
 
+        # init num_classes if torchvision
+        self.init_nc_torchvision = _Init_Nc_Torchvision() if model_cfgs_copy['kind'] == 'torchvision' else None
         # init model
         self.model = self.create_model(**model_cfgs_copy)
         del model_cfgs_copy
@@ -98,7 +121,9 @@ class SmartModel:
         assert kind in {'torchvision', 'custom'}, 'kind must be torchvision or custom'
         if kind == 'torchvision':
             model = torchvision.models.get_model(choice, weights = torchvision.models.get_model_weights(choice) if pretrained else None)
-            model.fc = nn.Linear(model.fc.in_features, num_classes)
+            # init num_classes from torchvision.models
+            if self.init_nc_torchvision is not None:
+                self.init_nc_torchvision.init_nc(model, choice, num_classes)
 
         else:
             pass
