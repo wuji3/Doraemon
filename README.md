@@ -1,5 +1,7 @@
 # vision_classification
-Provide baseline to solve different kinds of vision classification tasks
+Provide baseline to solve different kinds of vision classification tasks   
+
+<font color=Red>in some days, repo will add kinds of Attentions-Modules, so stay tuned</font>
 ## introduce
   params setting refer to configs/complete.yaml, include model, data, hyp 
     
