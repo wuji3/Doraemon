@@ -61,18 +61,28 @@ def check_cfgs(cfgs):
     model_cfg = cfgs['model']
     data_cfg = cfgs['data']
     hyp_cfg = cfgs['hyp']
-
+    # model
     assert model_cfg['choice'].split('-')[0] in {'torchvision', 'custom'}, 'if from torchvision, torchvision-ModelName; if from your own, custom-ModelName'
     assert (model_cfg['pretrained'] and ('normalize' in data_cfg['train']['augment'].split()) and ('normalize' in data_cfg['val']['augment'].split())) or \
            (not model_cfg['pretrained']) and ('normalize' not in data_cfg['train']['augment'].split()) and ('normalize' not in data_cfg['val']['augment'].split()),\
            'if not pretrained, normalize is not necessary, or normalize is necessary'
-
+    # loss
     assert reduce(lambda x, y: int(x) + int(y), list(hyp_cfg['loss'].values())) == 1, 'ce or bce'
-    if hyp_cfg['strategy']['focal'].split()[0] == '1': assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
+    # optimizer
     assert hyp_cfg['optimizer'] in {'sgd', 'adam'}, 'optimizer choose sgd or adam'
+    # scheduler
     assert hyp_cfg['scheduler'] in {'linear', 'cosine'}, 'scheduler support linear or cosine'
+    # strategy
+    # focalloss
+    if hyp_cfg['strategy']['focal'].split()[0] == '1': assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
+    # mixup
     mixup, mixup_milestone = map(eval, hyp_cfg['strategy']['mixup'].split())
-    assert mixup >= 0 and mixup <= 1 and isinstance(mixup_milestone, int), 'mixup_ratio[0,1], mixup_milestone be int'
+    assert mixup >= 0 and mixup <= 1 and isinstance(mixup_milestone, list), 'mixup_ratio[0,1], mixup_milestone be list'
+    mix0, mix1 = mixup_milestone
+    assert isinstance(mix0, int) and isinstance(mix1, int) and mix0 < mix1, 'mixup must List[int], start < end'
+    hyp_cfg['strategy']['mixup'] = [mixup, mixup_milestone]
+    # progressive learning
+    if hyp_cfg['strategy']['prog_learn']: assert mixup > 0, 'if progressive learning, make sure mixup > 0'
 
 class _Init_Nc_Torchvision:
 
@@ -267,6 +277,10 @@ class CenterProcessor:
         # distributions sampler
         self.dist_sampler = self._distributions_sampler()
 
+        # progressive learning
+        self.prog_learn = self.hyp_cfg['strategy']['prog_learn']
+        if self.prog_learn: self.mixup_milestone = torch.linspace(*self.hyp_cfg['strategy']['mixup'][-1], 3,dtype=torch.int32).round_().tolist()[:-1]
+
         # focalloss hard
         if loss_choice == 'bce' and self.hyp_cfg['strategy']['focal'].split()[0] == '1':
             self.focal = create_Lossfn('focal')()
@@ -294,13 +308,18 @@ class CenterProcessor:
             # set 0
             self.focal_on = 0
 
-    def auto_mixup(self, mixup: float, epoch:int, milestone: int):
-        if mixup == 0 or epoch >= milestone: return (False, None) # is_mixup, lam
+    def auto_mixup(self, mixup: float, epoch:int, milestone: list):
+        if mixup == 0 or epoch >= milestone[1] or epoch < milestone[0]: return (False, None) # is_mixup, lam
         else:
+            # progressive learning divide mixup_milestone into 2 parts in default, alpha from 0.1 to 0.2
+            if self.prog_learn and epoch in self.mixup_milestone:
+                alpha = (self.mixup_milestone.index(epoch)+1) * 0.1
+                self.dist_sampler['beta'] = torch.distributions.beta.Beta(alpha, alpha)
+
             mix_prob = self.dist_sampler['uniform'].sample()
             is_mixup: bool = mix_prob < mixup
             lam = self.dist_sampler['beta'].sample().to(self.device)
-            return is_mixup, lam
+            return is_mixup.item() if isinstance(is_mixup, torch.Tensor) else is_mixup, lam
 
     def set_sync_bn(self):
         self.model_processor.model = nn.SyncBatchNorm.convert_sync_batchnorm(module=self.model_processor.model)
@@ -310,7 +329,7 @@ class CenterProcessor:
         model, data_processor, lossfn, optimizer, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, scheduler, focal = \
             self.model_processor.model, self.data_processor, self.lossfn, self.optimizer, \
             GradScaler(enabled = (self.device != torch.device('cpu'))), self.device, self.hyp_cfg['epochs'], \
-            self.logger, self.hyp_cfg['strategy']['mixup'].split(), self.rank, self.dist_sampler, self.hyp_cfg['warm_ep'], \
+            self.logger, self.hyp_cfg['strategy']['mixup'], self.rank, self.dist_sampler, self.hyp_cfg['warm_ep'], \
             self.data_cfg['train']['aug_epoch'], self.scheduler, self.focal
 
         # data
@@ -362,8 +381,8 @@ class CenterProcessor:
             # weaken data augment at milestone
             self.data_processor.auto_aug_weaken(int(epoch-warm_ep), milestone=aug_epoch)
 
-            # mixup epoch-wise
-            is_mixup, lam = self.auto_mixup(mixup=eval(mixup), epoch=int(epoch-warm_ep), milestone=eval(mixup_milestone))
+            # mixup epoch-wise, support progressive learning
+            is_mixup, lam = self.auto_mixup(mixup=mixup, epoch=int(epoch-warm_ep), milestone=mixup_milestone)
 
             # train for one epoch
             fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, lossfn, optimizer,scaler, device, epoch, epochs, logger, is_mixup, rank, lam, scheduler)
