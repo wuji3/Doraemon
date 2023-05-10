@@ -3,6 +3,9 @@ from tqdm import tqdm
 from typing import Callable
 from functools import wraps
 from .valuate import val
+import random
+import math
+import torch.nn as nn
 
 __all__ = ['train_one_epoch']
 
@@ -17,6 +20,10 @@ def register_strategy(fn: Callable):
         return fn(*args, **kwargs)
 
     return wrapper
+
+def make_divisible(x: int, divisor = 32):
+    # Returns nearest x divisible by divisor
+    return math.ceil(x / divisor) * divisor
 
 def smooth_BCE(eps=0.1):  # https://github.com/ultralytics/yolov3/issues/238#issuecomment-598028441
     # return positive, negative label smoothing BCE targets
@@ -53,7 +60,7 @@ def update(model, loss, scaler, optimizer):
 def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimizer,
                     scaler, device: torch.device, epoch: int,
                     epochs: int, logger, is_mixup: bool, rank: int,
-                    lam, schduler):
+                    lam, schduler, multi_scale):
     # train mode
     model.train()
 
@@ -71,6 +78,14 @@ def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimize
 
     for i, (images, labels) in pbar:  # progress bar
         images, labels = images.to(device, non_blocking=True), labels.to(device)
+        if multi_scale:
+            gs = 32 # grid size (max stride)
+            min_imgsz = min(images.shape[2:])
+            sz = random.randrange(min_imgsz * 0.5, min_imgsz * 1.5 + gs) // gs * gs  # size
+            sf = sz / min_imgsz  # scale factor
+            if sf != 1:
+                ns = [round(x * sf) for x in images.shape[2:]]  # new shape (stretched to gs-multiple)
+                images = nn.functional.interpolate(images, size=ns, mode='bilinear', align_corners=False)
         with torch.cuda.amp.autocast(enabled=cuda):
             # mixup
             if is_mixup:

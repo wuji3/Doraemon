@@ -8,18 +8,20 @@ model:
 data:
   root: ./data # -train -val
   nw: 4 # if not multi-nw, set to 0
+  imgsz: [720,720] # [h,w] / [s,s] / [s,]->[adaptive, s] or [s, adaptive]
   train:
     bs: 2 # all gpus if DDP
     augment: # refer to utils/augment.py
       color_jitter
-      random_cutout
       random_horizonflip
+      center_crop
       to_tensor
       normalize # default use ImageNet1K mean & var, if not pretrained, del normalize
     aug_epoch: 25 # augment for epochs, on which epoch to weaken, except warm_epoch
   val:
     bs: 2
     augment:
+      center_crop
       to_tensor
       normalize
 hyp:
@@ -35,8 +37,9 @@ hyp:
     bce: True
   label_smooth: 0.1
   strategy:
+    multi_scale: True # multi_scale training
     prog_learn: True # progressive learning, will effect on mixup, devide into 2 parts in default, alpha 0.1 -> 0.2
-    mixup: 0 [10,35] # ratio and [start, end), on which epoch to start or delete mixup, support ce and bce
+    mixup: 1 [10,35] # ratio and [start, end), on which epoch to start or delete mixup, support ce and bce
     focal: 1 20 # turn-on-or-off and start_epo (except warm_epoch)
   optimizer: sgd # sgd or adam
   scheduler: cosine # linear or cosine

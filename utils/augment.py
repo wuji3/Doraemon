@@ -9,6 +9,7 @@ from functools import wraps
 __all__ = ['color_jitter', 'random_horizonflip', 'random_verticalflip', 'to_tensor', 'normalize', 'random_augment',
            'center_crop', 'resize', 'random_cutout','random_affine', 'create_AugTransforms',]
 
+_imgsz_related_methods = {'center_crop', 'resize'}
 class _RandomApply: # decorator
     def __init__(self, prob):
         self.prob = prob
@@ -112,7 +113,10 @@ def random_augment(num_ops: int = 2, magnitude: int = 9, num_magnitude_bins: int
     return T.RandAugment(num_ops=num_ops, magnitude=magnitude, num_magnitude_bins=num_magnitude_bins)
 
 @register_method
-def center_crop(size):# size (sequence or int) -> square or rectangle
+def center_crop(size):
+    # size (sequence or int): Desired output size of the crop. If size is an
+    # int instead of sequence like (h, w), a square crop (size, size) is
+    # made. If provided a sequence of length 1, it will be interpreted as (size[0], size[0]).
     return T.CenterCrop(size=size)
 
 @register_method
@@ -127,9 +131,9 @@ def resize(size = 224):
 def random_affine(degrees = 0., translate = 0., scale = 0., shear = 0., fill=0, center=None):
     return T.RandomAffine(degrees=degrees, translate=translate, scale=scale, shear=shear, fill=fill, center=center)
 
-def create_AugTransforms(augments: str):
+def create_AugTransforms(augments: str, imgsz = None):
     augments = augments.strip().split()
-    return T.Compose(tuple(map(lambda x: AUG_METHODS[x](), augments)))
+    return T.Compose(tuple(map(lambda x: AUG_METHODS[x]() if x not in _imgsz_related_methods else AUG_METHODS[x](imgsz), augments)))
 
 def list_augments():
     augments = [k for k, v in AUG_METHODS.items()]

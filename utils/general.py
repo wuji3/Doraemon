@@ -83,7 +83,13 @@ def check_cfgs(cfgs):
     hyp_cfg['strategy']['mixup'] = [mixup, mixup_milestone]
     # progressive learning
     if hyp_cfg['strategy']['prog_learn']: assert mixup > 0, 'if progressive learning, make sure mixup > 0'
-
+    # augment
+    augs = ['center_crop', 'resize']
+    for a in augs:
+        if a in data_cfg['train']['augment'].split():
+            assert a in data_cfg['val']['augment'].split(), 'augment about image size should be same in train and val'
+    n_val_augs = len(data_cfg['val']['augment'].split())
+    assert data_cfg['train']['augment'].split()[-n_val_augs:] == data_cfg['val']['augment'].split(), 'augment in val should be same with end-part of train'
 class _Init_Nc_Torchvision:
 
     def __init__(self):
@@ -174,7 +180,7 @@ class SmartModel:
 
 class SmartDataProcessor:
     def __init__(self, data_cfgs: dict, rank, project):
-        self.data_cfgs = data_cfgs # root, train, val
+        self.data_cfgs = data_cfgs # root, nw, imgsz, train, val
         self.rank = rank
         self.project = project
         self.label_transforms = None # used in CenterProcessor.__init__
@@ -188,7 +194,7 @@ class SmartDataProcessor:
         cfg = self.data_cfgs.get(mode, -1)
         if isinstance(cfg, dict):
             dataset = Datasets(root=self.data_cfgs['root'], mode=mode,
-                               transforms=create_AugTransforms(augments=cfg['augment']),
+                               transforms=create_AugTransforms(augments=cfg['augment'], imgsz=self.data_cfgs['imgsz']),
                                project=self.project, rank=self.rank)
         else: dataset = None
         return dataset
@@ -201,8 +207,8 @@ class SmartDataProcessor:
 
     def auto_aug_weaken(self, epoch: int, milestone: int): # only flip
         if epoch == milestone:
-            sequence = create_AugTransforms('random_horizonflip to_tensor normalize')
-            self.set_augment('train', sequence)
+            # sequence = create_AugTransforms('random_horizonflip to_tensor normalize')
+            self.set_augment('train', sequence = None)
 
     @staticmethod
     def set_label_transforms(label, num_classes, label_smooth): # idx -> vector
@@ -326,11 +332,11 @@ class CenterProcessor:
 
     def run(self, resume = None): # train+val per epoch
         last, best = self.project / 'last.pt', self.project / 'best.pt'
-        model, data_processor, lossfn, optimizer, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, scheduler, focal = \
+        model, data_processor, lossfn, optimizer, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, scheduler, focal, multi_scale = \
             self.model_processor.model, self.data_processor, self.lossfn, self.optimizer, \
             GradScaler(enabled = (self.device != torch.device('cpu'))), self.device, self.hyp_cfg['epochs'], \
             self.logger, self.hyp_cfg['strategy']['mixup'], self.rank, self.dist_sampler, self.hyp_cfg['warm_ep'], \
-            self.data_cfg['train']['aug_epoch'], self.scheduler, self.focal
+            self.data_cfg['train']['aug_epoch'], self.scheduler, self.focal, self.hyp_cfg['strategy']['multi_scale']
 
         # data
         train_dataset, val_dataset = data_processor.train_dataset, data_processor.val_dataset
@@ -385,7 +391,7 @@ class CenterProcessor:
             is_mixup, lam = self.auto_mixup(mixup=mixup, epoch=int(epoch-warm_ep), milestone=mixup_milestone)
 
             # train for one epoch
-            fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, lossfn, optimizer,scaler, device, epoch, epochs, logger, is_mixup, rank, lam, scheduler)
+            fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, lossfn, optimizer,scaler, device, epoch, epochs, logger, is_mixup, rank, lam, scheduler, multi_scale)
 
             if rank in {-1, 0}:
                 # Best fitness
