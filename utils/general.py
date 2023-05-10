@@ -1,5 +1,6 @@
 import torch
 import torchvision
+from torchvision.transforms import CenterCrop, Resize, Compose
 import torch.nn as nn
 from typing import Callable
 from torch.cuda.amp import GradScaler
@@ -82,14 +83,18 @@ def check_cfgs(cfgs):
     assert isinstance(mix0, int) and isinstance(mix1, int) and mix0 < mix1, 'mixup must List[int], start < end'
     hyp_cfg['strategy']['mixup'] = [mixup, mixup_milestone]
     # progressive learning
-    if hyp_cfg['strategy']['prog_learn']: assert mixup > 0, 'if progressive learning, make sure mixup > 0'
+    if hyp_cfg['strategy']['prog_learn']: assert mixup > 0 and data_cfg['train']['aug_epoch'] >= mix1, 'if progressive learning, make sure mixup > 0, and aug_epoch >= mix_end'
     # augment
     augs = ['center_crop', 'resize']
+    train_augs = data_cfg['train']['augment'].split()
+    val_augs = data_cfg['val']['augment'].split()
+    assert not (augs[0] in train_augs and augs[1] in train_augs), 'if need centercrop and resize, please centercrop offline, not support use two'
     for a in augs:
-        if a in data_cfg['train']['augment'].split():
-            assert a in data_cfg['val']['augment'].split(), 'augment about image size should be same in train and val'
-    n_val_augs = len(data_cfg['val']['augment'].split())
-    assert data_cfg['train']['augment'].split()[-n_val_augs:] == data_cfg['val']['augment'].split(), 'augment in val should be same with end-part of train'
+        if a in train_augs:
+            assert a in val_augs, 'augment about image size should be same in train and val'
+    n_val_augs = len(val_augs)
+    assert train_augs[-n_val_augs:] == val_augs, 'augment in val should be same with end-part of train'
+
 class _Init_Nc_Torchvision:
 
     def __init__(self):
@@ -205,7 +210,7 @@ class SmartDataProcessor:
         dataset = getattr(self, f'{mode}_dataset')
         dataset.transforms = sequence
 
-    def auto_aug_weaken(self, epoch: int, milestone: int): # only flip
+    def auto_aug_weaken(self, epoch: int, milestone: int):
         if epoch == milestone:
             # sequence = create_AugTransforms('random_horizonflip to_tensor normalize')
             self.set_augment('train', sequence = None)
@@ -303,7 +308,7 @@ class CenterProcessor:
         d = {}
 
         d['uniform'] = torch.distributions.uniform.Uniform(low=0, high=1)
-        d['beta'] = torch.distributions.beta.Beta(32, 32)
+        d['beta'] = torch.distributions.beta.Beta(0.1, 0.1)
 
         return d
 
@@ -327,16 +332,30 @@ class CenterProcessor:
             lam = self.dist_sampler['beta'].sample().to(self.device)
             return is_mixup.item() if isinstance(is_mixup, torch.Tensor) else is_mixup, lam
 
+    def auto_prog_resize(self, epoch: int):
+        milestone = self.mixup_milestone
+        min_imgsz = min(self.data_cfg['imgsz'])
+        imgsz_milestone = torch.linspace(int(min_imgsz * 0.5), int(min_imgsz), 3, dtype=torch.int32).tolist()
+        sequence = []
+        if epoch == 0: size = imgsz_milestone[0]
+        elif epoch == milestone[0]: size = imgsz_milestone[1]
+        elif epoch == milestone[1]: size = imgsz_milestone[2]
+        else: return
+        for m in self.data_processor.train_dataset.transforms.transforms:
+            if isinstance(m, CenterCrop):sequence.extend([m, Resize(size)])
+            elif isinstance(m, Resize):sequence.append(Resize(size))
+            else: sequence.append(m)
+        self.data_processor.set_augment('train', sequence=Compose(sequence))
     def set_sync_bn(self):
         self.model_processor.model = nn.SyncBatchNorm.convert_sync_batchnorm(module=self.model_processor.model)
 
     def run(self, resume = None): # train+val per epoch
         last, best = self.project / 'last.pt', self.project / 'best.pt'
-        model, data_processor, lossfn, optimizer, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, scheduler, focal, multi_scale = \
+        model, data_processor, lossfn, optimizer, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, scheduler, focal = \
             self.model_processor.model, self.data_processor, self.lossfn, self.optimizer, \
             GradScaler(enabled = (self.device != torch.device('cpu'))), self.device, self.hyp_cfg['epochs'], \
             self.logger, self.hyp_cfg['strategy']['mixup'], self.rank, self.dist_sampler, self.hyp_cfg['warm_ep'], \
-            self.data_cfg['train']['aug_epoch'], self.scheduler, self.focal, self.hyp_cfg['strategy']['multi_scale']
+            self.data_cfg['train']['aug_epoch'], self.scheduler, self.focal
 
         # data
         train_dataset, val_dataset = data_processor.train_dataset, data_processor.val_dataset
@@ -381,6 +400,11 @@ class CenterProcessor:
             # change optimizer momentum from warm_moment0.8 -> momentum0.937
             if epoch == warm_ep:
                 self.set_optimizer_momentum(self.hyp_cfg['momentum'])
+                self.data_processor.set_augment('train', sequence=create_AugTransforms(augments=self.data_cfg['train']['augment'], imgsz=self.data_cfg['imgsz']))
+            # warmup set augment as val
+            if epoch == 0:
+                self.data_processor.set_augment('train',sequence=None)
+
             # change lossfn bce -> focal
             self.auto_replace_lossfn(self.focal, int(epoch-warm_ep), self.focal_eff_epo, self.focal_on)
 
@@ -390,8 +414,12 @@ class CenterProcessor:
             # mixup epoch-wise, support progressive learning
             is_mixup, lam = self.auto_mixup(mixup=mixup, epoch=int(epoch-warm_ep), milestone=mixup_milestone)
 
+            # progressive resize image size
+            if self.prog_learn:
+                self.auto_prog_resize(epoch=int(epoch - warm_ep))
+
             # train for one epoch
-            fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, lossfn, optimizer,scaler, device, epoch, epochs, logger, is_mixup, rank, lam, scheduler, multi_scale)
+            fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, lossfn, optimizer,scaler, device, epoch, epochs, logger, is_mixup, rank, lam, scheduler)
 
             if rank in {-1, 0}:
                 # Best fitness

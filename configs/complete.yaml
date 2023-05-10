@@ -17,7 +17,7 @@ data:
       center_crop
       to_tensor
       normalize # default use ImageNet1K mean & var, if not pretrained, del normalize
-    aug_epoch: 25 # augment for epochs, on which epoch to weaken, except warm_epoch
+    aug_epoch: 35 # augment for epochs, on which epoch to weaken, except warm_epoch
   val:
     bs: 2
     augment:
@@ -37,9 +37,8 @@ hyp:
     bce: True
   label_smooth: 0.1
   strategy:
-    multi_scale: True # multi_scale training
-    prog_learn: True # progressive learning, will effect on mixup, devide into 2 parts in default, alpha 0.1 -> 0.2
-    mixup: 1 [10,35] # ratio and [start, end), on which epoch to start or delete mixup, support ce and bce
+    prog_learn: True # progressive learning, will effect on mixup and imgsz, devide epoch into 3 parts in default, mixup alpha 0 -> 0.1 -> 0.2, imgsz 0.5 -> ? -> 1
+    mixup: 1 [2,10] # ratio and [start, end), on which epoch to start or delete mixup, support ce and bce, default alpha=0.1
     focal: 1 20 # turn-on-or-off and start_epo (except warm_epoch)
   optimizer: sgd # sgd or adam
   scheduler: cosine # linear or cosine
