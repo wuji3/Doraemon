@@ -11,7 +11,7 @@ data:
   imgsz: [720,720] # [h,w] / [s,s] / [s,]->[adaptive, s] or [s, adaptive]
   train:
     bs: 2 # all gpus if DDP
-    augment: # refer to utils/augment.py
+    augment: # refer to utils/augment.py, !Attention: center&resize is exclusive!
       color_jitter
       random_horizonflip
       center_crop
@@ -38,7 +38,7 @@ hyp:
   label_smooth: 0.1
   strategy:
     prog_learn: True # progressive learning, will effect on mixup and imgsz, devide epoch into 3 parts in default, mixup alpha 0 -> 0.1 -> 0.2, imgsz 0.5 -> ? -> 1
-    mixup: 1 [2,10] # ratio and [start, end), on which epoch to start or delete mixup, support ce and bce, default alpha=0.1
-    focal: 1 20 # turn-on-or-off and start_epo (except warm_epoch)
+    mixup: 1 [10,35] # ratio and [start, end), on which epoch to start or delete mixup, support ce and bce, default alpha=0.1
+    focal: True 0 # turn-on-or-off and start_epo (except warm_epoch)
   optimizer: sgd # sgd or adam
   scheduler: cosine # linear or cosine

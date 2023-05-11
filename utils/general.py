@@ -75,7 +75,7 @@ def check_cfgs(cfgs):
     assert hyp_cfg['scheduler'] in {'linear', 'cosine'}, 'scheduler support linear or cosine'
     # strategy
     # focalloss
-    if hyp_cfg['strategy']['focal'].split()[0] == '1': assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
+    if eval(hyp_cfg['strategy']['focal'].split()[0]): assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
     # mixup
     mixup, mixup_milestone = map(eval, hyp_cfg['strategy']['mixup'].split())
     assert mixup >= 0 and mixup <= 1 and isinstance(mixup_milestone, list), 'mixup_ratio[0,1], mixup_milestone be list'
@@ -290,10 +290,11 @@ class CenterProcessor:
 
         # progressive learning
         self.prog_learn = self.hyp_cfg['strategy']['prog_learn']
-        if self.prog_learn: self.mixup_milestone = torch.linspace(*self.hyp_cfg['strategy']['mixup'][-1], 3,dtype=torch.int32).round_().tolist()[:-1]
+        # mixup change node
+        if self.prog_learn: self.mixup_chnodes = torch.linspace(*self.hyp_cfg['strategy']['mixup'][-1], 3,dtype=torch.int32).round_().tolist()[:-1]
 
         # focalloss hard
-        if loss_choice == 'bce' and self.hyp_cfg['strategy']['focal'].split()[0] == '1':
+        if loss_choice == 'bce' and eval(self.hyp_cfg['strategy']['focal'].split()[0]):
             self.focal = create_Lossfn('focal')()
         else:
             self.focal = None
@@ -313,36 +314,40 @@ class CenterProcessor:
         return d
 
     def auto_replace_lossfn(self, lossfn = None, cur_epo = None, effect_epo = None, on = None):
-        if not on or lossfn: return
-        if cur_epo == effect_epo:
-            self.lossfn = lossfn
-            # set 0
-            self.focal_on = 0
+        if not on or cur_epo < effect_epo: return
+        self.lossfn = lossfn
+        # set 0
+        self.focal_on = False
 
     def auto_mixup(self, mixup: float, epoch:int, milestone: list):
         if mixup == 0 or epoch >= milestone[1] or epoch < milestone[0]: return (False, None) # is_mixup, lam
         else:
-            # progressive learning divide mixup_milestone into 2 parts in default, alpha from 0.1 to 0.2
-            if self.prog_learn and epoch in self.mixup_milestone:
-                alpha = (self.mixup_milestone.index(epoch)+1) * 0.1
-                self.dist_sampler['beta'] = torch.distributions.beta.Beta(alpha, alpha)
-
             mix_prob = self.dist_sampler['uniform'].sample()
             is_mixup: bool = mix_prob < mixup
             lam = self.dist_sampler['beta'].sample().to(self.device)
             return is_mixup.item() if isinstance(is_mixup, torch.Tensor) else is_mixup, lam
 
-    def auto_prog_resize(self, epoch: int):
-        milestone = self.mixup_milestone
+    def auto_prog(self, epoch: int):
+        chnodes = self.mixup_chnodes
+        # mixup, divide mixup_milestone into 2 parts in default, alpha from 0.1 to 0.2
+        if epoch in chnodes:
+            alpha = (self.mixup_chnodes.index(epoch) + 1) * 0.1
+            self.dist_sampler['beta'] = torch.distributions.beta.Beta(alpha, alpha)
+        # image resize, based on mixup_milestone
         min_imgsz = min(self.data_cfg['imgsz'])
         imgsz_milestone = torch.linspace(int(min_imgsz * 0.5), int(min_imgsz), 3, dtype=torch.int32).tolist()
         sequence = []
         if epoch == 0: size = imgsz_milestone[0]
-        elif epoch == milestone[0]: size = imgsz_milestone[1]
-        elif epoch == milestone[1]: size = imgsz_milestone[2]
+        elif epoch == chnodes[0]: size = imgsz_milestone[1]
+        elif epoch == chnodes[1]: size = imgsz_milestone[2]
         else: return
-        for m in self.data_processor.train_dataset.transforms.transforms:
-            if isinstance(m, CenterCrop):sequence.extend([m, Resize(size)])
+        train_augs = self.data_processor.train_dataset.transforms.transforms
+        for i, m in enumerate(train_augs):
+            if isinstance(m, CenterCrop):
+                if i+1 < len(train_augs) and not isinstance(train_augs[i+1], Resize):
+                    sequence.extend([m, Resize(size)])
+                else:
+                    sequence.append(m)
             elif isinstance(m, Resize):sequence.append(Resize(size))
             else: sequence.append(m)
         self.data_processor.set_augment('train', sequence=Compose(sequence))
@@ -351,8 +356,8 @@ class CenterProcessor:
 
     def run(self, resume = None): # train+val per epoch
         last, best = self.project / 'last.pt', self.project / 'best.pt'
-        model, data_processor, lossfn, optimizer, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, scheduler, focal = \
-            self.model_processor.model, self.data_processor, self.lossfn, self.optimizer, \
+        model, data_processor, optimizer, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, scheduler, focal = \
+            self.model_processor.model, self.data_processor, self.optimizer, \
             GradScaler(enabled = (self.device != torch.device('cpu'))), self.device, self.hyp_cfg['epochs'], \
             self.logger, self.hyp_cfg['strategy']['mixup'], self.rank, self.dist_sampler, self.hyp_cfg['warm_ep'], \
             self.data_cfg['train']['aug_epoch'], self.scheduler, self.focal
@@ -397,13 +402,14 @@ class CenterProcessor:
         t0 = time.time()
         total_epoch = epochs+warm_ep
         for epoch in range(start_epoch, total_epoch):
+            # warmup set augment as val
+            if epoch == 0:
+                self.data_processor.set_augment('train', sequence=None)
+
             # change optimizer momentum from warm_moment0.8 -> momentum0.937
             if epoch == warm_ep:
                 self.set_optimizer_momentum(self.hyp_cfg['momentum'])
                 self.data_processor.set_augment('train', sequence=create_AugTransforms(augments=self.data_cfg['train']['augment'], imgsz=self.data_cfg['imgsz']))
-            # warmup set augment as val
-            if epoch == 0:
-                self.data_processor.set_augment('train',sequence=None)
 
             # change lossfn bce -> focal
             self.auto_replace_lossfn(self.focal, int(epoch-warm_ep), self.focal_eff_epo, self.focal_on)
@@ -411,15 +417,15 @@ class CenterProcessor:
             # weaken data augment at milestone
             self.data_processor.auto_aug_weaken(int(epoch-warm_ep), milestone=aug_epoch)
 
-            # mixup epoch-wise, support progressive learning
+            # progressive learning: effect on imagesz & mixup
+            if self.prog_learn:
+                self.auto_prog(epoch=int(epoch-warm_ep))
+
+            # mixup epoch-wise
             is_mixup, lam = self.auto_mixup(mixup=mixup, epoch=int(epoch-warm_ep), milestone=mixup_milestone)
 
-            # progressive resize image size
-            if self.prog_learn:
-                self.auto_prog_resize(epoch=int(epoch - warm_ep))
-
             # train for one epoch
-            fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, lossfn, optimizer,scaler, device, epoch, epochs, logger, is_mixup, rank, lam, scheduler)
+            fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, self.lossfn, optimizer, scaler, device, epoch, epochs, logger, is_mixup, rank, lam, scheduler)
 
             if rank in {-1, 0}:
                 # Best fitness

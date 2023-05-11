@@ -16,8 +16,6 @@ def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfgs', default = ROOT / 'configs/complete.yaml', help='configs for models, data, hyps')
     parser.add_argument('--resume', default = '', help='if no resume, not write')
-    # !!!!!!!!!!!      img_size, set in utils/augment.py, not here, this only hint      !!!!!!!!!!!
-    # parser.add_argument('--img-size', default=224, help='train, val image size (pixels)')
     parser.add_argument('--sync_bn', default=False, type=bool, help='turn on syncBN, if on, speed will be slower')
     parser.add_argument('--project', default=ROOT / 'run', help='save to project/name')
     parser.add_argument('--name', default='exp', help='save to project/name')
