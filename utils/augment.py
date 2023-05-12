@@ -1,3 +1,4 @@
+import copy
 from PIL import Image
 from typing import Optional, List, Tuple, Callable
 import numpy as np
@@ -49,7 +50,7 @@ class Cutout:
         self.w_range = w_range
         self.prob = prob
 
-    def __call__(self, img):
+    def __call__(self, image):
         """
         Args:
             img (Tensor): Tensor image of size (C, H, W) from PIL
@@ -57,7 +58,8 @@ class Cutout:
             PIL: Image with n_holes of dimension length x length cut out of it.
         """
         if random.random() > self.prob:
-            return img
+            return image
+        img = copy.deepcopy(image) # protect source image
         img_h = img.size[1]
         img_w = img.size[0]
         h = self.h_range if self.h_range is not None else [0, img_h] # PIL Image size->(w,h)
