@@ -8,20 +8,20 @@ model:
 data:
   root: ./data # -train -val
   nw: 4 # if not multi-nw, set to 0
-  imgsz: [720,720] # [h,w] / [s,s] / [s,]->[adaptive, s] or [s, adaptive]
+  imgsz: [[720,720], [360,360]] # [h,w] / [s,s] / [s,]->[adaptive, s] or [s, adaptive]
   train:
     bs: 2 # all gpus if DDP
     augment: # refer to utils/augment.py, !Attention: center&resize is exclusive!
       color_jitter
       random_horizonflip
-      center_crop
+      centercrop_resize
       to_tensor
       normalize # default use ImageNet1K mean & var, if not pretrained, del normalize
     aug_epoch: 35 # augment for epochs, on which epoch to weaken, except warm_epoch
   val:
     bs: 2
     augment:
-      center_crop
+      centercrop_resize
       to_tensor
       normalize
 hyp:
@@ -31,14 +31,14 @@ hyp:
   momentum: 0.937
   weight_decay: 0.0005
   warmup_momentum: 0.8
-  warm_ep: 1 # out of epochs, imp linear
+  warm_ep: 0 # out of epochs, imp linear
   loss:
     ce: False
     bce: True
   label_smooth: 0.1
   strategy:
     prog_learn: True # progressive learning, will effect on mixup and imgsz, devide epoch into 3 parts in default, mixup alpha 0 -> 0.1 -> 0.2, imgsz 0.5 -> ? -> 1
-    mixup: 1 [10,35] # ratio and [start, end), on which epoch to start or delete mixup, support ce and bce, default alpha=0.1
+    mixup: 1 [0,4] # ratio and [start, end), on which epoch to start or delete mixup, support ce and bce, default alpha=0.1
     focal: True 0 # turn-on-or-off and start_epo (except warm_epoch)
   optimizer: sgd # sgd or adam
   scheduler: cosine # linear or cosine

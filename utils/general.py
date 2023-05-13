@@ -6,7 +6,7 @@ from typing import Callable
 from torch.cuda.amp import GradScaler
 from torch.nn.init import normal_, constant_
 from .datasets import Datasets
-from .augment import create_AugTransforms
+from .augment import create_AugTransforms, CenterCropAndResize
 from torch.utils.data import DataLoader
 from .logger import SmartLogger
 from .optimizer import create_Optimizer
@@ -334,7 +334,7 @@ class CenterProcessor:
             alpha = (self.mixup_chnodes.index(epoch) + 1) * 0.1
             self.dist_sampler['beta'] = torch.distributions.beta.Beta(alpha, alpha)
         # image resize, based on mixup_milestone
-        min_imgsz = min(self.data_cfg['imgsz'])
+        min_imgsz = min(self.data_cfg['imgsz']) if isinstance(self.data_cfg['imgsz'][0], int) else min(self.data_cfg['imgsz'][-1])
         imgsz_milestone = torch.linspace(int(min_imgsz * 0.5), int(min_imgsz), 3, dtype=torch.int32).tolist()
         sequence = []
         if epoch == 0: size = imgsz_milestone[0]
@@ -349,6 +349,9 @@ class CenterProcessor:
                 else:
                     sequence.append(m)
             elif isinstance(m, Resize):sequence.append(Resize(size))
+            elif isinstance(m, CenterCropAndResize):
+                m[-1] = Resize(size)
+                sequence.append(m)
             else: sequence.append(m)
         self.data_processor.set_augment('train', sequence=Compose(sequence))
     def set_sync_bn(self):

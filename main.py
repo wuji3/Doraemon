@@ -30,8 +30,7 @@ def main(opt):
         init_process_group(backend='nccl', world_size = WORLD_SIZE, rank = LOCAL_RANK)
     # configs
     cfgs = yaml_load(opt.cfgs)
-    if LOCAL_RANK in {-1, 0}:
-        check_cfgs(cfgs)
+    check_cfgs(cfgs)
     # init cpu
     cpu = CenterProcessor(cfgs, LOCAL_RANK, project=save_dir)
     # syncBN

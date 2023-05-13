@@ -5,12 +5,13 @@ import numpy as np
 import random
 import torchvision.transforms as T
 from functools import wraps
+import torch.nn as nn
 
 # all methods based on PIL
 __all__ = ['color_jitter', 'random_horizonflip', 'random_verticalflip', 'to_tensor', 'normalize', 'random_augment',
-           'center_crop', 'resize', 'random_cutout','random_affine', 'create_AugTransforms',]
+           'center_crop', 'resize', 'centercrop_resize', 'random_cutout','random_affine', 'create_AugTransforms',]
 
-_imgsz_related_methods = {'center_crop', 'resize'}
+_imgsz_related_methods = {'center_crop', 'resize', 'centercrop_resize'}
 class _RandomApply: # decorator
     def __init__(self, prob):
         self.prob = prob
@@ -82,6 +83,11 @@ class Cutout:
 
         return  img
 
+class CenterCropAndResize(nn.Sequential):
+    def __init__(self, center_size, re_size):
+        super().__init__(T.CenterCrop(center_size),
+                         T.Resize(re_size))
+
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5):
@@ -128,6 +134,11 @@ def resize(size = 224):
     # edge of the image will be matched to this number. i.e,
     # if height > width, then image will be rescaled to (size * height / width, size).
     return T.Resize(size = size)
+
+@register_method
+def centercrop_resize(size):
+    center_size, re_size = size
+    return CenterCropAndResize(center_size, re_size)
 
 @register_method
 def random_affine(degrees = 0., translate = 0., scale = 0., shear = 0., fill=0, center=None):
