@@ -8,8 +8,8 @@ from functools import wraps
 import torch.nn as nn
 
 # all methods based on PIL
-__all__ = ['color_jitter', 'random_horizonflip', 'random_verticalflip', 'to_tensor', 'normalize', 'random_augment',
-           'center_crop', 'resize', 'centercrop_resize', 'random_cutout','random_affine', 'create_AugTransforms',]
+__all__ = ['color_jitter', 'random_color_jitter', 'random_horizonflip', 'random_verticalflip', 'to_tensor', 'normalize',
+           'random_augment', 'center_crop', 'resize', 'centercrop_resize', 'random_cutout','random_affine','create_AugTransforms']
 
 _imgsz_related_methods = {'center_crop', 'resize', 'centercrop_resize'}
 class _RandomApply: # decorator
@@ -88,17 +88,34 @@ class CenterCropAndResize(nn.Sequential):
         super().__init__(T.CenterCrop(center_size),
                          T.Resize(re_size))
 
+class RandomColorJitter(T.ColorJitter):
+    def __init__(self, *args, **kargs):
+        super().__init__(*args, **kargs)
+
+    def forward(self, img):
+        r = random.random()
+        if r < 0.2:
+            return super().forward(img)
+        else: return img
+
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5):
     return Cutout(n_holes, length, ratio, h_range, w_range, prob)
 
 @register_method
-def color_jitter(brightness: float = 0.,
-                 contrast: float = 0.,
-                 saturation: float = 0.,
-                 hue: float = 0.):
+def color_jitter(brightness: float = 0.1,
+                 contrast: float = 0.1,
+                 saturation: float = 0.1,
+                 hue: float = 0.1):
     return T.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue)
+
+@register_method
+def random_color_jitter(brightness: float = 0.1,
+                 contrast: float = 0.1,
+                 saturation: float = 0.1,
+                 hue: float = 0.1):
+    return RandomColorJitter(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue)
 
 @register_method
 def random_horizonflip(p: float = 0.5):

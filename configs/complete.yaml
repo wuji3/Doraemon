@@ -12,7 +12,7 @@ data:
   train:
     bs: 2 # all gpus if DDP
     augment: # refer to utils/augment.py, !Attention: center&resize is exclusive!
-      color_jitter
+      random_color_jitter
       random_horizonflip
       centercrop_resize
       to_tensor
@@ -31,7 +31,7 @@ hyp:
   momentum: 0.937
   weight_decay: 0.0005
   warmup_momentum: 0.8
-  warm_ep: 0 # out of epochs, imp linear
+  warm_ep: 1 # out of epochs, imp linear
   loss:
     ce: False
     bce: True
@@ -41,4 +41,4 @@ hyp:
     mixup: 1 [0,4] # ratio and [start, end), on which epoch to start or delete mixup, support ce and bce, default alpha=0.1
     focal: True 0 # turn-on-or-off and start_epo (except warm_epoch)
   optimizer: sgd # sgd or adam
-  scheduler: cosine # linear or cosine
+  scheduler: cosine_with_warm # linear or cosine

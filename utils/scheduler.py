@@ -23,6 +23,14 @@ def de_lrf_ratio(lrf_ratio):
 
 @register_scheduler
 def linear(optimizer, warm_ep, epochs, lr0, lrf_ratio):
+    return LinearLR(optimizer, start_factor=1, end_factor=de_lrf_ratio(lrf_ratio), total_iters=epochs)
+
+@register_scheduler
+def cosine(optimizer, warm_ep, epochs, lr0, lrf_ratio):
+    return CosineAnnealingLR(optimizer, T_max=epochs, eta_min=de_lrf_ratio(lrf_ratio) * lr0, )
+
+@register_scheduler
+def linear_with_warm(optimizer, warm_ep, epochs, lr0, lrf_ratio):
     scheduler = SequentialLR(
         optimizer = optimizer,
         schedulers=[
@@ -34,7 +42,7 @@ def linear(optimizer, warm_ep, epochs, lr0, lrf_ratio):
     return scheduler
 
 @register_scheduler
-def cosine(optimizer, warm_ep, epochs, lr0, lrf_ratio):
+def cosine_with_warm(optimizer, warm_ep, epochs, lr0, lrf_ratio):
     scheduler = SequentialLR(
         optimizer=optimizer,
         schedulers=[
