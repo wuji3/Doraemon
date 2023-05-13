@@ -3,9 +3,7 @@ from tqdm import tqdm
 from typing import Callable
 from functools import wraps
 from .valuate import val
-import random
 import math
-import torch.nn as nn
 
 __all__ = ['train_one_epoch']
 
@@ -30,6 +28,11 @@ def smooth_BCE(eps=0.1):  # https://github.com/ultralytics/yolov3/issues/238#iss
     return 1.0 - 0.5 * eps, 0.5 * eps
     # t = torch.full_like(torch.randn([3,5]), 0.05)
     # t[range(3), torch.tensor([1,0,4])] = 0.95
+
+def print_imgsz(images: torch.Tensor):
+    h, w = images.shape[-2:]
+    return [h,w]
+
 def mixup_data(x, y, device, lam):
     '''Returns mixed inputs, pairs of targets'''
     batch_size = x.size()[0]
@@ -93,7 +96,7 @@ def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimize
             tloss = (tloss * i + loss.item()) / (i + 1)  # update mean losses
             mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if cuda else 0)  # (GB)
             pbar.desc = f"{f'{epoch + 1}/{epochs}':>10}{mem:>10}{tloss:>12.3g}" + ' ' * 36
-            pbar.postfix = f'lr:{optimizer.param_groups[0]["lr"]:.5f}'
+            pbar.postfix = f'lr:{optimizer.param_groups[0]["lr"]:.5f}, imgsz:{print_imgsz(images)}'
 
             if i == len(pbar) - 1:  # last batch
                 logger.log(f'epoch:{epoch + 1:d}  t_loss:{tloss:4f}  lr:{optimizer.param_groups[0]["lr"]:.5f}')
