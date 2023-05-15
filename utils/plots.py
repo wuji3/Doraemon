@@ -1,4 +1,62 @@
 from PIL import Image, ImageDraw, ImageFont
+from pathlib import Path
+import os
+import platform
+import torch
+
+def is_writeable(dir, test=False):
+    # Return True if directory has write permissions, test opening a file with write permissions if test=True
+    if not test:
+        return os.access(dir, os.W_OK)  # possible issues on Windows
+    file = Path(dir) / 'tmp.txt'
+    try:
+        with open(file, 'w'):  # open file with write permissions
+            pass
+        file.unlink()  # remove file
+        return True
+    except OSError:
+        return False
+
+def user_config_dir(dir='Duke', env_var='VISION_CLS_CONFIG_DIR'):
+    # Return path of user configuration directory. Prefer environment variable if exists. Make dir if required.
+    env = os.getenv(env_var)
+    if env:
+        path = Path(env)  # use environment variable
+    else:
+        cfg = {'Windows': 'AppData/Roaming', 'Linux': '.config', 'Darwin': 'Library/Application Support'}  # 3 OS dirs
+        path = Path.home() / cfg.get(platform.system(), '')  # OS-specific config dir
+        path = (path if is_writeable(path) else Path('/tmp')) / dir  # GCP and AWS lambda fix, only /tmp is writeable
+    path.mkdir(exist_ok=True)  # make if required
+    return path
+
+CONFIG_DIR = user_config_dir()
+
+def check_font(font='Arial.ttf', progress=False):
+    # Download font to CONFIG_DIR if necessary
+    font = Path(font)
+    file = CONFIG_DIR / font.name
+    if not font.exists() and not file.exists():
+        url = f'https://ultralytics.com/assets/{font.name}'
+        print(f'Downloading {url} to {file}...')
+        torch.hub.download_url_to_file(url, str(file), progress=progress)
+
+def check_pil_font(font='Arial.ttf', size=10):
+    # Return a PIL TrueType Font, downloading to CONFIG_DIR if necessary
+    font = Path(font)
+    font = font if font.exists() else (CONFIG_DIR / font.name)
+    try:
+        return ImageFont.truetype(str(font) if font.exists() else font.name, size)
+    except Exception:  # download if missing
+        try:
+            check_font(font)
+            return ImageFont.truetype(str(font), size)
+        except TypeError:
+            pass
+
+def is_ascii(s=''):
+    # Is string composed of all ASCII (no UTF) characters? (note str().isascii() introduced in python 3.7)
+    s = str(s)  # convert list, tuple, None, etc. to str
+    return len(s.encode().decode('ascii', 'ignore')) == len(s)
 
 class Annotator:
     def __init__(self, im, font='Arial.ttf'):
