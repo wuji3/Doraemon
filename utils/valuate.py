@@ -36,15 +36,14 @@ def val(model: nn.Module, dataloader, device: torch.device, pbar, is_training: b
     if pbar:
         pbar.desc = f'{pbar.desc[:-36]}{loss:>12.3g}{top1:>12.3g}{top5:>12.3g}'
 
-    if not is_training: logger.console(f'{"name":}{"nums":>12}{"top1":>10}{"top5":>10}')
+    if not is_training: logger.console(f'{"name":<8}{"nums":>8}{"top1":>10}{"top5":>10}')
     for i, c in enumerate(dataloader.dataset.class_indices):
         acc_i = acc[targets == i]
         top1i, top5i = acc_i.mean(0).tolist()
         if not is_training: logger.console(f'{c:<8}{acc_i.shape[0]:>8}{top1i:>10.3f}{top5i:>10.3f}')
         else: logger.log(f'{c:<8}{acc_i.shape[0]:>8}{top1i:>10.3f}{top5i:>10.3f}')
 
-    if is_training: logger.log(f' ')
-    else: logger.console(f'mtop1:{top1:.3f}, mtop5:{top5:.3f}')
+    if not is_training: logger.console(f'mtop1:{top1:.3f}, mtop5:{top5:.3f}')
 
     if lossfn: return top1, top5, loss
     else: return top1, top5

@@ -100,11 +100,11 @@ def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimize
 
             if i == len(pbar) - 1:  # last batch
                 logger.log(f'epoch:{epoch + 1:d}  t_loss:{tloss:4f}  lr:{optimizer.param_groups[0]["lr"]:.5f}')
-                logger.log(f'{"name":}{"nums":>6}{"top1":>6}{"top5":>6}')
+                logger.log(f'{"name":<8}{"nums":>8}{"top1":>10}{"top5":>10}')
 
                 # val
                 top1, top5, v_loss = val(model, val_dataloader, device, pbar, True, criterion, logger)
-                logger.log(f'v_loss:{v_loss:4f}  mtop1:{top1:.3g}  mtop5:{top5:.3g}')
+                logger.log(f'v_loss:{v_loss:4f}  mtop1:{top1:.3g}  mtop5:{top5:.3g}\n')
 
                 fitness = top1  # define fitness as top1 accuracy
 
