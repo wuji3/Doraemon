@@ -36,9 +36,9 @@ def main(opt):
 
     # model
     session = onnxruntime.InferenceSession(onnx_path)
-    prob = session.run([f'{output_name}'], {f'{intput_name}': image})[0]
+    output = session.run([f'{output_name}'], {f'{intput_name}': image})[0]
 
-    print(prob)
+    print(output)
 
 if __name__ == '__main__':
     opt = parse_opt()
