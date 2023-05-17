@@ -36,10 +36,8 @@ def print_imgsz(images: torch.Tensor):
 def mixup_data(x, y, device, lam):
     '''Returns mixed inputs, pairs of targets'''
     batch_size = x.size()[0]
-    if device != torch.device('cpu'):
-        index = torch.randperm(batch_size).to(device)
-    else:
-        index = torch.randperm(batch_size)
+    # to device
+    index = torch.randperm(batch_size).to(device)
 
     mixed_x = lam * x + (1 - lam) * x[index, :]
     y_a, y_b = y, y[index]

@@ -7,12 +7,11 @@ from torch.cuda.amp import GradScaler
 from torch.nn.init import normal_, constant_
 from .datasets import Datasets
 from .augment import create_AugTransforms, CenterCropAndResize
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, DistributedSampler
 from .logger import SmartLogger
 from .optimizer import create_Optimizer
 from .scheduler import create_Scheduler
 from .loss import create_Lossfn
-from torch.utils.data import DistributedSampler
 from .train import train_one_epoch
 from functools import reduce, partial
 from pathlib import Path
