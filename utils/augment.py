@@ -8,7 +8,7 @@ from functools import wraps
 import torch.nn as nn
 
 # all methods based on PIL
-__all__ = ['color_jitter', 'random_color_jitter', 'random_horizonflip', 'random_verticalflip', 'to_tensor', 'normalize',
+__all__ = ['color_jitter', 'random_color_jitter', 'random_horizonflip', 'random_verticalflip', 'to_tensor', 'to_tensor_without_div','normalize',
            'random_augment', 'center_crop', 'resize', 'centercrop_resize', 'random_cutout','random_affine','create_AugTransforms']
 
 _imgsz_related_methods = {'center_crop', 'resize', 'centercrop_resize'}
