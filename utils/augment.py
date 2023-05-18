@@ -130,6 +130,10 @@ def to_tensor():
     return T.ToTensor()
 
 @register_method
+def to_tensor_without_div():
+    return T.PILToTensor()
+
+@register_method
 def normalize(mean: Tuple = (0.485, 0.456, 0.406), std: Tuple = (0.229, 0.224, 0.225)):
     return T.Normalize(mean=mean, std=std)
 

@@ -2,7 +2,6 @@ from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
 import os
 import platform
-import torch
 
 def is_writeable(dir, test=False):
     # Return True if directory has write permissions, test opening a file with write permissions if test=True
@@ -17,7 +16,7 @@ def is_writeable(dir, test=False):
     except OSError:
         return False
 
-def user_config_dir(dir='Duke', env_var='VISION_CLS_CONFIG_DIR'):
+def user_config_dir(dir='Ultralytics', env_var='YOLOV5_CONFIG_DIR'):
     # Return path of user configuration directory. Prefer environment variable if exists. Make dir if required.
     env = os.getenv(env_var)
     if env:
@@ -37,7 +36,7 @@ def check_font(font='Arial.ttf', progress=False):
     file = CONFIG_DIR / font.name
     if not font.exists() and not file.exists():
         url = f'https://ultralytics.com/assets/{font.name}'
-        print(f'Downloading {url} to {file}...')
+        LOGGER.info(f'Downloading {url} to {file}...')
         torch.hub.download_url_to_file(url, str(file), progress=progress)
 
 def check_pil_font(font='Arial.ttf', size=10):
@@ -52,6 +51,8 @@ def check_pil_font(font='Arial.ttf', size=10):
             return ImageFont.truetype(str(font), size)
         except TypeError:
             pass
+        except URLError:  # not online
+            return ImageFont.load_default()
 
 def is_ascii(s=''):
     # Is string composed of all ASCII (no UTF) characters? (note str().isascii() introduced in python 3.7)
@@ -60,9 +61,11 @@ def is_ascii(s=''):
 
 class Annotator:
     def __init__(self, im, font='Arial.ttf'):
+        font_size = None
+        non_ascii = not is_ascii('abc')
         self.im = im if isinstance(im, Image.Image) else Image.fromarray(im)
         self.draw = ImageDraw.Draw(self.im)
-        self.font = ImageFont.truetype(str(font), size=20)
+        self.font = check_pil_font(font='Arial.Unicode.ttf' if non_ascii else font, size=font_size or max(round(sum(self.im.size) / 2 * 0.035), 12))
 
     def text(self, xy, text, txt_color=(255, 255, 255)):
         # Add text to image (PIL-only)
