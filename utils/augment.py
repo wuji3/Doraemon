@@ -98,6 +98,13 @@ class RandomColorJitter(T.ColorJitter):
             return super().forward(img)
         else: return img
 
+class PILToTensorNoDiv:
+    def __init__(self):
+        self.pil2tensor = T.PILToTensor()
+
+    def __call__(self, pic):
+        return self.pil2tensor(pic).float()
+
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5):
@@ -131,7 +138,7 @@ def to_tensor():
 
 @register_method
 def to_tensor_without_div():
-    return T.PILToTensor()
+    return PILToTensorNoDiv()
 
 @register_method
 def normalize(mean: Tuple = (0.485, 0.456, 0.406), std: Tuple = (0.229, 0.224, 0.225)):
