@@ -1,5 +1,6 @@
 model:
   choice: torchvision-mobilenet_v2 # torchvision- or custom-
+  kwargs: {dropout: 0.1}
   num_classes: 6 # out_channels of fc, maybe be not equal to num_classes of train_dir. eg: maybe more than num_classes
   pretrained: True
   backbone_freeze: False

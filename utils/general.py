@@ -2,7 +2,7 @@ import torch
 import torchvision
 from torchvision.transforms import CenterCrop, Resize, Compose
 import torch.nn as nn
-from typing import Callable
+from typing import Callable,Any
 from torch.cuda.amp import GradScaler
 from torch.nn.init import normal_, constant_
 from .datasets import Datasets
@@ -63,9 +63,13 @@ def check_cfgs(cfgs):
     hyp_cfg = cfgs['hyp']
     # model
     assert model_cfg['choice'].split('-')[0] in {'torchvision', 'custom'}, 'if from torchvision, torchvision-ModelName; if from your own, custom-ModelName'
+    if model_cfg['kwargs'] and model_cfg['pretrained']:
+        for k in model_cfg['kwargs'].keys():
+            if k not in {'dropout'}: raise KeyError('set kwargs except dropout, pretrained must be False')
     assert (model_cfg['pretrained'] and ('normalize' in data_cfg['train']['augment'].split()) and ('normalize' in data_cfg['val']['augment'].split())) or \
            (not model_cfg['pretrained']) and ('normalize' not in data_cfg['train']['augment'].split()) and ('normalize' not in data_cfg['val']['augment'].split()),\
            'if not pretrained, normalize is not necessary, or normalize is necessary'
+
     # loss
     assert reduce(lambda x, y: int(x) + int(y), list(hyp_cfg['loss'].values())) == 1, 'ce or bce'
     # optimizer
@@ -122,6 +126,7 @@ class SmartModel:
     def __init__(self, model_cfgs: dict):
         self.model_cfgs = model_cfgs
 
+        self.kwargs = model_cfgs['kwargs']
         self.num_classes = model_cfgs['num_classes']
         self.pretrained = model_cfgs['pretrained']
         self.backbone_freeze = model_cfgs['backbone_freeze']
@@ -140,10 +145,10 @@ class SmartModel:
         if not self.pretrained: self.reset_parameters()
 
     def create_model(self, choice: str, num_classes: int = 1000, pretrained: bool = False, kind: str = 'torchvision',
-                     backbone_freeze: bool = False, bn_freeze: bool = False, bn_freeze_affine: bool = False):
+                     backbone_freeze: bool = False, bn_freeze: bool = False, bn_freeze_affine: bool = False, **kwargs):
         assert kind in {'torchvision', 'custom'}, 'kind must be torchvision or custom'
         if kind == 'torchvision':
-            model = torchvision.models.get_model(choice, weights = torchvision.models.get_model_weights(choice) if pretrained else None)
+            model = torchvision.models.get_model(choice, weights = torchvision.models.get_model_weights(choice) if pretrained else None, **kwargs['kwargs'])
             # init num_classes from torchvision.models
             if self.init_nc_torchvision is not None:
                 self.init_nc_torchvision.init_nc(model, choice, num_classes)
