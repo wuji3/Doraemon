@@ -1,6 +1,6 @@
 model:
   choice: torchvision-mobilenet_v2 # torchvision- or custom-
-  kwargs: {dropout: 0.1}
+  kwargs: {dropout: 0.1} # kwargs feed into torchvision-style models.__init__
   num_classes: 6 # out_channels of fc, maybe be not equal to num_classes of train_dir. eg: maybe more than num_classes
   pretrained: True
   backbone_freeze: False
@@ -12,7 +12,7 @@ data:
   imgsz: [[720,720], [360,360]] # [h,w] / [s,s] / [s,]->[adaptive, s] or [s, adaptive]
   train:
     bs: 2 # all gpus if DDP
-    augment: # refer to utils/augment.py, !Attention: center&resize is exclusive!
+    augment: # refer to utils/augment.py
       random_color_jitter
       random_horizonflip
       centercrop_resize
