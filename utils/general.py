@@ -2,7 +2,7 @@ import torch
 import torchvision
 from torchvision.transforms import CenterCrop, Resize, Compose
 import torch.nn as nn
-from typing import Callable,Any
+from typing import Callable
 from torch.cuda.amp import GradScaler
 from torch.nn.init import normal_, constant_
 from .datasets import Datasets
@@ -69,14 +69,13 @@ def check_cfgs(cfgs):
     assert (model_cfg['pretrained'] and ('normalize' in data_cfg['train']['augment'].split()) and ('normalize' in data_cfg['val']['augment'].split())) or \
            (not model_cfg['pretrained']) and ('normalize' not in data_cfg['train']['augment'].split()) and ('normalize' not in data_cfg['val']['augment'].split()),\
            'if not pretrained, normalize is not necessary, or normalize is necessary'
-
     # loss
     assert reduce(lambda x, y: int(x) + int(y), list(hyp_cfg['loss'].values())) == 1, 'ce or bce'
     # optimizer
     assert hyp_cfg['optimizer'] in {'sgd', 'adam'}, 'optimizer choose sgd or adam'
     # scheduler
     assert hyp_cfg['scheduler'] in {'linear', 'cosine', 'linear_with_warm', 'cosine_with_warm'}, 'scheduler support linear cosine linear_with_warm and cosine_with_warm'
-    assert hyp_cfg['warm_ep'] >= 0 and isinstance(hyp_cfg['warm_ep'], int), 'warm_ep not be negtive'
+    assert hyp_cfg['warm_ep'] >= 0 and isinstance(hyp_cfg['warm_ep'], int) and hyp_cfg['warm_ep'] < hyp_cfg['epochs'], 'warm_ep not be negtive, and should smaller than epochs'
     if hyp_cfg['warm_ep'] == 0: assert hyp_cfg['scheduler'] in {'linear', 'cosine'}, 'no warm, linear or cosine supported'
     if hyp_cfg['warm_ep'] > 0: assert hyp_cfg['scheduler'] in {'linear_with_warm', 'cosine_with_warm'}, 'with warm, linear_with_warm or cosine_with_warm supported'
     # strategy
@@ -464,5 +463,5 @@ class CenterProcessor:
                 if final_epoch:
                     logger.console(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                                    f"\nResults saved to {colorstr('bold', self.project)}"
-                                   f'\nPredict:         python predict.py --weight {best} --root data/val/{colorstr("blue", "XXX_cls")} --imgsz "{self.data_cfg["imgsz"]}" --badcase --save_txt --choice {self.model_cfg["choice"]} --class_head {self.loss_choice} --class_json {self.project}/class_indices.json --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}"'
-                                   f'\nValidate:        python val.py --weight {best} --choice {self.model_cfg["choice"]} --root {colorstr("blue", "data")} --imgsz "{self.data_cfg["imgsz"]}" --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}"')
+                                   f'\nPredict:         python predict.py --weight {best} --root data/val/{colorstr("blue", "XXX_cls")} --imgsz "{self.data_cfg["imgsz"]}" --badcase --save_txt --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --class_head {self.loss_choice} --class_json {self.project}/class_indices.json --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}"'
+                                   f'\nValidate:        python val.py --weight {best} --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --root {colorstr("blue", "data")} --imgsz "{self.data_cfg["imgsz"]}" --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}"')

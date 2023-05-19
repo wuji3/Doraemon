@@ -13,6 +13,7 @@ def parse_opt():
     parser.add_argument('--root', default = ROOT / 'data', help='data/val')
     parser.add_argument('--choice', default = 'torchvision-shufflenet_v2_x1_0', type=str)
     parser.add_argument('--num_classes', default = 6, type=int)
+    parser.add_argument('--kwargs', default = "{}", type=str, )
     parser.add_argument('--weight', default = './run/exp/best.pt', help='configs for models, data, hyps')
     parser.add_argument('--transforms', default = 'to_tensor normalize', help='空格隔开')
     parser.add_argument('--imgsz', default = '[[720, 720], [360, 360]]',type=str, help='centercrop_resize resize center_crop')
@@ -37,6 +38,7 @@ def main(opt):
     model_cfg = {}
     model_cfg['choice'] = opt.choice
     model_cfg['num_classes'] = opt.num_classes
+    model_cfg['kwargs'] = eval(opt.kwargs)
     model_cfg['pretrained'] = False
     model_cfg['backbone_freeze'] = False
     model_cfg['bn_freeze'] = False

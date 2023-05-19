@@ -27,6 +27,7 @@ def parse_opt():
     parser.add_argument('--badcase', action='store_true')
     parser.add_argument('--name', default = 'exp')
     parser.add_argument('--choice', default = 'torchvision-shufflenet_v2_x1_0', type=str)
+    parser.add_argument('--kwargs', default="{}", type=str, )
     parser.add_argument('--class_head', default = 'ce', type=str, help='ce or bce')
     parser.add_argument('--class_json', default = './run/exp/class_indices.json', type=str)
     parser.add_argument('--num_classes', default = 5, type=int, help='out channels of fc 训的时候可能多留几个神经元')
@@ -110,6 +111,7 @@ def main(opt):
     model_cfg = {}
     model_cfg['choice'] = opt.choice
     model_cfg['num_classes'] = opt.num_classes
+    model_cfg['kwargs'] = eval(opt.kwargs)
     model_cfg['pretrained'] = False
     model_cfg['backbone_freeze'] = False
     model_cfg['bn_freeze'] = False
