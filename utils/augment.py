@@ -6,10 +6,13 @@ import random
 import torchvision.transforms as T
 from functools import wraps
 import torch.nn as nn
+import glob
+import os
 
 # all methods based on PIL
 __all__ = ['color_jitter', 'random_color_jitter', 'random_horizonflip', 'random_verticalflip', 'to_tensor', 'to_tensor_without_div','normalize',
-           'random_augment', 'center_crop', 'resize', 'centercrop_resize', 'random_cutout','random_affine','create_AugTransforms']
+           'random_augment', 'center_crop', 'resize', 'centercrop_resize', 'random_cutout','random_cutmix', 'random_affine',
+           'create_AugTransforms']
 
 _imgsz_related_methods = {'center_crop', 'resize', 'centercrop_resize'}
 class _RandomApply: # decorator
@@ -61,10 +64,9 @@ class Cutout:
         if random.random() > self.prob:
             return image
         img = copy.deepcopy(image) # protect source image
-        img_h = img.size[1]
-        img_w = img.size[0]
-        h = self.h_range if self.h_range is not None else [0, img_h] # PIL Image size->(w,h)
-        w = self.w_range if self.w_range is not None else [0, img_w]
+
+        h = self.h_range if self.h_range is not None else [0, img.height] # PIL Image size->(w,h)
+        w = self.w_range if self.w_range is not None else [0, img.width]
 
         mask_w = int(random.uniform(1-self.ratio, 1+self.ratio) * self.length)
         mask_h = self.length
@@ -82,6 +84,59 @@ class Cutout:
             img.paste(mask, (x1, y1))
 
         return  img
+
+class CutMix:
+    """Randomly mask out one or more patches from an image.
+    Args:
+        n_holes (int): Number of patches to cut out of each image.
+        length (int): The length (in pixels) of each square patch.
+    """
+
+    def __init__(self, n_holes: int, length: int, noisy_src: str,
+                 h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None,
+                 prob: float = 0.5, ):
+        self.n_holes = n_holes
+        self.length = length
+        self.h_range = h_range
+        self.w_range = w_range
+        self.prob = prob
+        self.noisy = glob.glob(f'{noisy_src}/*.jpg')
+        assert os.path.splitext(self.noisy[0])[-1] == '.jpg', 'only support .jpg'
+
+    def __call__(self, image):
+        """
+        Args:
+            img (Tensor): Tensor image of size (C, H, W) from PIL
+        Returns:
+            PIL: Image with n_holes of dimension length x length cut out of it.
+        """
+        if random.random() > self.prob:
+            return image
+        img = copy.deepcopy(image)  # protect source image
+
+        h = self.h_range if self.h_range is not None else [0, img.height]  # PIL Image size->(w,h)
+        w = self.w_range if self.w_range is not None else [0, img.width]
+
+        noisy_image = Image.open(random.choice(self.noisy)).convert('RGB')
+        noisy_image = noisy_image.resize(size=(image.width, image.height))
+
+        for n in range(self.n_holes):
+            # center
+            y = np.random.randint(*h)
+            x = np.random.randint(*w)
+
+            # left-up
+            x1 = max(0, x - self.length // 2)
+            y1 = max(0, y - self.length // 2)
+
+            # right-bottom
+            x2 = min(noisy_image.width, x + self.length // 2)
+            y2 = min(noisy_image.height, y + self.length // 2)
+
+            noisy_box = noisy_image.crop((x1, y1, x2, y2))
+            img.paste(noisy_box, (x1, y1))
+
+        return img
 
 class CenterCropAndResize(nn.Sequential):
     def __init__(self, center_size, re_size):
@@ -109,6 +164,11 @@ class PILToTensorNoDiv:
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5):
     return Cutout(n_holes, length, ratio, h_range, w_range, prob)
+
+@register_method
+def random_cutmix(n_holes:int = 1, length: int = 200, noisy_src: str = None,
+                  h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5):
+    return CutMix(n_holes, length, noisy_src, h_range, w_range, prob)
 
 @register_method
 def color_jitter(brightness: float = 0.1,
@@ -172,9 +232,9 @@ def centercrop_resize(size):
 def random_affine(degrees = 0., translate = 0., scale = 0., shear = 0., fill=0, center=None):
     return T.RandomAffine(degrees=degrees, translate=translate, scale=scale, shear=shear, fill=fill, center=center)
 
-def create_AugTransforms(augments: str, imgsz = None):
+def create_AugTransforms(augments: str, imgsz = None, **kwargs):
     augments = augments.strip().split()
-    return T.Compose(tuple(map(lambda x: AUG_METHODS[x]() if x not in _imgsz_related_methods else AUG_METHODS[x](imgsz), augments)))
+    return T.Compose(tuple(map(lambda x: AUG_METHODS[x](**kwargs) if x not in _imgsz_related_methods else AUG_METHODS[x](imgsz, **kwargs), augments)))
 
 def list_augments():
     augments = [k for k, v in AUG_METHODS.items()]
