@@ -8,6 +8,7 @@ from functools import wraps
 import torch.nn as nn
 import glob
 import os
+from torchvision.transforms.functional import InterpolationMode
 
 # all methods based on PIL
 __all__ = ['color_jitter', 'random_color_jitter', 'random_horizonflip', 'random_verticalflip', 'to_tensor', 'to_tensor_without_div','normalize',
@@ -141,7 +142,7 @@ class CutMix:
 class CenterCropAndResize(nn.Sequential):
     def __init__(self, center_size, re_size):
         super().__init__(T.CenterCrop(center_size),
-                         T.Resize(re_size))
+                         T.Resize(re_size, interpolation=InterpolationMode.NEAREST))
 
 class RandomColorJitter(T.ColorJitter):
     def __init__(self, *args, **kargs):
@@ -221,7 +222,7 @@ def resize(size = 224):
     # (h, w), output size will be matched to this. If size is an int,smaller
     # edge of the image will be matched to this number. i.e,
     # if height > width, then image will be rescaled to (size * height / width, size).
-    return T.Resize(size = size)
+    return T.Resize(size = size, interpolation=InterpolationMode.NEAREST)
 
 @register_method
 def centercrop_resize(size):
