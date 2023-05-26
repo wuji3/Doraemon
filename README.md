@@ -7,7 +7,7 @@ Provide baseline to solve different kinds of vision classification tasks
     
   model: support BN freeze, backbone freeze. set out_channels as you like, maybe not equal to num_classes if you want to do training strategy  
   data: support custom-style data augment, all the data augment are placed in utils/augment.py, eg: cutout, colerjitter...  
-  hyp: support many loss function eg: ce and bce, support custom-style training stategy, eg: focalloss and mixup  
+  hyp: support many loss function eg: ce and bce, support custom-style training stategy, eg: focalloss, mixup and progressive learning  
     
 ## usage
   1、the repo support "split epochs into augment-epoch and no-augment-epoch, set in XXX.yaml" -> aug_epoch: 25, means augment for 25 epochs then train in no-augment  
