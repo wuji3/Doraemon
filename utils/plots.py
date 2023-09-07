@@ -2,6 +2,8 @@ from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
 import os
 import platform
+from urllib.error import URLError
+import torch
 
 def is_writeable(dir, test=False):
     # Return True if directory has write permissions, test opening a file with write permissions if test=True
@@ -36,7 +38,7 @@ def check_font(font='Arial.ttf', progress=False):
     file = CONFIG_DIR / font.name
     if not font.exists() and not file.exists():
         url = f'https://ultralytics.com/assets/{font.name}'
-        LOGGER.info(f'Downloading {url} to {file}...')
+        # LOGGER.info(f'Downloading {url} to {file}...')
         torch.hub.download_url_to_file(url, str(file), progress=progress)
 
 def check_pil_font(font='Arial.ttf', size=10):
