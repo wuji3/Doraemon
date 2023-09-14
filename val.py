@@ -39,14 +39,14 @@ def main(opt):
     model_cfg['choice'] = opt.choice
     model_cfg['num_classes'] = opt.num_classes
     model_cfg['kwargs'] = eval(opt.kwargs)
-    model_cfg['pretrained'] = False
+    model_cfg['pretrained'] = True
     model_cfg['backbone_freeze'] = False
     model_cfg['bn_freeze'] = False
     model_cfg['bn_freeze_affine'] = False
 
     model_processor = SmartModel(model_cfg)
     model = model_processor.model
-    weights = torch.load(opt.weight, map_location=device)['model']
+    weights = torch.load(opt.weight, map_location=device)['ema'].float().state_dict()
     model.load_state_dict(weights)
     model.to(device)
 

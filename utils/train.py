@@ -46,7 +46,7 @@ def mixup_data(x, y, device, lam):
 def mixup_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
-def update(model, loss, scaler, optimizer):
+def update(model, loss, scaler, optimizer, ema=None):
     # backward
     scaler.scale(loss).backward()
 
@@ -57,11 +57,13 @@ def update(model, loss, scaler, optimizer):
     scaler.update()
 
     optimizer.zero_grad()
+    if ema:
+        ema.update(model)
 
 def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimizer,
                     scaler, device: torch.device, epoch: int,
                     epochs: int, logger, is_mixup: bool, rank: int,
-                    lam, schduler):
+                    lam, schduler, ema):
     # train mode
     model.train()
 
@@ -88,7 +90,7 @@ def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimize
             else:
                 loss = criterion(model(images), labels)
         # scale + backward + grad_clip + step + zero_grad
-        update(model, loss, scaler, optimizer)
+        update(model, loss, scaler, optimizer, ema)
 
         if rank in {-1, 0}:
             tloss = (tloss * i + loss.item()) / (i + 1)  # update mean losses
@@ -101,7 +103,7 @@ def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimize
                 logger.log(f'{"name":<8}{"nums":>8}{"top1":>10}{"top5":>10}')
 
                 # val
-                top1, top5, v_loss = val(model, val_dataloader, device, pbar, True, criterion, logger)
+                top1, top5, v_loss = val(ema.ema, val_dataloader, device, pbar, True, criterion, logger)
                 logger.log(f'v_loss:{v_loss:4f}  mtop1:{top1:.3g}  mtop5:{top5:.3g}\n')
 
                 fitness = top1  # define fitness as top1 accuracy

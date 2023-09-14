@@ -22,6 +22,7 @@ import os
 import datetime
 import yaml
 from copy import deepcopy
+from .ema import ModelEMA
 
 __all__ = ['yaml_load', 'SmartModel', 'SmartDataProcessor', 'CenterProcessor','increment_path', 'check_cfgs']
 
@@ -108,7 +109,8 @@ class _Init_Nc_Torchvision:
             'shufflenet',  # shufflenet_v2_x0_5, shufflenet_v2_x1_0, shufflenet_v2_x1_5, shufflenet_v2_x2_0
             'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152', 'resnext50', 'resnext101', # res-series
             'convnext',  # convnext_tiny, convnext_small, convnext_base, convnext_large
-            'efficientnet'  # efficientnet_b0 -> efficientnet_b7, efficientnet_v2_s, efficientnet_v2_m, efficientnet_v2_l
+            'efficientnet',  # efficientnet_b0 -> efficientnet_b7, efficientnet_v2_s, efficientnet_v2_m, efficientnet_v2_l
+            'swin',
         }
 
     def init_nc(self, model: nn.Module, choice: str, nc: int) -> None:
@@ -118,6 +120,8 @@ class _Init_Nc_Torchvision:
             m = getattr(model, 'classifier')
             if isinstance(m, nn.Sequential):
                 m[-1] = nn.Linear(m[-1].in_features, nc)
+        elif model_name == 'swin':
+            model.head = nn.Linear(model.head.in_features, nc)
         else: # self.fc
             model.fc = nn.Linear(model.fc.in_features, nc)
 
@@ -308,6 +312,9 @@ class CenterProcessor:
         # on or off
         self.focal_on = eval(self.hyp_cfg['strategy']['focal'].split()[0])
 
+        # ema
+        self.ema = ModelEMA(self.model_processor.model) if rank in {-1, 0} else None
+
     def set_optimizer_momentum(self, momentum) -> None:
         self.optimizer.param_groups[0]['momentum'] = momentum
 
@@ -395,6 +402,9 @@ class CenterProcessor:
             ckp = torch.load(resume, map_location=device)
             start_epoch = ckp['epoch'] + 1
             best_fitness = ckp['best_fitness']
+            if self.rank in {-1, 0}:
+                self.ema.ema.load_state_dict(ckp['ema'].float().state_dict())
+                self.ema.updates = ckp['updates']
             model.load_state_dict(ckp['model'])
             optimizer.load_state_dict(ckp['optimizer'])
             scheduler.load_state_dict(ckp['scheduler'])
@@ -434,7 +444,7 @@ class CenterProcessor:
             is_mixup, lam = self.auto_mixup(mixup=mixup, epoch=int(epoch-warm_ep), milestone=mixup_milestone)
 
             # train for one epoch
-            fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, self.lossfn, optimizer, scaler, device, epoch, total_epoch, logger, is_mixup, rank, lam, scheduler)
+            fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, self.lossfn, optimizer, scaler, device, epoch, total_epoch, logger, is_mixup, rank, lam, scheduler, self.ema)
 
             if rank in {-1, 0}:
                 # Best fitness
@@ -447,6 +457,8 @@ class CenterProcessor:
                     'epoch': epoch,
                     'best_fitness': best_fitness,
                     'model': model.state_dict() if rank == -1 else model.module.state_dict(),  # deepcopy(de_parallel(model)).half(),
+                    'ema': deepcopy(self.ema.ema),
+                    'updates': self.ema.updates,
                     'optimizer': optimizer.state_dict(),  # optimizer.state_dict(),
                     'scheduler': scheduler.state_dict(),
                 }
@@ -461,7 +473,7 @@ class CenterProcessor:
 
                 # complete
                 if final_epoch:
-                    logger.console(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
+                    logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                                    f"\nResults saved to {colorstr('bold', self.project)}"
                                    f'\nPredict:         python predict.py --weight {best} --imgsz "{self.data_cfg["imgsz"]}" --badcase --save_txt --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --class_head {self.loss_choice} --class_json {self.project}/class_indices.json --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}" --root data/val/{colorstr("blue", "XXX_cls")}'
                                    f'\nValidate:        python val.py --weight {best} --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --root {colorstr("blue", "data")} --imgsz "{self.data_cfg["imgsz"]}" --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}"')

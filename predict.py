@@ -63,7 +63,6 @@ def predict_images(model, root, visual_path, transforms, imgsz,class_head: str, 
         inputs = transforms(img)
         inputs = inputs.to(device)
         inputs.unsqueeze_(0)
-
         # forward
         logits = model(inputs).squeeze()
 
@@ -77,7 +76,7 @@ def predict_images(model, root, visual_path, transforms, imgsz,class_head: str, 
 
         text = '\n'.join(f'{probs[j].item():.2f} {class_indices[j]}' for j in top5i)
 
-        annotator.text((32, 32), text, txt_color=(255, 255, 255))
+        annotator.text((32, 32), text, txt_color=(0, 0, 0))
         if save_txt:  # Write to file
             os.makedirs(os.path.join(visual_path, 'labels'), exist_ok=True)
             with open(os.path.join(visual_path, 'labels', os.path.basename(img_path).replace('.jpg','.txt')), 'a') as f:
@@ -112,14 +111,14 @@ def main(opt):
     model_cfg['choice'] = opt.choice
     model_cfg['num_classes'] = opt.num_classes
     model_cfg['kwargs'] = eval(opt.kwargs)
-    model_cfg['pretrained'] = False
+    model_cfg['pretrained'] = True
     model_cfg['backbone_freeze'] = False
     model_cfg['bn_freeze'] = False
     model_cfg['bn_freeze_affine'] = False
 
     model_processor = SmartModel(model_cfg)
     model = model_processor.model
-    weights = torch.load(opt.weight, map_location=device)['model']
+    weights = torch.load(opt.weight, map_location=device)['ema'].float().state_dict()
     model.load_state_dict(weights)
     model.to(device)
 
