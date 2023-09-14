@@ -142,7 +142,7 @@ class CutMix:
 class CenterCropAndResize(nn.Sequential):
     def __init__(self, center_size, re_size):
         super().__init__(T.CenterCrop(center_size),
-                         T.Resize(re_size, interpolation=InterpolationMode.NEAREST))
+                         T.Resize(re_size, interpolation=InterpolationMode.BILINEAR))
 
 class RandomColorJitter(T.ColorJitter):
     def __init__(self, *args, **kargs):
