@@ -67,8 +67,8 @@ def check_cfgs(cfgs):
     if model_cfg['kwargs'] and model_cfg['pretrained']:
         for k in model_cfg['kwargs'].keys():
             if k not in {'dropout'}: raise KeyError('set kwargs except dropout, pretrained must be False')
-    assert (model_cfg['pretrained'] and ('normalize' in data_cfg['train']['augment'].split()) and ('normalize' in data_cfg['val']['augment'].split())) or \
-           (not model_cfg['pretrained']) and ('normalize' not in data_cfg['train']['augment'].split()) and ('normalize' not in data_cfg['val']['augment'].split()),\
+    assert (model_cfg['pretrained'] and ('normalize' in data_cfg['train']['augment']) and ('normalize' in data_cfg['val']['augment'])) or \
+           (not model_cfg['pretrained']) and ('normalize' not in data_cfg['train']['augment']) and ('normalize' not in data_cfg['val']['augment']),\
            'if not pretrained, normalize is not necessary, or normalize is necessary'
     # loss
     assert reduce(lambda x, y: int(x) + int(y), list(hyp_cfg['loss'].values())) == 1, 'ce or bce'
@@ -92,8 +92,8 @@ def check_cfgs(cfgs):
     if hyp_cfg['strategy']['prog_learn']: assert mixup > 0 and data_cfg['train']['aug_epoch'] >= mix1, 'if progressive learning, make sure mixup > 0, and aug_epoch >= mix_end'
     # augment
     augs = ['center_crop', 'resize']
-    train_augs = data_cfg['train']['augment'].split()
-    val_augs = data_cfg['val']['augment'].split()
+    train_augs = list(data_cfg['train']['augment'].keys())
+    val_augs = list(data_cfg['val']['augment'].keys())
     assert not (augs[0] in train_augs and augs[1] in train_augs), 'if need centercrop and resize, please centercrop offline, not support use two'
     for a in augs:
         if a in train_augs:
@@ -209,7 +209,7 @@ class SmartDataProcessor:
         cfg = self.data_cfgs.get(mode, -1)
         if isinstance(cfg, dict):
             dataset = Datasets(root=self.data_cfgs['root'], mode=mode,
-                               transforms=create_AugTransforms(augments=cfg['augment'], imgsz=self.data_cfgs['imgsz']),
+                               transforms=create_AugTransforms(augments=cfg['augment']),
                                project=self.project, rank=self.rank)
         else: dataset = None
         return dataset
@@ -428,7 +428,7 @@ class CenterProcessor:
             # change optimizer momentum from warm_moment0.8 -> momentum0.937
             if epoch == warm_ep:
                 self.set_optimizer_momentum(self.hyp_cfg['momentum'])
-                self.data_processor.set_augment('train', sequence=create_AugTransforms(augments=self.data_cfg['train']['augment'], imgsz=self.data_cfg['imgsz']))
+                self.data_processor.set_augment('train', sequence=create_AugTransforms(augments=self.data_cfg['train']['augment']))
 
             # change lossfn bce -> focal
             self.auto_replace_lossfn(self.focal, int(epoch-warm_ep), self.focal_eff_epo, self.focal_on)
@@ -475,5 +475,5 @@ class CenterProcessor:
                 if final_epoch:
                     logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                                    f"\nResults saved to {colorstr('bold', self.project)}"
-                                   f'\nPredict:         python predict.py --weight {best} --imgsz "{self.data_cfg["imgsz"]}" --badcase --save_txt --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --class_head {self.loss_choice} --class_json {self.project}/class_indices.json --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}" --root data/val/{colorstr("blue", "XXX_cls")}'
-                                   f'\nValidate:        python val.py --weight {best} --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --root {colorstr("blue", "data")} --imgsz "{self.data_cfg["imgsz"]}" --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}"')
+                                   f'\nPredict:         python predict.py --weight {best} --badcase --save_txt --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --class_head {self.loss_choice} --class_json {self.project}/class_indices.json --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}" --root data/val/{colorstr("blue", "XXX_cls")}'
+                                   f'\nValidate:        python val.py --weight {best} --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --root {colorstr("blue", "data")} --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}"')

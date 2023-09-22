@@ -15,8 +15,7 @@ def parse_opt():
     parser.add_argument('--num_classes', default = 6, type=int)
     parser.add_argument('--kwargs', default = "{}", type=str, )
     parser.add_argument('--weight', default = './run/exp/best.pt', help='configs for models, data, hyps')
-    parser.add_argument('--transforms', default = 'to_tensor normalize', help='空格隔开')
-    parser.add_argument('--imgsz', default = '[[720, 720], [360, 360]]',type=str, help='centercrop_resize resize center_crop')
+    parser.add_argument('--transforms', default = {'to_tensor': 'no_params', 'normalize': 'no_params'}, help='空格隔开')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
     return parser.parse_args()
 
@@ -27,8 +26,7 @@ def main(opt):
     # data
     data_cfgs = {}
     data_cfgs['root'] = opt.root
-    data_cfgs['imgsz'] = eval(opt.imgsz)
-    data_cfgs['val'] = {'augment': opt.transforms}
+    data_cfgs['val'] = {'augment': opt.transforms if isinstance(opt.transforms, dict) else eval(opt.transforms)}
 
     data_processor = SmartDataProcessor(data_cfgs=data_cfgs, rank=RANK, project=None)
     dataset = data_processor.create_dataset('val')

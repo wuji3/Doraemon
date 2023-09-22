@@ -10,8 +10,7 @@ def parse_opt():
 
     parsers.add_argument('--img', default='./edd4dc86b50997f29b81ba0b2bab1906.jpg', type=str)
     parsers.add_argument('--pt', default='./best.pt', type=str)
-    parsers.add_argument('--transforms', default='centercrop_resize to_tensor_without_div')
-    parsers.add_argument('--imgsz', default='[[720, 720], [224, 224]]', type=str)
+    parsers.add_argument('--transforms', default={'resize': [640, 640], 'to_tensor': 'no_params', 'normalize': 'no_params'})
 
     args = parsers.parse_args()
     return args
@@ -26,10 +25,9 @@ def main(opt):
     img_path = opt.img
     weight_path = opt.pt
     transforms = opt.transforms
-    imgsz = opt.imgsz
 
     # image
-    image = image_process(img_path, create_AugTransforms(transforms, eval(imgsz)))
+    image = image_process(img_path, create_AugTransforms(eval(transforms) if isinstance(transforms, str) else transforms))
 
     # model
     model = get_model('mobilenet_v2', width_mult = 0.25)

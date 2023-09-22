@@ -145,12 +145,13 @@ class CenterCropAndResize(nn.Sequential):
                          T.Resize(re_size, interpolation=InterpolationMode.BILINEAR))
 
 class RandomColorJitter(T.ColorJitter):
-    def __init__(self, *args, **kargs):
+    def __init__(self, prob: float = 0.5, *args, **kargs):
         super().__init__(*args, **kargs)
+        self.prob = prob
 
     def forward(self, img):
         r = random.random()
-        if r < 0.2:
+        if r < self.prob:
             return super().forward(img)
         else: return img
 
@@ -179,11 +180,9 @@ def color_jitter(brightness: float = 0.1,
     return T.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue)
 
 @register_method
-def random_color_jitter(brightness: float = 0.1,
-                 contrast: float = 0.1,
-                 saturation: float = 0.1,
-                 hue: float = 0.1):
-    return RandomColorJitter(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue)
+def random_color_jitter(prob: float = 0.5, *args, **kwargs):
+    # brightness: float = 0.1, contrast: float = 0.1, saturation: float = 0.1, hue: float = 0.1
+    return RandomColorJitter(prob = prob, *args, **kwargs)
 
 @register_method
 def random_horizonflip(p: float = 0.5):
@@ -203,7 +202,8 @@ def to_tensor_without_div():
 
 @register_method
 def normalize(mean: Tuple = (0.485, 0.456, 0.406), std: Tuple = (0.229, 0.224, 0.225)):
-    return T.Normalize(mean=mean, std=std)
+    return T.Normalize(mean=mean if isinstance(mean, tuple) else eval(mean),
+                       std=std if isinstance(std, tuple) else eval(std))
 
 @register_method
 def random_augment(num_ops: int = 2, magnitude: int = 9, num_magnitude_bins: int = 31,):
@@ -225,17 +225,22 @@ def resize(size = 224):
     return T.Resize(size = size, interpolation=InterpolationMode.NEAREST)
 
 @register_method
-def centercrop_resize(size):
-    center_size, re_size = size
+def centercrop_resize(center_size: tuple, re_size: tuple):
     return CenterCropAndResize(center_size, re_size)
 
 @register_method
 def random_affine(degrees = 0., translate = 0., scale = 0., shear = 0., fill=0, center=None):
     return T.RandomAffine(degrees=degrees, translate=translate, scale=scale, shear=shear, fill=fill, center=center)
 
-def create_AugTransforms(augments: str, imgsz = None, **kwargs):
-    augments = augments.strip().split()
-    return T.Compose(tuple(map(lambda x: AUG_METHODS[x](**kwargs) if x not in _imgsz_related_methods else AUG_METHODS[x](imgsz, **kwargs), augments)))
+def create_AugTransforms(augments: dict):
+    augs = []
+    for key, params in augments.items():
+        if params == 'no_params':
+            augs.append(AUG_METHODS[key]())
+        else: augs.append(AUG_METHODS[key](**params))
+    return T.Compose(augs)
+    # augments = augments.strip().split()
+    # return T.Compose(tuple(map(lambda x: AUG_METHODS[x](**kwargs) if x not in _imgsz_related_methods else AUG_METHODS[x](imgsz, **kwargs), augments)))
 
 def list_augments():
     augments = [k for k, v in AUG_METHODS.items()]

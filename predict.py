@@ -32,13 +32,12 @@ def parse_opt():
     parser.add_argument('--class_json', default = './run/exp/class_indices.json', type=str)
     parser.add_argument('--num_classes', default = 5, type=int, help='out channels of fc 训的时候可能多留几个神经元')
     parser.add_argument('--weight', default = './run/exp/best.pt', help='configs for models, data, hyps')
-    parser.add_argument('--transforms', default = 'to_tensor normalize', help='空格隔开')
-    parser.add_argument('--imgsz', default = '[[720, 720], [360, 360]]',type=str, help='centercrop_resize resize center_crop')
+    parser.add_argument('--transforms', default = {'to_tensor': 'no_params', 'normalize': 'no_params'}, help='空格隔开')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
 
     return parser.parse_args()
 
-def predict_images(model, root, visual_path, transforms, imgsz,class_head: str, class_indices: dict, save_txt: bool, logger, device, badcase):
+def predict_images(model, root, visual_path, transforms, class_head: str, class_indices: dict, save_txt: bool, logger, device, badcase):
 
     assert class_head in {'bce', 'ce'}
     os.makedirs(visual_path, exist_ok=True)
@@ -47,7 +46,7 @@ def predict_images(model, root, visual_path, transforms, imgsz,class_head: str, 
     if not imgs_path: raise FileExistsError(f'root不含图像')
     # eval mode
     model.eval()
-    transforms = create_AugTransforms(transforms, imgsz=imgsz)
+    transforms = create_AugTransforms(eval(transforms) if isinstance(transforms, str) else transforms)
     n = len(imgs_path)
     for i, img_path in enumerate(imgs_path):
         # read img
@@ -127,7 +126,7 @@ def main(opt):
 
     # predict
     t0 = time.time()
-    predict_images(model, opt.root, visual_dir, opt.transforms, eval(opt.imgsz), opt.class_head, class_dict, opt.save_txt, logger, device, opt.badcase)
+    predict_images(model, opt.root, visual_dir, opt.transforms, opt.class_head, class_dict, opt.save_txt, logger, device, opt.badcase)
 
 
     logger.console(f'\nPredicting complete ({(time.time() - t0) / 60:.3f} minutes)'
