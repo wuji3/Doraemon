@@ -63,7 +63,7 @@ def update(model, loss, scaler, optimizer, ema=None):
 def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimizer,
                     scaler, device: torch.device, epoch: int,
                     epochs: int, logger, is_mixup: bool, rank: int,
-                    lam, schduler, ema):
+                    lam, schduler, ema, sampler = None):
     # train mode
     model.train()
 
@@ -81,7 +81,10 @@ def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimize
 
     for i, (images, labels) in pbar:  # progress bar
         images, labels = images.to(device, non_blocking=True), labels.to(device)
-
+        if sampler is not None:
+            with torch.no_grad():
+                valid = sampler.sample(model(images), labels)
+                images, labels = images[valid], labels[valid]
         with torch.cuda.amp.autocast(enabled=cuda):
             # mixup
             if is_mixup:

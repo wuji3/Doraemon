@@ -1,7 +1,7 @@
 model:
   choice: torchvision-resnet18 # torchvision- or custom-
   kwargs: {} # kwargs feed into torchvision-style models.__init__
-  num_classes: 3 # out_channels of fc, maybe be not equal to num_classes of train_dir. eg: maybe more than num_classes
+  num_classes: 6 # out_channels of fc, maybe be not equal to num_classes of train_dir. eg: maybe more than num_classes
   pretrained: True
   backbone_freeze: False
   bn_freeze: False
@@ -57,5 +57,10 @@ hyp:
     prog_learn: False # progressive learning, will effect on mixup and imgsz, devide epoch into 3 parts in default, mixup alpha 0 -> 0.1 -> 0.2, imgsz 0.5 -> ? -> 1
     mixup: 0 [0,4] # ratio and [start, end), on which epoch to start or delete mixup, support ce and bce, default alpha=0.1
     focal: False 0 # turn-on-or-off and start_epo (except warm_epoch)
+    ohem:
+      - True
+      - 8 # min_kept
+      - 0.7 # thresh_prob
+      - 255 # ignore_index
   optimizer: sgd # sgd or adam
   scheduler: cosine_with_warm # linear or cosine

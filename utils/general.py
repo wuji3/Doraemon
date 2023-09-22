@@ -17,6 +17,7 @@ from functools import reduce, partial
 from pathlib import Path
 from torch.nn.parallel import DistributedDataParallel as DDP
 from .plots import colorstr
+from .sampler import OHEMPixelSampler
 import time
 import os
 import datetime
@@ -82,6 +83,8 @@ def check_cfgs(cfgs):
     # strategy
     # focalloss
     if eval(hyp_cfg['strategy']['focal'].split()[0]): assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
+    # ohem
+    if hyp_cfg['strategy']['ohem'][0]: assert not hyp_cfg['loss']['bce'], 'ohem not support bceloss'
     # mixup
     mixup, mixup_milestone = map(eval, hyp_cfg['strategy']['mixup'].split())
     assert mixup >= 0 and mixup <= 1 and isinstance(mixup_milestone, list), 'mixup_ratio[0,1], mixup_milestone be list'
@@ -293,6 +296,9 @@ class CenterProcessor:
                 partial(SmartDataProcessor.set_label_transforms,
                         num_classes=self.model_cfg['num_classes'],
                         label_smooth=self.hyp_cfg['label_smooth'])
+        # ohem
+        elif self.hyp_cfg['strategy']['ohem'][0]: self.sampler = OHEMPixelSampler(*self.hyp_cfg['strategy']['ohem'][1:])
+        else: self.sampler = None
 
         self.loss_choice = loss_choice
         # distributions sampler
@@ -372,11 +378,11 @@ class CenterProcessor:
 
     def run(self, resume = None): # train+val per epoch
         last, best = self.project / 'last.pt', self.project / 'best.pt'
-        model, data_processor, optimizer, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, scheduler, focal = \
+        model, data_processor, optimizer, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, scheduler, focal, sampler = \
             self.model_processor.model, self.data_processor, self.optimizer, \
             GradScaler(enabled = (self.device != torch.device('cpu'))), self.device, self.hyp_cfg['epochs'], \
             self.logger, self.hyp_cfg['strategy']['mixup'], self.rank, self.dist_sampler, self.hyp_cfg['warm_ep'], \
-            self.data_cfg['train']['aug_epoch'], self.scheduler, self.focal
+            self.data_cfg['train']['aug_epoch'], self.scheduler, self.focal, self.sampler
 
         # data
         train_dataset, val_dataset = data_processor.train_dataset, data_processor.val_dataset
@@ -444,7 +450,7 @@ class CenterProcessor:
             is_mixup, lam = self.auto_mixup(mixup=mixup, epoch=int(epoch-warm_ep), milestone=mixup_milestone)
 
             # train for one epoch
-            fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, self.lossfn, optimizer, scaler, device, epoch, total_epoch, logger, is_mixup, rank, lam, scheduler, self.ema)
+            fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, self.lossfn, optimizer, scaler, device, epoch, total_epoch, logger, is_mixup, rank, lam, scheduler, self.ema, sampler)
 
             if rank in {-1, 0}:
                 # Best fitness
