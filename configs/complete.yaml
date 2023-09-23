@@ -8,8 +8,8 @@ model:
   bn_freeze_affine: False
 data:
   root: ./data # -train -val
-  nw: 0 # if not multi-nw, set to 0
-  imgsz:
+  nw: 2 # if not multi-nw, set to 0
+  imgsz: # 训练尺寸 和augment最后一个resize尺寸保持一致
     - 640
     - 640 # [h,w] / [s,s] / [s,]->[adaptive, s] or [s, adaptive]
   train:
@@ -29,7 +29,7 @@ data:
       normalize: # default use ImageNet1K mean & var, if not pretrained, del normalize
         mean: (0.485, 0.456, 0.406)
         std: (0.229, 0.224, 0.225)
-    aug_epoch: 0 # augment for epochs, on which epoch to weaken, except warm_epoch
+    aug_epoch: 4 # augment for epochs, on which epoch to weaken, except warm_epoch
   val:
     bs: 1
     augment:
@@ -42,7 +42,7 @@ data:
         mean: (0.485, 0.456, 0.406)
         std: (0.229, 0.224, 0.225)
 hyp:
-  epochs: 5
+  epochs: 10
   lr0: 0.001 # sgd=1e-2, adam=1e-3
   lrf_ratio: None # decay to lrf_ratio * lr0, if None, 0.1
   momentum: 0.937
@@ -50,15 +50,18 @@ hyp:
   warmup_momentum: 0.8
   warm_ep: 1 # out of epochs, imp linear
   loss:
-    ce: True
-    bce: False
+    ce: False
+    bce:
+      - True
+      - 0.5 # thresh
+      - True # multi_label 影响sample和label_vector
   label_smooth: 0.1
   strategy:
-    prog_learn: False # progressive learning, will effect on mixup and imgsz, devide epoch into 3 parts in default, mixup alpha 0 -> 0.1 -> 0.2, imgsz 0.5 -> ? -> 1
-    mixup: 0 [0,4] # ratio and [start, end), on which epoch to start or delete mixup, support ce and bce, default alpha=0.1
-    focal: False 0 # turn-on-or-off and start_epo (except warm_epoch)
+    prog_learn: True # progressive learning, will effect on mixup and imgsz, devide epoch into 3 parts in default, mixup alpha 0 -> 0.1 -> 0.2, imgsz 0.5 -> ? -> 1
+    mixup: 0.01 [0,4] # prob and [start, end), 从正式epoch开始算(去掉warm_ep) 比如正式40epoch 那么0-40就是全程mixup[左闭右开] 10-35就是从第10个epoch开始到34[含]结束 共25个epoch
+    focal: False 0 # turn-on-or-off and start_epo (except warm_epoch) 同mixup
     ohem:
-      - True
+      - False
       - 8 # min_kept
       - 0.7 # thresh_prob
       - 255 # ignore_index

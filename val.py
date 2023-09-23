@@ -1,9 +1,10 @@
-from utils.general import SmartDataProcessor, SmartModel, SmartLogger
+from utils.general import SmartDataProcessor, SmartModel, SmartLogger, Datasets
 import os
 import argparse
 from pathlib import Path
 from utils.valuate import val
 import torch
+from functools import partial
 
 RANK = int(os.getenv('RANK', -1))
 ROOT = Path(os.path.dirname(__file__))
@@ -12,6 +13,9 @@ def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', default = ROOT / 'data', help='data/val')
     parser.add_argument('--choice', default = 'torchvision-shufflenet_v2_x1_0', type=str)
+    parser.add_argument('--thresh', default = 0.7, type=float)
+    parser.add_argument('--head', default = 'ce', type=str)
+    parser.add_argument('--multi_label', default = False, type=bool)
     parser.add_argument('--num_classes', default = 6, type=int)
     parser.add_argument('--kwargs', default = "{}", type=str, )
     parser.add_argument('--weight', default = './run/exp/best.pt', help='configs for models, data, hyps')
@@ -29,8 +33,14 @@ def main(opt):
     data_cfgs['val'] = {'augment': opt.transforms if isinstance(opt.transforms, dict) else eval(opt.transforms)}
 
     data_processor = SmartDataProcessor(data_cfgs=data_cfgs, rank=RANK, project=None)
-    dataset = data_processor.create_dataset('val')
-    dataloader = data_processor.set_dataloader(dataset) # batchsize default 256
+    data_processor.val_dataset = data_processor.create_dataset('val')
+    if opt.head == 'bce':
+        data_processor.val_dataset.multi_label = opt.multi_label
+        data_processor.val_dataset.label_transforms = \
+            partial(Datasets.set_label_transforms,
+                    num_classes=opt.num_classes,
+                    label_smooth=0)
+    dataloader = data_processor.set_dataloader(data_processor.val_dataset) # batchsize default 256
 
     # model
     model_cfg = {}
@@ -52,7 +62,7 @@ def main(opt):
     logger = SmartLogger()
 
     # val
-    val(model, dataloader, device, None, False, None, logger)
+    val(model, dataloader, device, None, False, None, logger, thresh=opt.thresh)
 
 if __name__ == '__main__':
     opt = parse_opt()

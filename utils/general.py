@@ -17,7 +17,7 @@ from functools import reduce, partial
 from pathlib import Path
 from torch.nn.parallel import DistributedDataParallel as DDP
 from .plots import colorstr
-from .sampler import OHEMPixelSampler
+from .sampler import OHEMImageSampler
 import time
 import os
 import datetime
@@ -63,6 +63,9 @@ def check_cfgs(cfgs):
     model_cfg = cfgs['model']
     data_cfg = cfgs['data']
     hyp_cfg = cfgs['hyp']
+    # num_classes
+    train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') if not (x.startswith('.') or x.startswith('_'))]
+    assert model_cfg['num_classes'] == len(train_classes), 'config中num_classes 必须等于 实际训练文件夹中的类别'
     # model
     assert model_cfg['choice'].split('-')[0] in {'torchvision', 'custom'}, 'if from torchvision, torchvision-ModelName; if from your own, custom-ModelName'
     if model_cfg['kwargs'] and model_cfg['pretrained']:
@@ -72,7 +75,7 @@ def check_cfgs(cfgs):
            (not model_cfg['pretrained']) and ('normalize' not in data_cfg['train']['augment']) and ('normalize' not in data_cfg['val']['augment']),\
            'if not pretrained, normalize is not necessary, or normalize is necessary'
     # loss
-    assert reduce(lambda x, y: int(x) + int(y), list(hyp_cfg['loss'].values())) == 1, 'ce or bce'
+    assert reduce(lambda x, y: int(x) + int(y[0]), list(hyp_cfg['loss'].values())) == 1, 'ce or bce'
     # optimizer
     assert hyp_cfg['optimizer'] in {'sgd', 'adam'}, 'optimizer choose sgd or adam'
     # scheduler
@@ -229,13 +232,6 @@ class SmartDataProcessor:
             self.set_augment('train', sequence = None)
 
     @staticmethod
-    def set_label_transforms(label, num_classes, label_smooth): # idx -> vector
-        vector = torch.zeros(num_classes).fill_(0.5 * label_smooth)
-        vector[label] = 1 - 0.5 * label_smooth
-
-        return vector
-
-    @staticmethod
     def set_dataloader(dataset, bs: int = 256, nw: int = 0, pin_memory: bool = True, shuffle: bool = True, sampler = None):
         assert not (shuffle and sampler is not None)
         nd = torch.cuda.device_count()
@@ -278,10 +274,11 @@ class CenterProcessor:
         self.scheduler = create_Scheduler(scheduler=self.hyp_cfg['scheduler'], optimizer=self.optimizer,
                                           warm_ep=self.hyp_cfg['warm_ep'], epochs=self.hyp_cfg['epochs'], lr0=self.hyp_cfg['lr0'],lrf_ratio=self.hyp_cfg['lrf_ratio'])
         # loss
-        loss_choice: str = [k for k, v in self.hyp_cfg['loss'].items() if v][0]
+        loss_choice: str = 'ce' if self.hyp_cfg['loss']['ce'] else 'bce'
         self.lossfn = create_Lossfn(loss_choice)() \
             if loss_choice == 'bce' \
             else create_Lossfn(loss_choice)(label_smooth = self.hyp_cfg['label_smooth'])
+        self.thresh = self.hyp_cfg['loss']['bce'][1] if loss_choice == 'bce' else 0
 
         # train_one_epoch
         self.train_one_epoch: Callable = train_one_epoch # include val
@@ -289,15 +286,19 @@ class CenterProcessor:
         # add label_transforms
         if loss_choice == 'bce':
             self.data_processor.train_dataset.label_transforms = \
-                partial(SmartDataProcessor.set_label_transforms,
+                partial(Datasets.set_label_transforms,
                         num_classes = self.model_cfg['num_classes'],
                         label_smooth = self.hyp_cfg['label_smooth'])
             self.data_processor.val_dataset.label_transforms = \
-                partial(SmartDataProcessor.set_label_transforms,
+                partial(Datasets.set_label_transforms,
                         num_classes=self.model_cfg['num_classes'],
                         label_smooth=self.hyp_cfg['label_smooth'])
+            # bce not support self.sampler
+            self.sampler = None
+            self.data_processor.train_dataset.multi_label = self.hyp_cfg['loss']['bce'][2]
+            self.data_processor.val_dataset.multi_label = self.hyp_cfg['loss']['bce'][2]
         # ohem
-        elif self.hyp_cfg['strategy']['ohem'][0]: self.sampler = OHEMPixelSampler(*self.hyp_cfg['strategy']['ohem'][1:])
+        elif self.hyp_cfg['strategy']['ohem'][0]: self.sampler = OHEMImageSampler(*self.hyp_cfg['strategy']['ohem'][1:])
         else: self.sampler = None
 
         self.loss_choice = loss_choice
@@ -378,11 +379,11 @@ class CenterProcessor:
 
     def run(self, resume = None): # train+val per epoch
         last, best = self.project / 'last.pt', self.project / 'best.pt'
-        model, data_processor, optimizer, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, scheduler, focal, sampler = \
+        model, data_processor, optimizer, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, scheduler, focal, sampler, thresh = \
             self.model_processor.model, self.data_processor, self.optimizer, \
             GradScaler(enabled = (self.device != torch.device('cpu'))), self.device, self.hyp_cfg['epochs'], \
             self.logger, self.hyp_cfg['strategy']['mixup'], self.rank, self.dist_sampler, self.hyp_cfg['warm_ep'], \
-            self.data_cfg['train']['aug_epoch'], self.scheduler, self.focal, self.sampler
+            self.data_cfg['train']['aug_epoch'], self.scheduler, self.focal, self.sampler, self.thresh
 
         # data
         train_dataset, val_dataset = data_processor.train_dataset, data_processor.val_dataset
@@ -421,8 +422,12 @@ class CenterProcessor:
             model = DDP(model, device_ids=[self.rank])
 
         if self.rank in {-1, 0}:
-            time.sleep(0.1)
-            print(f"{'Epoch':>10}{'GPU_mem':>10}{'train_loss':>12}{f'val_loss':>12}{'top1_acc':>12}{'top5_acc':>12}")
+
+            if thresh == 0:
+                print(f"{'Epoch':>10}{'GPU_mem':>10}{'train_loss':>12}{f'val_loss':>12}{'top1_acc':>12}{'top5_acc':>12}")
+            else:
+                print(f"{'Epoch':>10}{'GPU_mem':>10}{'train_loss':>12}{f'val_loss':>12}{'precision':>12}{'recall':>12}{'f1score':>12}")
+            time.sleep(0.2)
 
         t0 = time.time()
         total_epoch = epochs+warm_ep
@@ -450,7 +455,7 @@ class CenterProcessor:
             is_mixup, lam = self.auto_mixup(mixup=mixup, epoch=int(epoch-warm_ep), milestone=mixup_milestone)
 
             # train for one epoch
-            fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, self.lossfn, optimizer, scaler, device, epoch, total_epoch, logger, is_mixup, rank, lam, scheduler, self.ema, sampler)
+            fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, self.lossfn, optimizer, scaler, device, epoch, total_epoch, logger, is_mixup, rank, lam, scheduler, self.ema, sampler, thresh)
 
             if rank in {-1, 0}:
                 # Best fitness
@@ -482,4 +487,4 @@ class CenterProcessor:
                     logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                                    f"\nResults saved to {colorstr('bold', self.project)}"
                                    f'\nPredict:         python predict.py --weight {best} --badcase --save_txt --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --class_head {self.loss_choice} --class_json {self.project}/class_indices.json --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}" --root data/val/{colorstr("blue", "XXX_cls")}'
-                                   f'\nValidate:        python val.py --weight {best} --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --root {colorstr("blue", "data")} --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}"')
+                                   f'\nValidate:        python val.py --weight {best} --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --root {colorstr("blue", "data")} --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}" --thresh {thresh} --head {self.loss_choice} --multi_label {self.hyp_cfg["loss"]["bce"][2]}')

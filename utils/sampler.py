@@ -2,7 +2,7 @@ from torch import Tensor
 import torch
 import torch.nn.functional as F
 
-class OHEMPixelSampler:
+class OHEMImageSampler:
     def __init__(self, min_kept: int, thresh: float, ignore_index: int = 255):
         self.min_kept = min_kept
         self.thresh = thresh

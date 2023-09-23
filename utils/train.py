@@ -63,7 +63,7 @@ def update(model, loss, scaler, optimizer, ema=None):
 def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimizer,
                     scaler, device: torch.device, epoch: int,
                     epochs: int, logger, is_mixup: bool, rank: int,
-                    lam, schduler, ema, sampler = None):
+                    lam, schduler, ema, sampler = None, thresh = 0):
     # train mode
     model.train()
 
@@ -103,13 +103,18 @@ def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimize
 
             if i == len(pbar) - 1:  # last batch
                 logger.log(f'epoch:{epoch + 1:d}  t_loss:{tloss:4f}  lr:{optimizer.param_groups[0]["lr"]:.5f}')
-                logger.log(f'{"name":<8}{"nums":>8}{"top1":>10}{"top5":>10}')
+                if thresh == 0:
+                    logger.log(f'{"name":<8}{"nums":>8}{"top1":>10}{"top5":>10}')
+                    # val
+                    top1, top5, v_loss = val(ema.ema, val_dataloader, device, pbar, True, criterion, logger, thresh)
+                    logger.log(f'v_loss:{v_loss:4f}  mtop1:{top1:.3g}  mtop5:{top5:.3g}\n')
+                else:
+                    logger.log(f'{"name":<8}{"nums":>8}{"precision":>15}{"recall":>10}{"f1score":>10}')
+                    # val
+                    precision, recall, f1score, v_loss = val(ema.ema, val_dataloader, device, pbar, True, criterion, logger, thresh)
+                    logger.log(f'v_loss:{v_loss:4f}  precision:{precision:.3g}  recall:{recall:.3g}  f1score:{f1score:.3g}\n')
 
-                # val
-                top1, top5, v_loss = val(ema.ema, val_dataloader, device, pbar, True, criterion, logger)
-                logger.log(f'v_loss:{v_loss:4f}  mtop1:{top1:.3g}  mtop5:{top5:.3g}\n')
-
-                fitness = top1  # define fitness as top1 accuracy
+                fitness = top1 if thresh == 0 else f1score  # define fitness as top1 accuracy
 
     schduler.step()  # step epoch-wise
 
