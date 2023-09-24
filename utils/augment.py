@@ -11,9 +11,23 @@ import os
 from torchvision.transforms.functional import InterpolationMode
 
 # all methods based on PIL
-__all__ = ['color_jitter', 'random_color_jitter', 'random_horizonflip', 'random_verticalflip', 'to_tensor', 'to_tensor_without_div','normalize',
-           'random_augment', 'center_crop', 'resize', 'centercrop_resize', 'random_cutout','random_cutmix', 'random_affine',
-           'create_AugTransforms']
+__all__ = ['color_jitter', # 颜色抖动
+           'random_color_jitter',# [随机]颜色抖动
+           'random_horizonflip', # [随机]水平翻转
+           'random_verticalflip', # [随机]上下翻转
+           'random_crop', # [随机]抠图
+           'random_augment', # RandAug
+           'center_crop', # 中心抠图
+           'resize', # 缩放
+           'centercrop_resize', # 中心抠图+缩放
+           'random_cutout', # 随机CutOut
+           'random_cutaddnoise', # 随机CutOut+增加噪音
+           'random_affine', # 随机仿射变换
+           'to_tensor', # 转Tensor
+           'to_tensor_without_div', # 转Tensor不除255
+           'normalize', # Normalize
+           'create_AugTransforms',
+           'list_augments']
 
 _imgsz_related_methods = {'center_crop', 'resize', 'centercrop_resize'}
 class _RandomApply: # decorator
@@ -86,7 +100,7 @@ class Cutout:
 
         return  img
 
-class CutMix:
+class CutAddNoise:
     """Randomly mask out one or more patches from an image.
     Args:
         n_holes (int): Number of patches to cut out of each image.
@@ -168,9 +182,9 @@ def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
     return Cutout(n_holes, length, ratio, h_range, w_range, prob)
 
 @register_method
-def random_cutmix(n_holes:int = 1, length: int = 200, noisy_src: str = None,
+def random_cutaddnoise(n_holes:int = 1, length: int = 200, noisy_src: str = None,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5):
-    return CutMix(n_holes, length, noisy_src, h_range, w_range, prob)
+    return CutAddNoise(n_holes, length, noisy_src, h_range, w_range, prob)
 
 @register_method
 def color_jitter(brightness: float = 0.1,
@@ -178,7 +192,9 @@ def color_jitter(brightness: float = 0.1,
                  saturation: float = 0.1,
                  hue: float = 0.1):
     return T.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue)
-
+@register_method
+def random_crop(*args, **kwargs):
+    return T.RandomCrop(*args, **kwargs)
 @register_method
 def random_color_jitter(prob: float = 0.5, *args, **kwargs):
     # brightness: float = 0.1, contrast: float = 0.1, saturation: float = 0.1, hue: float = 0.1
