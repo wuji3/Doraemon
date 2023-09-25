@@ -26,20 +26,9 @@ __all__ = ['color_jitter', # 颜色抖动
            'to_tensor', # 转Tensor
            'to_tensor_without_div', # 转Tensor不除255
            'normalize', # Normalize
+           'random_gaussianblur', # 随机高斯模糊
            'create_AugTransforms',
            'list_augments']
-
-_imgsz_related_methods = {'center_crop', 'resize', 'centercrop_resize'}
-class _RandomApply: # decorator
-    def __init__(self, prob):
-        self.prob = prob
-
-    def __call__(self, func):
-        def wrapper(*args, **kwargs):
-            if random.random() < self.prob:
-                return func(*args,**kwargs)
-            return lambda x: x
-        return wrapper
 
 AUG_METHODS = {}
 def register_method(fn: Callable):
@@ -247,6 +236,10 @@ def centercrop_resize(center_size: tuple, re_size: tuple):
 @register_method
 def random_affine(degrees = 0., translate = 0., scale = 0., shear = 0., fill=0, center=None):
     return T.RandomAffine(degrees=degrees, translate=translate, scale=scale, shear=shear, fill=fill, center=center)
+
+@register_method
+def random_gaussianblur(prob: float = 0.5, kernel_size=3, sigma=(0.1, 2.0)): # 每次transform sigma会均匀采样一次 除非传sigma是固定值
+    return T.RandomApply([T.GaussianBlur(kernel_size=kernel_size, sigma=sigma)], p = prob)
 
 def create_AugTransforms(augments: dict):
     augs = []
