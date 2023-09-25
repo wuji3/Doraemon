@@ -1,3 +1,4 @@
+import glob
 import os
 import torch
 from torch.utils.data import Dataset
@@ -81,3 +82,24 @@ class Datasets(Dataset):
             vector = torch.scatter(vector, dim=0, index=torch.as_tensor(label), value=1 - 0.5 * label_smooth)
 
         return vector
+
+class PredictDatasets(Dataset):
+    def __init__(self, root, transforms = None, postfix: str = 'jpg'):
+        assert transforms is not None, 'transforms不能为None'
+        self.imgs_path = glob.glob(os.path.join(root, f'*.{postfix}'))
+        assert len(self.imgs_path) != 0, f'推理路径内没有{postfix}结尾的文件'
+        self.transforms = transforms
+
+    def __getitem__(self, idx: int):
+        img = Image.open(self.imgs_path[idx]).convert('RGB')
+
+        tensor = self.transforms(img)
+
+        return img, tensor, self.imgs_path[idx]
+
+    def __len__(self):
+        return len(self.imgs_path)
+    @staticmethod
+    def collate_fn(batch):
+        images, tensors, image_path = tuple(zip(*batch))
+        return images, torch.stack(tensors, dim=0), image_path

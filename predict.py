@@ -3,12 +3,13 @@ from utils.general import SmartModel, increment_path
 from utils.augment import create_AugTransforms
 from utils.logger import SmartLogger
 from utils.plots import colorstr
+from utils.datasets import PredictDatasets
+from torch.utils.data import DataLoader
 import os
 import argparse
 from pathlib import Path
 import torch
 import glob
-from PIL import Image
 from utils.plots import Annotator
 import json
 import time
@@ -42,16 +43,19 @@ def predict_images(model, root, visual_path, transforms, class_head: str, class_
     assert class_head in {'bce', 'ce'}
     os.makedirs(visual_path, exist_ok=True)
 
-    imgs_path = glob.glob(os.path.join(root, '*.jpg'))
-    if not imgs_path: raise FileExistsError(f'root不含图像')
+    dataset = PredictDatasets(root,
+                              transforms=create_AugTransforms(eval(transforms) if isinstance(transforms, str) else transforms),
+                              postfix='jpg')
+    dataloader = DataLoader(dataset, shuffle=False, pin_memory=True, num_workers=2, batch_size=1, collate_fn=PredictDatasets.collate_fn)
+
+    # if not imgs_path: raise FileExistsError(f'root不含图像')
     # eval mode
     model.eval()
-    transforms = create_AugTransforms(eval(transforms) if isinstance(transforms, str) else transforms)
-    n = len(imgs_path)
-    for i, img_path in enumerate(imgs_path):
-        # read img
-        img = Image.open(img_path).convert('RGB')
+    n = len(dataloader)
 
+    for i, (img, inputs, img_path) in enumerate(dataloader):
+        img = img[0]
+        img_path = img_path[0]
         # system
         if platform.system().lower() == 'windows':
             annotator = Annotator(img, font=r'C:/WINDOWS/FONTS/SIMSUN.TTC') # windows
@@ -59,9 +63,7 @@ def predict_images(model, root, visual_path, transforms, class_head: str, class_
             annotator = Annotator(img) # linux
 
         # transforms
-        inputs = transforms(img)
         inputs = inputs.to(device)
-        inputs.unsqueeze_(0)
         # forward
         logits = model(inputs).squeeze()
 
