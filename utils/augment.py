@@ -32,6 +32,7 @@ __all__ = ['color_jitter', # 颜色抖动
            'random_invert', # 随机翻转 黑变白 白变黑 这种翻转
            'random_equalize',
            'random_augmix', # 随机样本自混合
+           'random_grayscale', # 随机灰度 input几通道 forward也是几通道
            'create_AugTransforms',
            'list_augments']
 
@@ -270,6 +271,10 @@ def random_affine(degrees = 0., translate = 0., scale = 0., shear = 0., fill=0, 
 @register_method
 def random_gaussianblur(prob: float = 0.5, kernel_size=3, sigma=(0.1, 2.0)): # 每次transform sigma会均匀采样一次 除非传sigma是固定值
     return T.RandomApply([T.GaussianBlur(kernel_size=kernel_size, sigma=sigma)], p = prob)
+
+@register_method
+def random_grayscale(p: float = 0.5): # 图是几通道 灰度输出也是几通道
+    return T.RandomGrayscale(p=p)
 
 @register_method
 def random_choice(transforms: list):

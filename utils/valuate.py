@@ -57,9 +57,10 @@ def val(model: nn.Module, dataloader, device: torch.device, pbar, is_training: b
         f1score = f1scorer(pred, targets)
 
         if not is_training: logger.console(f'{"name":<8}{"nums":>8}{"precision":>10}{"recall":>10}{"f1-score":>10}')
+        cls_numbers = torch.bincount(torch.argmax(targets, dim=1), minlength=pred.shape[-1]).tolist()
         for i, c in enumerate(dataloader.dataset.class_indices):
-            if not is_training: logger.console(f'{c:<8}{pred.shape[0]:>8}{precision[i].item():>10.3f}{recall[i].item():>10.3f}{f1score[i].item():>10.3f}')
-            else: logger.log(f'{c:<8}{pred.shape[0]:>8}{precision[i].item():>15.3f}{recall[i].item():>10.3f}{f1score[i].item():>10.3f}')
+            if not is_training: logger.console(f'{c:<8}{cls_numbers[i]:>8}{precision[i].item():>10.3f}{recall[i].item():>10.3f}{f1score[i].item():>10.3f}')
+            else: logger.log(f'{c:<8}{cls_numbers[i]:>8}{precision[i].item():>15.3f}{recall[i].item():>10.3f}{f1score[i].item():>10.3f}')
 
     if pbar and thresh == 0:
         pbar.desc = f'{pbar.desc[:-36]}{loss:>12.3g}{top1:>12.3g}{top5:>12.3g}'

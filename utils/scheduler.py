@@ -18,7 +18,6 @@ def register_scheduler(fn: Callable):
     return wrapper
 
 def de_lrf_ratio(lrf_ratio):
-    if isinstance(lrf_ratio, str): lrf_ratio = eval(lrf_ratio)
     return 0.1 if lrf_ratio is None else lrf_ratio
 
 @register_scheduler

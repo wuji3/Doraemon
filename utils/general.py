@@ -18,6 +18,7 @@ from pathlib import Path
 from torch.nn.parallel import DistributedDataParallel as DDP
 from .plots import colorstr
 from .sampler import OHEMImageSampler
+from built.layer_optimizer import SeperateLayerParams
 import time
 import os
 import datetime
@@ -77,7 +78,7 @@ def check_cfgs(cfgs):
     # loss
     assert reduce(lambda x, y: int(x) + int(y[0]), list(hyp_cfg['loss'].values())) == 1, 'ce or bce'
     # optimizer
-    assert hyp_cfg['optimizer'] in {'sgd', 'adam'}, 'optimizer choose sgd or adam'
+    assert hyp_cfg['optimizer'][0] in {'sgd', 'adam'}, 'optimizer choose sgd or adam'
     # scheduler
     assert hyp_cfg['scheduler'] in {'linear', 'cosine', 'linear_with_warm', 'cosine_with_warm'}, 'scheduler support linear cosine linear_with_warm and cosine_with_warm'
     assert hyp_cfg['warm_ep'] >= 0 and isinstance(hyp_cfg['warm_ep'], int) and hyp_cfg['warm_ep'] < hyp_cfg['epochs'], 'warm_ep not be negtive, and should smaller than epochs'
@@ -85,11 +86,11 @@ def check_cfgs(cfgs):
     if hyp_cfg['warm_ep'] > 0: assert hyp_cfg['scheduler'] in {'linear_with_warm', 'cosine_with_warm'}, 'with warm, linear_with_warm or cosine_with_warm supported'
     # strategy
     # focalloss
-    if eval(hyp_cfg['strategy']['focal'].split()[0]): assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
+    if hyp_cfg['strategy']['focal'][0]: assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
     # ohem
     if hyp_cfg['strategy']['ohem'][0]: assert not hyp_cfg['loss']['bce'], 'ohem not support bceloss'
     # mixup
-    mixup, mixup_milestone = map(eval, hyp_cfg['strategy']['mixup'].split())
+    mixup, mixup_milestone = hyp_cfg['strategy']['mixup']
     assert mixup >= 0 and mixup <= 1 and isinstance(mixup_milestone, list), 'mixup_ratio[0,1], mixup_milestone be list'
     mix0, mix1 = mixup_milestone
     assert isinstance(mix0, int) and isinstance(mix1, int) and mix0 < mix1, 'mixup must List[int], start < end'
@@ -267,9 +268,10 @@ class CenterProcessor:
         if self.logger is not None and rank in {-1, 0}:
             self.logger.both(cfgs) # output configs
         # optimizer
-        self.optimizer = create_Optimizer(optimizer=self.hyp_cfg['optimizer'], lr=self.hyp_cfg['lr0'],
+        params = SeperateLayerParams(self.model_processor.model)
+        self.optimizer = create_Optimizer(optimizer=self.hyp_cfg['optimizer'][0], lr=self.hyp_cfg['lr0'],
                                           weight_decay=self.hyp_cfg['weight_decay'], momentum=self.hyp_cfg['warmup_momentum'],
-                                          params=[p for p in self.model_processor.model.parameters() if p.requires_grad])
+                                          params=params.create_ParamSequence(alpha=None if self.hyp_cfg['optimizer'][1][0] is None else self.hyp_cfg['optimizer'][1][1], lr=self.hyp_cfg['lr0']))
         # scheduler
         self.scheduler = create_Scheduler(scheduler=self.hyp_cfg['scheduler'], optimizer=self.optimizer,
                                           warm_ep=self.hyp_cfg['warm_ep'], epochs=self.hyp_cfg['epochs'], lr0=self.hyp_cfg['lr0'],lrf_ratio=self.hyp_cfg['lrf_ratio'])
@@ -308,16 +310,16 @@ class CenterProcessor:
         # progressive learning
         self.prog_learn = self.hyp_cfg['strategy']['prog_learn']
         # mixup change node
-        if self.prog_learn: self.mixup_chnodes = torch.linspace(*self.hyp_cfg['strategy']['mixup'][-1], 3,dtype=torch.int32).round_().tolist()[:-1]
+        if self.prog_learn: self.mixup_chnodes = torch.linspace(*self.hyp_cfg['strategy']['mixup'][-1], 3,dtype=torch.int32).round_().tolist()
 
         # focalloss hard
-        if loss_choice == 'bce' and eval(self.hyp_cfg['strategy']['focal'].split()[0]):
+        if loss_choice == 'bce' and self.hyp_cfg['strategy']['focal'][0]:
             self.focal = create_Lossfn('focal')()
         else:
             self.focal = None
-        self.focal_eff_epo = eval(self.hyp_cfg['strategy']['focal'].split()[1])
+        self.focal_eff_epo = self.hyp_cfg['strategy']['focal'][1]
         # on or off
-        self.focal_on = eval(self.hyp_cfg['strategy']['focal'].split()[0])
+        self.focal_on = self.hyp_cfg['strategy']['focal'][0]
 
         # ema
         self.ema = ModelEMA(self.model_processor.model) if rank in {-1, 0} else None
@@ -329,7 +331,7 @@ class CenterProcessor:
         d = {}
 
         d['uniform'] = torch.distributions.uniform.Uniform(low=0, high=1)
-        d['beta'] = torch.distributions.beta.Beta(0.1, 0.1)
+        d['beta'] = None
 
         return d
 
@@ -340,7 +342,7 @@ class CenterProcessor:
         self.focal_on = False
 
     def auto_mixup(self, mixup: float, epoch:int, milestone: list):
-        if mixup == 0 or epoch >= milestone[1] or epoch < milestone[0]: return (False, None) # is_mixup, lam
+        if mixup == 0 or epoch >= milestone[1] or epoch < milestone[0] or self.dist_sampler['beta'] is None: return (False, None) # is_mixup, lam
         else:
             mix_prob = self.dist_sampler['uniform'].sample()
             is_mixup: bool = mix_prob < mixup
@@ -351,15 +353,16 @@ class CenterProcessor:
         chnodes = self.mixup_chnodes
         # mixup, divide mixup_milestone into 2 parts in default, alpha from 0.1 to 0.2
         if epoch in chnodes:
-            alpha = (self.mixup_chnodes.index(epoch) + 1) * 0.1
-            self.dist_sampler['beta'] = torch.distributions.beta.Beta(alpha, alpha)
+            alpha = self.mixup_chnodes.index(epoch) * 0.1
+            if alpha != 0:
+                self.dist_sampler['beta'] = torch.distributions.beta.Beta(alpha, alpha)
         # image resize, based on mixup_milestone
         min_imgsz = min(self.data_cfg['imgsz']) if isinstance(self.data_cfg['imgsz'][0], int) else min(self.data_cfg['imgsz'][-1])
         imgsz_milestone = torch.linspace(int(min_imgsz * 0.5), int(min_imgsz), 3, dtype=torch.int32).tolist()
         sequence = []
-        if epoch == 0: size = imgsz_milestone[0]
-        elif epoch == chnodes[0]: size = imgsz_milestone[1]
-        elif epoch == chnodes[1]: size = imgsz_milestone[2]
+        if epoch == chnodes[0]: size = imgsz_milestone[0]
+        elif epoch == chnodes[1]: size = imgsz_milestone[1]
+        elif epoch == chnodes[2]: size = imgsz_milestone[2]
         else: return
         train_augs = self.data_processor.train_dataset.transforms.transforms
         for i, m in enumerate(train_augs):

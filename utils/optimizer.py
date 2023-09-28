@@ -1,8 +1,14 @@
 from torch.optim import SGD, Adam
-from typing import Callable
+from typing import Callable, List, Dict, Optional, Iterator, Union
 from functools import wraps
+from abc import ABCMeta, abstractmethod
+from torch.nn import Module
 
-__all__ = ['create_Optimizer', 'list_optimizers']
+__all__ = ['SGD',
+           'Adam',
+           'BaseSeperateLayer',
+           'create_Optimizer',
+           'list_optimizers']
 
 OPTIMIZER = {}
 
@@ -16,6 +22,17 @@ def register_optimizer(fn: Callable):
         return fn(*args, **kwargs)
 
     return wrapper
+
+class BaseSeperateLayer(metaclass=ABCMeta):
+    """
+        用于对model的多个层分别设置具体的学习率
+    """
+    def __init__(self, model: Module) -> None:
+        self.model = model
+
+    @abstractmethod
+    def create_ParamSequence(self, alpha: Optional[float], lr: float) -> Union[Iterator, List[Dict]]:
+        pass
 
 @register_optimizer
 def sgd(*args, **kwargs):
