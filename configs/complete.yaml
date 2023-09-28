@@ -1,7 +1,7 @@
 model:
   choice: torchvision-resnet18 # torchvision- or custom-
   kwargs: {} # kwargs feed into torchvision-style models.__init__
-  num_classes: 6 # out_channels of fc, maybe be not equal to num_classes of train_dir. eg: maybe more than num_classes
+  num_classes: 3 # out_channels of fc, maybe be not equal to num_classes of train_dir. eg: maybe more than num_classes
   pretrained: True
   backbone_freeze: False
   bn_freeze: False
@@ -13,14 +13,17 @@ data:
     - 640
     - 640 # [h,w] / [s,s] / [s,]->[adaptive, s] or [s, adaptive]
   train:
-    bs: 32 # all gpus if DDP
+    bs: 32 # one gpus if DDP
     augment: # refer to utils/augment.py
-      random_color_jitter:
-        prob: 0.5
-        brightness: 0.1
-        contrast: 0.1
-        saturation: 0.1
-        hue: 0.1
+      random_choice:
+      - random_color_jitter:
+          prob: 0.5
+          brightness: 0.1
+          contrast: 0.1
+          saturation: 0.1
+          hue: 0.1
+      - random_invert:
+          p: 0.5
       resize:
         size:
           - 640
@@ -57,10 +60,10 @@ hyp:
       - True # multi_label 影响sample和label_vector
   label_smooth: 0.1
   strategy:
-    prog_learn: True # progressive learning, will effect on mixup and imgsz, devide epoch into 3 parts in default, mixup alpha 0 -> 0.1 -> 0.2, imgsz 0.5 -> ? -> 1
+    prog_learn: False # progressive learning, will effect on mixup and imgsz, devide epoch into 3 parts in default, mixup alpha 0 -> 0.1 -> 0.2, imgsz 0.5 -> ? -> 1
     mixup: 0.01 [0,4] # prob and [start, end), 从正式epoch开始算(去掉warm_ep) 比如正式40epoch 那么0-40就是全程mixup[左闭右开] 10-35就是从第10个epoch开始到34[含]结束 共25个epoch
-    focal: False 0 # turn-on-or-off and start_epo (except warm_epoch) 同mixup
-    ohem:
+    focal: True 0 # turn-on-or-off and start_epo (except warm_epoch) 同mixup Only support BCE
+    ohem: # only support CE
       - False
       - 8 # min_kept
       - 0.7 # thresh_prob

@@ -1,6 +1,6 @@
 import copy
 from PIL import Image
-from typing import Optional, List, Tuple, Callable
+from typing import Optional, List, Tuple, Callable, Union
 import numpy as np
 import random
 import torchvision.transforms as T
@@ -27,8 +27,17 @@ __all__ = ['color_jitter', # 颜色抖动
            'to_tensor_without_div', # 转Tensor不除255
            'normalize', # Normalize
            'random_gaussianblur', # 随机高斯模糊
+           'random_autocontrast', # 随机对比度增强
+           'random_adjustsharpness', # 随机锐化
+           'random_invert', # 随机翻转 黑变白 白变黑 这种翻转
+           'random_equalize',
+           'random_augmix', # 随机样本自混合
            'create_AugTransforms',
            'list_augments']
+
+"""
+References: https://pytorch.org/vision/stable/auto_examples/plot_transforms.html#sphx-glr-auto-examples-plot-transforms-py
+"""
 
 AUG_METHODS = {}
 def register_method(fn: Callable):
@@ -181,6 +190,27 @@ def color_jitter(brightness: float = 0.1,
                  saturation: float = 0.1,
                  hue: float = 0.1):
     return T.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue)
+
+@register_method
+def random_autocontrast(p: float=0.5):
+    return T.RandomAutocontrast(p=p)
+
+@register_method
+def random_adjustsharpness(sharpness_factor: float=2, p=0.5):
+    return T.RandomAdjustSharpness(sharpness_factor, p=p)
+
+@register_method
+def random_invert(p: float=0.5):
+    return T.RandomInvert(p=p)
+
+@register_method
+def random_equalize(p: float=0.5):
+    return T.RandomEqualize(p=p)
+
+@register_method
+def random_augmix(*args, **kwargs):
+    return T.AugMix(*args, **kwargs)
+
 @register_method
 def random_crop(*args, **kwargs):
     return T.RandomCrop(*args, **kwargs)
@@ -241,12 +271,33 @@ def random_affine(degrees = 0., translate = 0., scale = 0., shear = 0., fill=0, 
 def random_gaussianblur(prob: float = 0.5, kernel_size=3, sigma=(0.1, 2.0)): # 每次transform sigma会均匀采样一次 除非传sigma是固定值
     return T.RandomApply([T.GaussianBlur(kernel_size=kernel_size, sigma=sigma)], p = prob)
 
+@register_method
+def random_choice(transforms: list):
+    return T.RandomChoice(transforms=transforms)
+
 def create_AugTransforms(augments: dict):
+
+    def addAugToSequence(aug_name: str, params: Union[dict, str], aug_list: list) -> None:
+        if params == 'no_params':
+            aug_list.append(AUG_METHODS[aug_name]())
+        else:
+            assert isinstance(params, dict), '参数必须以键值对[dict]的形式传进来'
+            aug_list.append(AUG_METHODS[aug_name](**params))
+
     augs = []
     for key, params in augments.items():
-        if params == 'no_params':
-            augs.append(AUG_METHODS[key]())
-        else: augs.append(AUG_METHODS[key](**params))
+        if key == 'random_choice':
+            assert isinstance(params, list), 'random_choice必须要把增强方法写成列表形式传进来'
+            choice_aug_list = []
+            for choice in augments[key]:
+                assert isinstance(choice, dict) and len(choice)==1, f'random_choice中每个增强方法都要求是字典 这里{len(params)}个增强需要包装成{len(params)}个字典'
+                choice_key, choice_param = tuple(*choice.items())
+                addAugToSequence(choice_key, choice_param, choice_aug_list)
+            # 把random_choice作为单独的aug加进去
+            augs.append(AUG_METHODS[key](choice_aug_list))
+        else:
+            addAugToSequence(key, params, augs)
+
     return T.Compose(augs)
     # augments = augments.strip().split()
     # return T.Compose(tuple(map(lambda x: AUG_METHODS[x](**kwargs) if x not in _imgsz_related_methods else AUG_METHODS[x](imgsz, **kwargs), augments)))

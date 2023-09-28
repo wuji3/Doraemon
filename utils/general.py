@@ -70,7 +70,7 @@ def check_cfgs(cfgs):
     assert model_cfg['choice'].split('-')[0] in {'torchvision', 'custom'}, 'if from torchvision, torchvision-ModelName; if from your own, custom-ModelName'
     if model_cfg['kwargs'] and model_cfg['pretrained']:
         for k in model_cfg['kwargs'].keys():
-            if k not in {'dropout'}: raise KeyError('set kwargs except dropout, pretrained must be False')
+            if k not in {'dropout','attention_dropout', 'stochastic_depth_prob'}: raise KeyError('set kwargs except dropout, pretrained must be False')
     assert (model_cfg['pretrained'] and ('normalize' in data_cfg['train']['augment']) and ('normalize' in data_cfg['val']['augment'])) or \
            (not model_cfg['pretrained']) and ('normalize' not in data_cfg['train']['augment']) and ('normalize' not in data_cfg['val']['augment']),\
            'if not pretrained, normalize is not necessary, or normalize is necessary'
