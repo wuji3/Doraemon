@@ -4,6 +4,7 @@ from typing import Callable
 from functools import wraps
 from .valuate import val
 import math
+from .optimizer import SAM
 
 __all__ = ['train_one_epoch']
 
@@ -46,6 +47,7 @@ def mixup_data(x, y, device, lam):
 def mixup_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
+# scale + backward + grad_clip + step + zero_grad
 def update(model, loss, scaler, optimizer, ema=None):
     # backward
     scaler.scale(loss).backward()
@@ -59,6 +61,34 @@ def update(model, loss, scaler, optimizer, ema=None):
     optimizer.zero_grad()
     if ema:
         ema.update(model)
+
+
+def update_sam(model: torch.nn.Module, inputs, targets, optimizer, lossfn, rank, ema=None, mixup=False, **kwargs):
+    # first forward-backward step
+    optimizer.enable_running_stats(model)
+    if not mixup:
+        loss = lossfn(model(inputs), targets)
+    else:
+        loss = mixup_criterion(lossfn, model(inputs), **kwargs)
+    if rank >= 0: # 多卡训练
+        with model.no_sync():
+            loss.mean().backward()
+    else:
+        loss.mean().backward()
+    optimizer.first_step(zero_grad=True)
+
+    # second forward-backward step
+    optimizer.disable_running_stats(model)
+    if not mixup:
+        lossfn(model(inputs), targets).mean().backward()
+    else:
+        mixup_criterion(lossfn, model(inputs), **kwargs).mean().backward()
+    optimizer.second_step(zero_grad=True)
+
+    if ema:
+        ema.update(model)
+
+    return loss
 
 def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimizer,
                     scaler, device: torch.device, epoch: int,
@@ -81,7 +111,7 @@ def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimize
 
     for i, (images, labels) in pbar:  # progress bar
         images, labels = images.to(device, non_blocking=True), labels.to(device)
-        if sampler is not None:
+        if sampler is not None: # OHEM-Softmax
             with torch.no_grad():
                 valid = sampler.sample(model(images), labels)
                 images, labels = images[valid], labels[valid]
@@ -89,11 +119,18 @@ def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimize
             # mixup
             if is_mixup:
                 images, targets_a, targets_b = mixup_data(images, labels, device, lam)
-                loss = mixup_criterion(criterion, model(images), targets_a, targets_b, lam)
+                if type(optimizer) is SAM:
+                    kwargs = dict(y_a=targets_a, y_b=targets_b, lam=lam)
+                    loss = update_sam(model, images, labels, optimizer, criterion, rank, ema, mixup=True, **kwargs)
+                else:
+                    loss = mixup_criterion(criterion, model(images), targets_a, targets_b, lam)
+                    update(model, loss, scaler, optimizer, ema)
             else:
-                loss = criterion(model(images), labels)
-        # scale + backward + grad_clip + step + zero_grad
-        update(model, loss, scaler, optimizer, ema)
+                if type(optimizer) is SAM:
+                    loss = update_sam(model, images, labels, optimizer, criterion, rank, ema, mixup=False)
+                else:
+                    loss = criterion(model(images), labels)
+                    update(model, loss, scaler, optimizer, ema)
 
         if rank in {-1, 0}:
             tloss = (tloss * i + loss.item()) / (i + 1)  # update mean losses
