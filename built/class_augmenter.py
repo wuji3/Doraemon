@@ -1,6 +1,5 @@
 from typing import Union, List, Dict, Optional
 from utils.augment import BaseClassWiseAugmenter
-from PIL.Image import Image
 import torchvision.transforms as T
 
 class ClassWiseAugmenter(BaseClassWiseAugmenter):
@@ -12,7 +11,7 @@ class ClassWiseAugmenter(BaseClassWiseAugmenter):
             self.common_transforms = T.Compose([t for i, t in enumerate(self.base_transforms.transforms) if i in common])
         else: self.common_transforms = common
 
-    def __call__(self, image: Image, label: Union[List, int], class_indices: List[int]):
+    def __call__(self, image, label: Union[List, int], class_indices: List[int]):
         if self.class_transforms is None:
             return super().__call__(image=image, label=label, class_indices=class_indices)
 

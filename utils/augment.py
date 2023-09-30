@@ -9,7 +9,6 @@ import torch.nn as nn
 import glob
 import os
 from torchvision.transforms.functional import InterpolationMode
-from PIL.Image import Image
 from abc import ABCMeta, abstractmethod
 
 # all methods based on PIL
@@ -194,7 +193,7 @@ class BaseClassWiseAugmenter(metaclass=ABCMeta):
             self.class_transforms = None
 
     @abstractmethod
-    def __call__(self, image: Image, label: Union[List, int], class_indices: List[int]):
+    def __call__(self, image, label: Union[List, int], class_indices: List[int]):
         return self.base_transforms(img=image)
 
 
