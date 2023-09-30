@@ -1,6 +1,6 @@
 import copy
 from PIL import Image
-from typing import Optional, List, Tuple, Callable, Union
+from typing import Optional, List, Tuple, Callable, Union, Dict
 import numpy as np
 import random
 import torchvision.transforms as T
@@ -9,6 +9,8 @@ import torch.nn as nn
 import glob
 import os
 from torchvision.transforms.functional import InterpolationMode
+from PIL.Image import Image
+from abc import ABCMeta, abstractmethod
 
 # all methods based on PIL
 __all__ = ['color_jitter', # 颜色抖动
@@ -175,6 +177,26 @@ class PILToTensorNoDiv:
     def __call__(self, pic):
         return self.pil2tensor(pic).float()
 
+class BaseClassWiseAugmenter(metaclass=ABCMeta):
+    def __init__(self, base_transforms: Dict, class_transforms_mapping: Optional[Dict[str, List[int]]]):
+        self.base_transforms = create_AugTransforms(base_transforms)
+        if class_transforms_mapping is not None:
+            class_transforms = dict()
+            for c, t in class_transforms_mapping.items():
+                if isinstance(t, str): t = t.split()
+                transform = []
+                for i in t:
+                    transform.append(self.base_transforms.transforms[int(i)])
+                class_transforms[c] = T.Compose(transform)
+            self.class_transforms = class_transforms
+        else:
+            self.class_transforms = None
+
+    @abstractmethod
+    def __call__(self, image: Image, label: Union[List, int], class_indices: List[int]):
+        return self.base_transforms(img=image)
+
+
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5):
@@ -276,6 +298,9 @@ def random_gaussianblur(prob: float = 0.5, kernel_size=3, sigma=(0.1, 2.0)): # �
 def random_grayscale(p: float = 0.5): # 图是几通道 灰度输出也是几通道
     return T.RandomGrayscale(p=p)
 
+@register_method
+def random_crop_and_resize(size, *args, **kwargs):
+    return T.RandomResizedCrop(size = size, *args, **kwargs)
 @register_method
 def random_choice(transforms: list):
     return T.RandomChoice(transforms=transforms)

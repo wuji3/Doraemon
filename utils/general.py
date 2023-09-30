@@ -25,6 +25,7 @@ import datetime
 import yaml
 from copy import deepcopy
 from .ema import ModelEMA
+from built.class_augmenter import ClassWiseAugmenter
 
 __all__ = ['yaml_load', 'SmartModel', 'SmartDataProcessor', 'CenterProcessor','increment_path', 'check_cfgs']
 
@@ -216,7 +217,8 @@ class SmartDataProcessor:
         cfg = self.data_cfgs.get(mode, -1)
         if isinstance(cfg, dict):
             dataset = Datasets(root=self.data_cfgs['root'], mode=mode,
-                               transforms=create_AugTransforms(augments=cfg['augment']),
+                               transforms=create_AugTransforms(augments=cfg['augment']) if mode == 'val' else \
+                               ClassWiseAugmenter(cfg['augment'], cfg['class_aug'], cfg['common_aug']),
                                project=self.project, rank=self.rank)
         else: dataset = None
         return dataset
@@ -342,7 +344,7 @@ class CenterProcessor:
         self.focal_on = False
 
     def auto_mixup(self, mixup: float, epoch:int, milestone: list):
-        if mixup == 0 or epoch >= milestone[1] or epoch < milestone[0] or self.dist_sampler['beta'] is None: return (False, None) # is_mixup, lam
+        if mixup == 0 or epoch < milestone[0] or self.dist_sampler['beta'] is None: return (False, None) # is_mixup, lam
         else:
             mix_prob = self.dist_sampler['uniform'].sample()
             is_mixup: bool = mix_prob < mixup
@@ -442,13 +444,14 @@ class CenterProcessor:
             # change optimizer momentum from warm_moment0.8 -> momentum0.937
             if epoch == warm_ep:
                 self.set_optimizer_momentum(self.hyp_cfg['momentum'])
-                self.data_processor.set_augment('train', sequence=create_AugTransforms(augments=self.data_cfg['train']['augment']))
+                self.data_processor.set_augment('train', sequence=ClassWiseAugmenter(self.data_cfg['train']['augment'], self.data_cfg['train']['class_aug'], self.data_cfg['train']['common_aug']))
 
             # change lossfn bce -> focal
             self.auto_replace_lossfn(self.focal, int(epoch-warm_ep), self.focal_eff_epo, self.focal_on)
 
             # weaken data augment at milestone
             self.data_processor.auto_aug_weaken(int(epoch-warm_ep), milestone=aug_epoch)
+            if int(epoch-warm_ep) == aug_epoch: self.sampler['beta'] = None # weaken mixup
 
             # progressive learning: effect on imagesz & mixup
             if self.prog_learn:

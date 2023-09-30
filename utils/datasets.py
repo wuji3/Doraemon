@@ -5,7 +5,8 @@ from torch.utils.data import Dataset
 import json
 from PIL import Image
 from pathlib import Path
-from collections import Counter, defaultdict
+from collections import defaultdict
+from built.class_augmenter import ClassWiseAugmenter
 
 class Datasets(Dataset):
     def __init__(self, root, mode, transforms = None, label_transforms = None, project = None, rank = None):
@@ -55,7 +56,8 @@ class Datasets(Dataset):
         img = Image.open(self.images[idx]).convert('RGB')
         label = self.hashtable[os.path.basename(self.images[idx])] if self.multi_label else self.labels[idx]
         if self.transforms is not None:
-            img = self.transforms(img)
+            if type(self.transforms) is ClassWiseAugmenter: img = self.transforms(img, label, self.class_indices)
+            else: img = self.transforms(img)
         if self.label_transforms is not None:
             label = self.label_transforms(label)
 
