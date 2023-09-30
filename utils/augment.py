@@ -35,6 +35,7 @@ __all__ = ['color_jitter', # 颜色抖动
            'random_equalize',
            'random_augmix', # 随机样本自混合
            'random_grayscale', # 随机灰度 input几通道 forward也是几通道
+           'random_crop_and_resize', # 随机crop再resize
            'create_AugTransforms',
            'list_augments']
 

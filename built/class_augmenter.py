@@ -16,13 +16,18 @@ class ClassWiseAugmenter(BaseClassWiseAugmenter):
         if self.class_transforms is None:
             return super().__call__(image=image, label=label, class_indices=class_indices)
 
-        # 下面是需要定制的部分
+        # softmax
         if isinstance(label, int):
-            return self.class_transforms[class_indices[label]](image)
+            if class_indices[label] in self.class_transforms:
+                return self.class_transforms[class_indices[label]](image)
+            else: return self.common_transforms(image)
+        # sigmoid
         elif isinstance(label, list): # multi-label
             # multi-label
-            if sum(label) == 1: # 严格的S、B+和B-
-                c = label.index(1)
-                return self.class_transforms[class_indices[c]](image)
-            else: # B+和模糊边界的样本
-                return self.common_transforms(image)
+            if len(label) == 1: # 定制类
+                c = label[0]
+                if class_indices[c] in self.class_transforms:
+                    return self.class_transforms[class_indices[c]](image)
+
+            # 非定制
+            return self.common_transforms(image)

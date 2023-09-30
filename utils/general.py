@@ -1,6 +1,6 @@
 import torch
 import torchvision
-from torchvision.transforms import CenterCrop, Resize, Compose
+from torchvision.transforms import CenterCrop, Resize, RandomResizedCrop, Compose
 import torch.nn as nn
 from typing import Callable
 from torch.cuda.amp import GradScaler
@@ -99,15 +99,15 @@ def check_cfgs(cfgs):
     # progressive learning
     if hyp_cfg['strategy']['prog_learn']: assert mixup > 0 and data_cfg['train']['aug_epoch'] >= mix1, 'if progressive learning, make sure mixup > 0, and aug_epoch >= mix_end'
     # augment
-    augs = ['center_crop', 'resize']
-    train_augs = list(data_cfg['train']['augment'].keys())
-    val_augs = list(data_cfg['val']['augment'].keys())
-    assert not (augs[0] in train_augs and augs[1] in train_augs), 'if need centercrop and resize, please centercrop offline, not support use two'
-    for a in augs:
-        if a in train_augs:
-            assert a in val_augs, 'augment about image size should be same in train and val'
-    n_val_augs = len(val_augs)
-    assert train_augs[-n_val_augs:] == val_augs, 'augment in val should be same with end-part of train'
+    # augs = ['center_crop', 'resize']
+    # train_augs = list(data_cfg['train']['augment'].keys())
+    # val_augs = list(data_cfg['val']['augment'].keys())
+    # assert not (augs[0] in train_augs and augs[1] in train_augs), 'if need centercrop and resize, please centercrop offline, not support use two'
+    # for a in augs:
+    #     if a in train_augs:
+    #         assert a in val_augs, 'augment about image size should be same in train and val'
+    # n_val_augs = len(val_augs)
+    # assert train_augs[-n_val_augs:] == val_augs, 'augment in val should be same with end-part of train'
 
 class _Init_Nc_Torchvision:
 
@@ -352,6 +352,26 @@ class CenterProcessor:
             return is_mixup.item() if isinstance(is_mixup, torch.Tensor) else is_mixup, lam
 
     def auto_prog(self, epoch: int):
+        def create_AugSequence(train_augs : list, size):
+            sequence = []
+            for i, m in enumerate(train_augs):
+                if isinstance(m, CenterCrop):
+                    if i + 1 < len(train_augs) and (not isinstance(train_augs[i + 1], Resize) or not isinstance(train_augs[i + 1], RandomResizedCrop)):
+                        sequence.extend([m, Resize(size)])
+                    else:
+                        sequence.append(m)
+                elif isinstance(m, Resize):
+                    sequence.append(Resize(size))
+                elif isinstance(m, CenterCropAndResize):
+                    m[-1] = Resize(size)
+                    sequence.append(m)
+                elif isinstance(m, RandomResizedCrop):
+                    m.size = (size, size)
+                    sequence.append(m)
+                else:
+                    sequence.append(m)
+
+            return sequence
         chnodes = self.mixup_chnodes
         # mixup, divide mixup_milestone into 2 parts in default, alpha from 0.1 to 0.2
         if epoch in chnodes:
@@ -361,24 +381,23 @@ class CenterProcessor:
         # image resize, based on mixup_milestone
         min_imgsz = min(self.data_cfg['imgsz']) if isinstance(self.data_cfg['imgsz'][0], int) else min(self.data_cfg['imgsz'][-1])
         imgsz_milestone = torch.linspace(int(min_imgsz * 0.5), int(min_imgsz), 3, dtype=torch.int32).tolist()
-        sequence = []
+
         if epoch == chnodes[0]: size = imgsz_milestone[0]
         elif epoch == chnodes[1]: size = imgsz_milestone[1]
         elif epoch == chnodes[2]: size = imgsz_milestone[2]
         else: return
-        train_augs = self.data_processor.train_dataset.transforms.transforms
-        for i, m in enumerate(train_augs):
-            if isinstance(m, CenterCrop):
-                if i+1 < len(train_augs) and not isinstance(train_augs[i+1], Resize):
-                    sequence.extend([m, Resize(size)])
-                else:
-                    sequence.append(m)
-            elif isinstance(m, Resize):sequence.append(Resize(size))
-            elif isinstance(m, CenterCropAndResize):
-                m[-1] = Resize(size)
-                sequence.append(m)
-            else: sequence.append(m)
-        self.data_processor.set_augment('train', sequence=Compose(sequence))
+
+        if hasattr(self.data_processor.train_dataset.transforms, 'transforms'):
+            train_augs = self.data_processor.train_dataset.transforms.transforms
+            self.data_processor.set_augment('train', sequence=create_AugSequence(train_augs, size))
+        else:
+            if hasattr(self.data_processor.train_dataset.transforms, 'class_transforms'):
+                for c, transforms in self.data_processor.train_dataset.transforms.class_transforms.items():
+                    self.data_processor.train_dataset.transforms.class_transforms[c] = Compose(create_AugSequence(transforms.transforms, size))
+            if hasattr(self.data_processor.train_dataset.transforms, 'common_transforms'):
+                transforms = self.data_processor.train_dataset.transforms.common_transforms.transforms
+                self.data_processor.train_dataset.transforms.common_transforms = Compose(create_AugSequence(transforms, size))
+
     def set_sync_bn(self):
         self.model_processor.model = nn.SyncBatchNorm.convert_sync_batchnorm(module=self.model_processor.model)
 
@@ -451,7 +470,7 @@ class CenterProcessor:
 
             # weaken data augment at milestone
             self.data_processor.auto_aug_weaken(int(epoch-warm_ep), milestone=aug_epoch)
-            if int(epoch-warm_ep) == aug_epoch: self.sampler['beta'] = None # weaken mixup
+            if int(epoch-warm_ep) == aug_epoch: self.dist_sampler['beta'] = None # weaken mixup
 
             # progressive learning: effect on imagesz & mixup
             if self.prog_learn:
