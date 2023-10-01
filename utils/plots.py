@@ -62,6 +62,7 @@ def is_ascii(s=''):
     return len(s.encode().decode('ascii', 'ignore')) == len(s)
 
 class Annotator:
+    # 服务器无vpn下载字体会超时 可以在本地下载好https://ultralytics.com/assets/Arial.ttf 然后scp到/home/jwalgo/.config/Ultralytics
     def __init__(self, im, font='Arial.ttf'):
         font_size = None
         non_ascii = not is_ascii('abc')
