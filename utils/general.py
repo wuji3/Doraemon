@@ -387,16 +387,19 @@ class CenterProcessor:
         elif epoch == chnodes[2]: size = imgsz_milestone[2]
         else: return
 
-        if hasattr(self.data_processor.train_dataset.transforms, 'transforms'):
-            train_augs = self.data_processor.train_dataset.transforms.transforms
-            self.data_processor.set_augment('train', sequence=create_AugSequence(train_augs, size))
-        else:
-            if hasattr(self.data_processor.train_dataset.transforms, 'class_transforms'):
-                for c, transforms in self.data_processor.train_dataset.transforms.class_transforms.items():
-                    self.data_processor.train_dataset.transforms.class_transforms[c] = Compose(create_AugSequence(transforms.transforms, size))
-            if hasattr(self.data_processor.train_dataset.transforms, 'common_transforms'):
-                transforms = self.data_processor.train_dataset.transforms.common_transforms.transforms
-                self.data_processor.train_dataset.transforms.common_transforms = Compose(create_AugSequence(transforms, size))
+        # if hasattr(self.data_processor.train_dataset.transforms, 'transforms'):
+        #     train_augs = self.data_processor.train_dataset.transforms.transforms
+        #     self.data_processor.set_augment('train', sequence=create_AugSequence(train_augs, size))
+        # else:
+        if hasattr(self.data_processor.train_dataset.transforms, 'base_transforms'):
+            transforms = self.data_processor.train_dataset.transforms.base_transforms.transforms
+            self.data_processor.train_dataset.transforms.base_transforms = Compose(create_AugSequence(transforms, size))
+        if hasattr(self.data_processor.train_dataset.transforms, 'class_transforms') and self.data_processor.train_dataset.transforms.class_transforms is not None:
+            for c, transforms in self.data_processor.train_dataset.transforms.class_transforms.items():
+                self.data_processor.train_dataset.transforms.class_transforms[c] = Compose(create_AugSequence(transforms.transforms, size))
+        if hasattr(self.data_processor.train_dataset.transforms, 'common_transforms') and self.data_processor.train_dataset.transforms.common_transforms is not None:
+            transforms = self.data_processor.train_dataset.transforms.common_transforms.transforms
+            self.data_processor.train_dataset.transforms.common_transforms = Compose(create_AugSequence(transforms, size))
 
     def set_sync_bn(self):
         self.model_processor.model = nn.SyncBatchNorm.convert_sync_batchnorm(module=self.model_processor.model)
