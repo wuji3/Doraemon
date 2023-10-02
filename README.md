@@ -16,6 +16,7 @@
 * 训练可视化参考YOLOv5 -> https://github.com/ultralytics/yolov5
 * 本仓库解耦Dataset, Augment Pipeline, Optimizer, Scheduler, Sampler, Loss, Engine, Model，现在Model是使用Torchvision的模型，如果想用自己的模型，需要稍稍改动代码，这一块作者没需求所以一直空着没写 
 * 所有的策略只修改configs/complete.yaml这个配置文件就可以完成了，方便大家写论文跑实验、打比赛和做项目
+* b站链接 https://space.bilibili.com/122771869
 #### 配置文件简介
 * model
   ```
