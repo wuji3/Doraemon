@@ -89,7 +89,7 @@ def check_cfgs(cfgs):
     # focalloss
     if hyp_cfg['strategy']['focal'][0]: assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
     # ohem
-    if hyp_cfg['strategy']['ohem'][0]: assert not hyp_cfg['loss']['bce'], 'ohem not support bceloss'
+    if hyp_cfg['strategy']['ohem'][0]: assert not hyp_cfg['loss']['bce'][0], 'ohem not support bceloss'
     # mixup
     mixup, mixup_milestone = hyp_cfg['strategy']['mixup']
     assert mixup >= 0 and mixup <= 1 and isinstance(mixup_milestone, list), 'mixup_ratio[0,1], mixup_milestone be list'
@@ -187,7 +187,7 @@ class SmartModel:
         kind, _ = self.model_cfgs['choice'].split('-')
         if kind == 'torchvision':
             for name, m in self.model.named_children():
-                if name != 'fc':
+                if name not in ('fc', 'classifier', 'head'):
                     for p in m.parameters():
                         p.requires_grad_(False)
             print('backbone freeze')
@@ -235,11 +235,11 @@ class SmartDataProcessor:
             self.set_augment('train', sequence = None)
 
     @staticmethod
-    def set_dataloader(dataset, bs: int = 256, nw: int = 0, pin_memory: bool = True, shuffle: bool = True, sampler = None):
+    def set_dataloader(dataset, bs: int = 256, nw: int = 0, pin_memory: bool = True, shuffle: bool = True, sampler = None, collate_fn= None):
         assert not (shuffle and sampler is not None)
         nd = torch.cuda.device_count()
         nw = min([os.cpu_count() // max(nd, 1), nw])
-        return DataLoader(dataset=dataset, batch_size=bs, num_workers=nw, pin_memory=pin_memory, sampler=sampler, shuffle=shuffle)
+        return DataLoader(dataset=dataset, batch_size=bs, num_workers=nw, pin_memory=pin_memory, sampler=sampler, shuffle=shuffle, collate_fn=collate_fn)
 
 class CenterProcessor:
     def __init__(self, cfgs, rank, project):
@@ -420,13 +420,15 @@ class CenterProcessor:
                                                          nw=self.data_cfg['nw'],
                                                          pin_memory=True,
                                                          sampler=data_sampler,
-                                                         shuffle=data_sampler is None)
+                                                         shuffle=data_sampler is None,
+                                                         collate_fn=train_dataset.collate_fn)
         if self.rank in {-1, 0}:
             val_dataloader = data_processor.set_dataloader(dataset=val_dataset,
                                                            bs=self.data_cfg['val']['bs'],
                                                            nw=self.data_cfg['nw'],
                                                            pin_memory=False,
-                                                           shuffle=False)
+                                                           shuffle=False,
+                                                           collate_fn=val_dataset.collate_fn)
         else: val_dataloader = None
         best_fitness = 0.
         start_epoch = 0

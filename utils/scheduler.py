@@ -3,7 +3,12 @@ from typing import Callable
 from functools import wraps
 from torch.optim.lr_scheduler import LinearLR, CosineAnnealingLR, PolynomialLR, SequentialLR
 
-__all__ = ['create_Scheduler', 'list_schedulers']
+__all__ = ['linear',  # 线性衰减
+           'cosine',  # 余弦衰减
+           'linear_with_warm', # 线性衰减带热身
+           'cosine_with_warm', # 余弦衰减带热身
+           'create_Scheduler',
+           'list_schedulers', ]
 
 SCHEDULER = {}
 def register_scheduler(fn: Callable):

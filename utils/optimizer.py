@@ -6,8 +6,9 @@ from torch.nn import Module
 import torch
 from torch.nn.modules.batchnorm import _BatchNorm
 
-__all__ = ['SGD',
-           'Adam',
+__all__ = ['sgd',
+           'adam',
+           'sam',
            'BaseSeperateLayer',
            'create_Optimizer',
            'list_optimizers']

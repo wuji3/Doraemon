@@ -3,7 +3,11 @@ import torch.nn as nn
 from typing import Callable
 from functools import wraps
 
-__all__ = ['create_Lossfn', 'list_lossfns']
+__all__ = ['bce',
+           'ce',
+           'focal',
+           'create_Lossfn',
+           'list_lossfns',]
 
 LOSS = {}
 

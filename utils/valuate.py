@@ -41,11 +41,13 @@ def val(model: nn.Module, dataloader, device: torch.device, pbar, is_training: b
         correct = (targets[:, None] == pred).float()
         acc = torch.stack((correct[:, 0], correct.max(1).values), dim=1)  # (top1, top5) accuracy
         top1, top5 = acc.mean(0).tolist()
+        if not is_training: logger.console(f'{"name":<15}{"nums":>8}{"top1":>10}{"top5":>10}')
         for i, c in enumerate(dataloader.dataset.class_indices):
             acc_i = acc[targets == i]
             top1i, top5i = acc_i.mean(0).tolist()
-            if not is_training: logger.console(f'{c:<8}{acc_i.shape[0]:>8}{top1i:>10.3f}{top5i:>10.3f}')
+            if not is_training: logger.console(f'{c:<15}{acc_i.shape[0]:>8}{top1i:>10.3f}{top5i:>10.3f}')
             else: logger.log(f'{c:<8}{acc_i.shape[0]:>8}{top1i:>10.3f}{top5i:>10.3f}')
+        if not is_training: logger.console(f'{"    ":<15}{acc.shape[0]:>8}{top1:>10.3f}{round(top5, 3):>10.3f}')
     else:
         num_classes = len(dataloader.dataset.class_indices)
         precisioner = Precision(task='multilabel', threshold=thresh, num_labels=num_classes, average=None).to(device)
@@ -61,13 +63,13 @@ def val(model: nn.Module, dataloader, device: torch.device, pbar, is_training: b
         for i, c in enumerate(dataloader.dataset.class_indices):
             if not is_training: logger.console(f'{c:<8}{cls_numbers[i]:>8}{precision[i].item():>10.3f}{recall[i].item():>10.3f}{f1score[i].item():>10.3f}')
             else: logger.log(f'{c:<8}{cls_numbers[i]:>8}{precision[i].item():>15.3f}{recall[i].item():>10.3f}{f1score[i].item():>10.3f}')
+        if not is_training: logger.console(
+            f'mprecision:{precision.mean().item():.3f}, mrecall:{recall.mean().item():.3f}, mf1-score:{f1score.mean().item():.3f},')
 
     if pbar and thresh == 0:
         pbar.desc = f'{pbar.desc[:-36]}{loss:>12.3g}{top1:>12.3g}{top5:>12.3g}'
     elif pbar and thresh > 0:
         pbar.desc = f'{pbar.desc[:-36]}{loss:>12.3g}{precision.mean().item():>12.3g}{recall.mean().item():>12.3g}{f1score.mean().item():>12.3g}'
-
-    if not is_training: logger.console(f'mprecision:{precision.mean().item():.3f}, mrecall:{recall.mean().item():.3f}, mf1-score:{f1score.mean().item():.3f},')
 
     if lossfn:
         if thresh == 0: return top1, top5, loss

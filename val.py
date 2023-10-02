@@ -40,7 +40,7 @@ def main(opt):
             partial(Datasets.set_label_transforms,
                     num_classes=opt.num_classes,
                     label_smooth=0)
-    dataloader = data_processor.set_dataloader(data_processor.val_dataset) # batchsize default 256
+    dataloader = data_processor.set_dataloader(data_processor.val_dataset, bs=8, collate_fn=data_processor.val_dataset.collate_fn) # batchsize default 256
 
     # model
     model_cfg = {}

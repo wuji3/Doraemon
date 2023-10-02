@@ -280,7 +280,7 @@ def resize(size = 224):
     # (h, w), output size will be matched to this. If size is an int,smaller
     # edge of the image will be matched to this number. i.e,
     # if height > width, then image will be rescaled to (size * height / width, size).
-    return T.Resize(size = size, interpolation=InterpolationMode.NEAREST)
+    return T.Resize(size = size, interpolation=InterpolationMode.BILINEAR)
 
 @register_method
 def centercrop_resize(center_size: tuple, re_size: tuple):
