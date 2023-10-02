@@ -134,7 +134,7 @@
       prog_learn: True 
       mixup:
         - 0.1 # prob
-        - [0,30] # 渐进式学习和mixup作用阶段 左开右闭 梯度热身epoch排除在外
+        - [0,30] # 渐进式学习和mixup作用阶段 左闭右开 梯度热身epoch排除在外
   
       # FocalLoss 仅支持BCELoss
       focal: 
