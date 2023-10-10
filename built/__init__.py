@@ -1,1 +1,3 @@
 from .layer_optimizer import SeperateLayerParams
+from .class_augmenter import ClassWiseAugmenter
+from .attention_based_pooler import atten_pool_replace

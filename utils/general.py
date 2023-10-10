@@ -1,10 +1,8 @@
 import torch
-import torchvision
 from torchvision.transforms import CenterCrop, Resize, RandomResizedCrop, Compose
 import torch.nn as nn
 from typing import Callable
 from torch.cuda.amp import GradScaler
-from torch.nn.init import normal_, constant_
 from .datasets import Datasets
 from .augment import create_AugTransforms, CenterCropAndResize
 from torch.utils.data import DataLoader, DistributedSampler
@@ -26,8 +24,9 @@ import yaml
 from copy import deepcopy
 from .ema import ModelEMA
 from built.class_augmenter import ClassWiseAugmenter
+from models import SmartModel
 
-__all__ = ['yaml_load', 'SmartModel', 'SmartDataProcessor', 'CenterProcessor','increment_path', 'check_cfgs']
+__all__ = ['yaml_load', 'SmartDataProcessor', 'CenterProcessor','increment_path', 'check_cfgs']
 
 
 def yaml_load(file='data.yaml'):
@@ -109,97 +108,7 @@ def check_cfgs(cfgs):
     # n_val_augs = len(val_augs)
     # assert train_augs[-n_val_augs:] == val_augs, 'augment in val should be same with end-part of train'
 
-class _Init_Nc_Torchvision:
 
-    def __init__(self):
-        self.models = {
-            'mobilenet',  # mobilenet_v2, mobilenet_v3_large, mobilenet_v3_small
-            'shufflenet',  # shufflenet_v2_x0_5, shufflenet_v2_x1_0, shufflenet_v2_x1_5, shufflenet_v2_x2_0
-            'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152', 'resnext50', 'resnext101', # res-series
-            'convnext',  # convnext_tiny, convnext_small, convnext_base, convnext_large
-            'efficientnet',  # efficientnet_b0 -> efficientnet_b7, efficientnet_v2_s, efficientnet_v2_m, efficientnet_v2_l
-            'swin',
-        }
-
-    def init_nc(self, model: nn.Module, choice: str, nc: int) -> None:
-        model_name = choice.split('_')[0]
-        assert model_name in self.models, 'Not supported model'
-        if model_name in {'mobilenet', 'convnext', 'efficientnet'}: # self.classify
-            m = getattr(model, 'classifier')
-            if isinstance(m, nn.Sequential):
-                m[-1] = nn.Linear(m[-1].in_features, nc)
-        elif model_name == 'swin':
-            model.head = nn.Linear(model.head.in_features, nc)
-        else: # self.fc
-            model.fc = nn.Linear(model.fc.in_features, nc)
-
-class SmartModel:
-    def __init__(self, model_cfgs: dict):
-        self.model_cfgs = model_cfgs
-
-        self.kwargs = model_cfgs['kwargs']
-        self.num_classes = model_cfgs['num_classes']
-        self.pretrained = model_cfgs['pretrained']
-        self.backbone_freeze = model_cfgs['backbone_freeze']
-        self.bn_freeze = model_cfgs['bn_freeze']
-        self.bn_freeze_affine = model_cfgs['bn_freeze_affine']
-
-        model_cfgs_copy = deepcopy(model_cfgs)
-        model_cfgs_copy['kind'], model_cfgs_copy['choice'] = model_cfgs['choice'].split('-')
-
-        # init num_classes if torchvision
-        self.init_nc_torchvision = _Init_Nc_Torchvision() if model_cfgs_copy['kind'] == 'torchvision' else None
-        # init model
-        self.model = self.create_model(**model_cfgs_copy)
-        del model_cfgs_copy
-
-        if not self.pretrained: self.reset_parameters()
-
-    def create_model(self, choice: str, num_classes: int = 1000, pretrained: bool = False, kind: str = 'torchvision',
-                     backbone_freeze: bool = False, bn_freeze: bool = False, bn_freeze_affine: bool = False, **kwargs):
-        assert kind in {'torchvision', 'custom'}, 'kind must be torchvision or custom'
-        if kind == 'torchvision':
-            model = torchvision.models.get_model(choice, weights = torchvision.models.get_model_weights(choice) if pretrained else None, **kwargs['kwargs'])
-            # init num_classes from torchvision.models
-            if self.init_nc_torchvision is not None:
-                self.init_nc_torchvision.init_nc(model, choice, num_classes)
-
-        else:
-            pass
-        if backbone_freeze: self.freeze_backbone()
-        if bn_freeze: self.freeze_bn(bn_freeze_affine)
-        return model
-
-    def init_parameters(self, m: nn.Module):
-        if isinstance(m, nn.Conv2d):
-            normal_(m.weight, mean=0, std=0.02)
-        elif isinstance(m, nn.BatchNorm2d):
-            constant_(m.weight, 1)
-            constant_(m.bias, 0)
-        elif isinstance(m, nn.Linear):
-            normal_(m.weight, mean=0, std=0.02)
-            constant_(m.bias, 0)
-
-    def reset_parameters(self):
-        self.model.apply(self.init_parameters)
-
-    def freeze_backbone(self):
-        kind, _ = self.model_cfgs['choice'].split('-')
-        if kind == 'torchvision':
-            for name, m in self.model.named_children():
-                if name not in ('fc', 'classifier', 'head'):
-                    for p in m.parameters():
-                        p.requires_grad_(False)
-            print('backbone freeze')
-        else: pass
-
-    def freeze_bn(self, bn_freeze_affine: bool = False):
-        for m in self.model.modules():
-            if isinstance(m, nn.BatchNorm2d):
-                m.eval()
-                if bn_freeze_affine:
-                    m.weight.requires_grad_(False)
-                    m.bias.requires_grad_(False)
 
 class SmartDataProcessor:
     def __init__(self, data_cfgs: dict, rank, project):
@@ -273,7 +182,7 @@ class CenterProcessor:
         params = SeperateLayerParams(self.model_processor.model)
         self.optimizer = create_Optimizer(optimizer=self.hyp_cfg['optimizer'][0], lr=self.hyp_cfg['lr0'],
                                           weight_decay=self.hyp_cfg['weight_decay'], momentum=self.hyp_cfg['warmup_momentum'],
-                                          params=params.create_ParamSequence(alpha=None if self.hyp_cfg['optimizer'][1][0] is None else self.hyp_cfg['optimizer'][1][1], lr=self.hyp_cfg['lr0']))
+                                          params=params.create_ParamSequence(layer_wise=self.hyp_cfg['optimizer'][1], lr=self.hyp_cfg['lr0']))
         # scheduler
         self.scheduler = create_Scheduler(scheduler=self.hyp_cfg['scheduler'], optimizer=self.optimizer,
                                           warm_ep=self.hyp_cfg['warm_ep'], epochs=self.hyp_cfg['epochs'], lr0=self.hyp_cfg['lr0'],lrf_ratio=self.hyp_cfg['lrf_ratio'])
@@ -516,5 +425,5 @@ class CenterProcessor:
                 if final_epoch:
                     logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                                    f"\nResults saved to {colorstr('bold', self.project)}"
-                                   f'\nPredict:         python predict.py --weight {best} --badcase --save_txt --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --class_head {self.loss_choice} --class_json {self.project}/class_indices.json --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}" --root data/val/{colorstr("blue", "XXX_cls")}'
-                                   f'\nValidate:        python val.py --weight {best} --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --root {colorstr("blue", "data")} --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}" --thresh {thresh} --head {self.loss_choice} --multi_label {self.hyp_cfg["loss"]["bce"][2]}')
+                                   f'\nPredict:         python predict.py --weight {best} --badcase --save_txt --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --class_head {self.loss_choice} --class_json {self.project}/class_indices.json --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}" {"--attention_pool" if self.model_cfg["attention_pool"] else ""} --root data/val/{colorstr("blue", "XXX_cls")}'
+                                   f'\nValidate:        python val.py --weight {best} --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --root {colorstr("blue", "data")} --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}" --thresh {thresh} --head {self.loss_choice} {"--multi_label" if self.hyp_cfg["loss"]["bce"][2] else ""} {"--attention_pool" if self.model_cfg["attention_pool"] else ""}')

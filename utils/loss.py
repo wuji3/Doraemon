@@ -59,7 +59,7 @@ def ce(label_smooth: float = 0.):
     return nn.CrossEntropyLoss(label_smoothing=label_smooth)
 @register_loss
 def focal():
-    return FocalLoss(loss_fcn = nn.BCEWithLogitsLoss(), alpha=1)
+    return FocalLoss(loss_fcn = nn.BCEWithLogitsLoss(), alpha=0.25)
 def create_Lossfn(lossfn: str):
     lossfn = lossfn.strip()
     return LOSS[lossfn]

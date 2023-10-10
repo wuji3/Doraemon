@@ -1,14 +1,16 @@
 # vision classifier
 本仓库提供baseline用于图像分类任务，会持续维护，方便大家用于项目和竞赛，支持以下trick和module:
 
-`SAM                  | Sharpness-Aware Minimization for Efficiently Improving Generalization | https://arxiv.org/abs/2010.01412v3`  
-`Progressive Learning | EfficientNetV2: Smaller Models and Faster Training                    | https://arxiv.org/abs/2104.00298`  
-`OHEM                 | Training Region-based Object Detectors with Online Hard Example Mining| https://arxiv.org/abs/1604.03540`  
-`Focal Loss           | Focal Loss for Dense Object Detection                                 | https://arxiv.org/abs/1708.02002`  
-`CosineAnnealing      | SGDR: Stochastic Gradient Descent with Warm Restarts                  | https://arxiv.org/abs/1608.03983`  
-`Label Smoothing      | Rethinking the Inception Architecture for Computer Vision             | https://arxiv.org/abs/1512.00567`  
-`Mixup                | MixUp: Beyond Empirical Risk Minimization                             | https://arxiv.org/abs/1710.09412`  
-`CutOut               | Improved Regularization of Convolutional Neural Networks with Cutout  | https://arxiv.org/abs/1708.04552`   
+`SAM                  | Sharpness-Aware Minimization for Efficiently Improving Generalization           | https://arxiv.org/abs/2010.01412v3`  
+`Progressive Learning | EfficientNetV2: Smaller Models and Faster Training                              | https://arxiv.org/abs/2104.00298`  
+`OHEM                 | Training Region-based Object Detectors with Online Hard Example Mining          | https://arxiv.org/abs/1604.03540`  
+`Focal Loss           | Focal Loss for Dense Object Detection                                           | https://arxiv.org/abs/1708.02002`  
+`CosineAnnealing      | SGDR: Stochastic Gradient Descent with Warm Restarts                            | https://arxiv.org/abs/1608.03983`  
+`Label Smoothing      | Rethinking the Inception Architecture for Computer Vision                       | https://arxiv.org/abs/1512.00567`  
+`Mixup                | MixUp: Beyond Empirical Risk Minimization                                       | https://arxiv.org/abs/1710.09412`  
+`CutOut               | Improved Regularization of Convolutional Neural Networks with Cutout            | https://arxiv.org/abs/1708.04552`   
+`Attention Pool       | Augmenting Convolutional networks with attention-based aggregation              | https://arxiv.org/abs/2112.13692`  
+`GradCAM              | Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization| https://arxiv.org/abs/1610.02391`      
 
 另外还有一些比赛通用trick，如EMA(Exponential Moving Average)，MLT(Multi Label Training)，AMP(Automatic Mixed Precision)等，若读者找到相应论文可以私信我加上
 

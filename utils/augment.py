@@ -335,3 +335,5 @@ def create_AugTransforms(augments: dict):
 def list_augments():
     augments = [k for k, v in AUG_METHODS.items()]
     return sorted(augments)
+
+SPATIAL_TRANSFORMS = set([T.CenterCrop, T.Resize, CenterCropAndResize, T.RandomCrop, T.RandomResizedCrop])
