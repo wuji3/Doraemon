@@ -80,5 +80,5 @@ hyp:
       - 255 # ignore_index
   optimizer:
     - sgd # sgd adam or sam
-    - [null, 0.1] # [layer, alpha] 特殊的层需要调学习率
+    - False # [layer, alpha] 特殊的层需要调学习率
   scheduler: cosine_with_warm # linear or cosine

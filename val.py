@@ -1,4 +1,5 @@
-from utils.general import SmartDataProcessor, SmartModel, SmartLogger, Datasets
+from utils.general import SmartDataProcessor, SmartLogger, Datasets
+from models import SmartModel
 import os
 import argparse
 from pathlib import Path
@@ -15,11 +16,12 @@ def parse_opt():
     parser.add_argument('--choice', default = 'torchvision-shufflenet_v2_x1_0', type=str)
     parser.add_argument('--thresh', default = 0.7, type=float)
     parser.add_argument('--head', default = 'ce', type=str)
-    parser.add_argument('--multi_label', default = False, type=bool)
+    parser.add_argument('--multi_label', action='store_true')
     parser.add_argument('--num_classes', default = 6, type=int)
     parser.add_argument('--kwargs', default = "{}", type=str, )
     parser.add_argument('--weight', default = './run/exp/best.pt', help='configs for models, data, hyps')
     parser.add_argument('--transforms', default = {'to_tensor': 'no_params', 'normalize': 'no_params'}, help='空格隔开')
+    parser.add_argument('--attention_pool', action='store_true', help='是否使用注意力池化, 默认False, 即使用平均池化')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
     return parser.parse_args()
 
@@ -51,6 +53,7 @@ def main(opt):
     model_cfg['backbone_freeze'] = False
     model_cfg['bn_freeze'] = False
     model_cfg['bn_freeze_affine'] = False
+    model_cfg['attention_pool'] = opt.attention_pool
 
     model_processor = SmartModel(model_cfg)
     model = model_processor.model

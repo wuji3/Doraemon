@@ -43,6 +43,9 @@
   
     # 是否冻结batchnorm的beta和gamma 即requires_grad=False
     bn_freeze_affine: False
+  
+    # 是否更换avg_pool
+    attention_pool: False
   ```
 * data
   ```
@@ -154,7 +157,7 @@
     # 优化器 utils/optimizer.py
     optimizer: 
       - sgd # sgd adam or sam
-      - [null, 0.1] # [layer, alpha] 特殊的层需要调学习率 built/layer_optimizer.py
+      - False # 是否存在特殊的层需要调学习率 -> built/layer_optimizer.py
   
     # 学习率衰减策略 utils/scheduler.py
     scheduler: cosine_with_warm
