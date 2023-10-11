@@ -200,7 +200,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py
 ```
 4. 启动验证和推理
 ```
-训练结束后，脚本会自动提示验证和推理的命令 predict.py中传入--badcase会自动把模型预测错误的样本存在badcase文件夹中 方便大家分析样本
+训练结束后，脚本会自动提示验证和推理的命令 
+predict.py中传入--badcase会自动把模型预测错误的样本存在badcase文件夹中 传入--is_cam会同时将注意力图也输出 便于大家分析case
 python val.py --weight run/exp9/best.pt --choice torchvision-swin_t --kwargs "{}" --root data --num_classes 5 --transforms "{'resize': {'size': [640, 640]}, 'to_tensor': 'no_params', 'normalize': {'mean': '(0.485, 0.456, 0.406)', 'std': '(0.229, 0.224, 0.225)'}}" --thresh 0 --head ce --multi_label False
 python predict.py --weight run/exp9/best.pt --badcase --save_txt --choice torchvision-swin_t --kwargs "{}" --class_head ce --class_json run/exp9/class_indices.json --num_classes 5 --transforms "{'resize': {'size': [640, 640]}, 'to_tensor': 'no_params', 'normalize': {'mean': '(0.485, 0.456, 0.406)', 'std': '(0.229, 0.224, 0.225)'}}" --root data/val/XXX_cls
 ```
