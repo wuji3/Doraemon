@@ -5,8 +5,8 @@ from tqdm import tqdm
 from typing import Callable, Optional
 from torchmetrics import Precision, Recall, F1Score
 
-__all__ = ['val']
-def val(model: nn.Module, dataloader, device: torch.device, pbar, is_training: bool = False, lossfn: Optional[Callable] = None, logger = None, thresh: float = 0):
+__all__ = ['valuate']
+def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_training: bool = False, lossfn: Optional[Callable] = None, logger = None, thresh: float = 0):
 
     assert thresh == 0 or thresh > 0 and thresh < 1, 'softmax时thresh为0 bce时0 < thresh < 1'
     # eval mode

@@ -1,7 +1,7 @@
 from utils import create_AugTransforms
 from PIL import Image
 import numpy as np
-
+from PIL.JpegImagePlugin import JpegImageFile
 
 augs = {
     'random_color_jitter': dict(brightness=0.5, contrast = 0.5, saturation = 0.5, hue = 0.5),
@@ -11,7 +11,7 @@ augs = {
 t = create_AugTransforms(augs)
 # t = create_AugTransforms('random_color_jitter random_cutout')
 
-img = Image.open('/Users/duke/project/dataWork/DATA/train/B-/112221101-6_1366972_28302999.jpg')
+img = Image.open('/Users/duke/project/vision_classification/data/val/S/DV1741-181_1591875_28422625的副本.png')
 
 images = []
 for i in range(1, 29):

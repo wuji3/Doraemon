@@ -1,6 +1,6 @@
 import torch
 from torch.distributed import init_process_group
-from utils.general import CenterProcessor, yaml_load, increment_path, check_cfgs
+from engine.vision_engine import CenterProcessor, yaml_load, increment_path, check_cfgs
 from utils.plots import colorstr
 import os
 import argparse

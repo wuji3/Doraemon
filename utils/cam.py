@@ -1,5 +1,4 @@
 from typing import Tuple, Callable, Optional, List
-import cv2
 import numpy as np
 import torch
 import torch.nn as nn
@@ -7,7 +6,7 @@ from torchvision.models import SwinTransformer
 from PIL.JpegImagePlugin import JpegImageFile
 from PIL.Image import Image as ImageType
 from torchvision.transforms import Compose
-from utils.augment import SPATIAL_TRANSFORMS
+from dataset.transforms import SPATIAL_TRANSFORMS
 
 
 from pytorch_grad_cam import GradCAM, \

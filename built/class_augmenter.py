@@ -1,5 +1,5 @@
 from typing import Union, List, Dict, Optional
-from utils.augment import BaseClassWiseAugmenter
+from dataset.transforms import BaseClassWiseAugmenter
 import torchvision.transforms as T
 
 class ClassWiseAugmenter(BaseClassWiseAugmenter):

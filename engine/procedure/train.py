@@ -2,9 +2,9 @@ import torch
 from tqdm import tqdm
 from typing import Callable
 from functools import wraps
-from .valuate import val
+from engine.procedure.evaluation import valuate
 import math
-from .optimizer import SAM
+from engine.optimizer import SAM
 
 __all__ = ['train_one_epoch']
 
@@ -143,12 +143,12 @@ def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimize
                 if thresh == 0:
                     logger.log(f'{"name":<8}{"nums":>8}{"top1":>10}{"top5":>10}')
                     # val
-                    top1, top5, v_loss = val(ema.ema, val_dataloader, device, pbar, True, criterion, logger, thresh)
+                    top1, top5, v_loss = valuate(ema.ema, val_dataloader, device, pbar, True, criterion, logger, thresh)
                     logger.log(f'v_loss:{v_loss:4f}  mtop1:{top1:.3g}  mtop5:{top5:.3g}\n')
                 else:
                     logger.log(f'{"name":<8}{"nums":>8}{"precision":>15}{"recall":>10}{"f1score":>10}')
                     # val
-                    precision, recall, f1score, v_loss = val(ema.ema, val_dataloader, device, pbar, True, criterion, logger, thresh)
+                    precision, recall, f1score, v_loss = valuate(ema.ema, val_dataloader, device, pbar, True, criterion, logger, thresh)
                     logger.log(f'v_loss:{v_loss:4f}  precision:{precision:.3g}  recall:{recall:.3g}  f1score:{f1score:.3g}\n')
 
                 fitness = top1 if thresh == 0 else f1score  # define fitness as top1 accuracy

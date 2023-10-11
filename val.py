@@ -1,9 +1,10 @@
-from utils.general import SmartDataProcessor, SmartLogger, Datasets
+from engine.vision_engine import SmartLogger, BaseDatasets
+from dataset.dataprocessor import SmartDataProcessor
 from models import SmartModel
 import os
 import argparse
 from pathlib import Path
-from utils.valuate import val
+from engine.procedure.evaluation import valuate
 import torch
 from functools import partial
 
@@ -40,7 +41,7 @@ def main(opt):
     if opt.head == 'bce':
         data_processor.val_dataset.multi_label = opt.multi_label
         data_processor.val_dataset.label_transforms = \
-            partial(Datasets.set_label_transforms,
+            partial(BaseDatasets.set_label_transforms,
                     num_classes=opt.num_classes,
                     label_smooth=0)
     dataloader = data_processor.set_dataloader(data_processor.val_dataset, bs=8, collate_fn=data_processor.val_dataset.collate_fn) # batchsize default 256
@@ -69,7 +70,7 @@ def main(opt):
     logger = SmartLogger()
 
     # val
-    val(model, dataloader, device, None, False, None, logger, thresh=opt.thresh)
+    valuate(model, dataloader, device, None, False, None, logger, thresh=opt.thresh)
 
 if __name__ == '__main__':
     opt = parse_opt()

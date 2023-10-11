@@ -4,7 +4,7 @@ from torchvision.models import get_model
 from PIL import Image
 import torchvision.transforms as T
 import argparse
-from utils.augment import create_AugTransforms
+from dataset.transforms import create_AugTransforms
 import cv2
 import numpy as np
 import os

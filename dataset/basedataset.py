@@ -8,7 +8,7 @@ from pathlib import Path
 from collections import defaultdict
 from built.class_augmenter import ClassWiseAugmenter
 
-class Datasets(Dataset):
+class BaseDatasets(Dataset):
     def __init__(self, root, mode, transforms = None, label_transforms = None, project = None, rank = None):
         assert os.path.isdir(root), "dataset root: {} does not exist.".format(root)
         src_path = os.path.join(root, mode)
