@@ -16,6 +16,7 @@ def parse_opt():
     parser.add_argument('--choice', default = 'torchvision-shufflenet_v2_x1_0', type=str)
     parser.add_argument('--thresh', default = 0.7, type=float)
     parser.add_argument('--head', default = 'ce', type=str)
+    parser.add_argument('--ema', action='store_true')
     parser.add_argument('--multi_label', action='store_true')
     parser.add_argument('--num_classes', default = 6, type=int)
     parser.add_argument('--kwargs', default = "{}", type=str, )
@@ -57,7 +58,10 @@ def main(opt):
 
     model_processor = SmartModel(model_cfg)
     model = model_processor.model
-    weights = torch.load(opt.weight, map_location=device)['ema'].float().state_dict()
+    if opt.ema:
+        weights = torch.load(opt.weight, map_location=device)['ema'].float().state_dict()
+    else:
+        weights = torch.load(opt.weight, map_location=device)['model']
     model.load_state_dict(weights)
     model.to(device)
 
