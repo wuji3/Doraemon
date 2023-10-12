@@ -17,7 +17,7 @@ data:
     bs: 16 # one gpu if DDP
     common_aug: null
     class_aug: null
-    augment: # refer to utils/augment.py
+    augment: # refer to utils/transforms.py
       random_choice:
       - random_color_jitter:
           prob: 0.5
@@ -72,7 +72,8 @@ hyp:
       - [0,70] # [start, end)
     focal: # Only support BCE
       - False # turn-on-or-off
-      - 0
+      - 0.25 # alpha
+      - 1.5 # gamma
     ohem: # only support CE
       - False
       - 8 # min_kept

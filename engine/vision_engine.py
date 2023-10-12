@@ -184,12 +184,12 @@ class CenterProcessor:
 
         # focalloss hard
         if loss_choice == 'bce' and self.hyp_cfg['strategy']['focal'][0]:
-            self.focal = create_Lossfn('focal')()
+            self.focal = create_Lossfn('focal')(gamma=self.hyp_cfg['strategy']['focal'][2], alpha= self.hyp_cfg['strategy']['focal'][1])
         else:
             self.focal = None
-        self.focal_eff_epo = self.hyp_cfg['strategy']['focal'][1]
+        # self.focal_eff_epo = 0
         # on or off
-        self.focal_on = self.hyp_cfg['strategy']['focal'][0]
+        # self.focal_on = self.hyp_cfg['strategy']['focal'][0]
 
         # ema
         self.ema = ModelEMA(self.model_processor.model) if rank in {-1, 0} else None
@@ -204,12 +204,6 @@ class CenterProcessor:
         d['beta'] = None
 
         return d
-
-    def auto_replace_lossfn(self, lossfn = None, cur_epo = None, effect_epo = None, on = None):
-        if not on or cur_epo < effect_epo: return
-        self.lossfn = lossfn
-        # set 0
-        self.focal_on = False
 
     def auto_mixup(self, mixup: float, epoch:int, milestone: list):
         if mixup == 0 or epoch < milestone[0] or self.dist_sampler['beta'] is None: return (False, None) # is_mixup, lam
@@ -339,7 +333,8 @@ class CenterProcessor:
                 self.data_processor.set_augment('train', sequence=ClassWiseAugmenter(self.data_cfg['train']['augment'], self.data_cfg['train']['class_aug'], self.data_cfg['train']['common_aug']))
 
             # change lossfn bce -> focal
-            self.auto_replace_lossfn(self.focal, int(epoch-warm_ep), self.focal_eff_epo, self.focal_on)
+            if int(epoch-warm_ep) == 0 and self.focal is not None:
+                self.lossfn = self.focal
 
             # weaken data augment at milestone
             self.data_processor.auto_aug_weaken(int(epoch-warm_ep), milestone=aug_epoch)
