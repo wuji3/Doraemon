@@ -1,17 +1,15 @@
-from utils import create_AugTransforms
+from dataset.transforms import create_AugTransforms
 from PIL import Image
 import numpy as np
-from PIL.JpegImagePlugin import JpegImageFile
 
 augs = {
     'random_color_jitter': dict(brightness=0.5, contrast = 0.5, saturation = 0.5, hue = 0.5),
-    'random_cutout': dict(n_holes = 4, length = 50, prob=0.1, ) # dict(n_holes = 1, length = 100, ratio = 0.2, prob = 0.5)
+    'random_cutout': dict(n_holes = 4, length = 50, prob=0.1, )
 }
 
 t = create_AugTransforms(augs)
-# t = create_AugTransforms('random_color_jitter random_cutout')
 
-img = Image.open('/Users/duke/project/vision_classification/data/val/S/DV1741-181_1591875_28422625的副本.png')
+img = Image.open('/Users/xxx/project/vision_classification/data/val/S/123456.jpg')
 
 images = []
 for i in range(1, 29):
@@ -22,7 +20,7 @@ for i in range(1, 29):
 # 将图像列表转换为 numpy 数组
 array_images = [np.array(image) for image in images]
 
-# 创建一个 4 行 5 列的图像网格
+# 创建一个 rows行 cols列的图像网格
 rows, cols = 4, 7
 grid = np.zeros((rows * array_images[0].shape[0], cols * array_images[0].shape[1], 3), dtype=np.uint8)
 
