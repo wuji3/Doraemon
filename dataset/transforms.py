@@ -1,6 +1,6 @@
 import copy
 from PIL import Image
-from typing import Optional, List, Tuple, Callable, Union, Dict
+from typing import Optional, List, Tuple, Callable, Union, Dict, Sequence
 import numpy as np
 import random
 import torchvision.transforms as T
@@ -35,6 +35,7 @@ __all__ = ['color_jitter', # 颜色抖动
            'random_augmix', # 随机样本自混合
            'random_grayscale', # 随机灰度 input几通道 forward也是几通道
            'random_crop_and_resize', # 随机crop再resize
+           'pad2square', # 按最大边填充正方向
            'create_AugTransforms',
            'list_augments']
 
@@ -196,6 +197,28 @@ class BaseClassWiseAugmenter(metaclass=ABCMeta):
     def __call__(self, image, label: Union[List, int], class_indices: List[int]):
         return self.base_transforms(img=image)
 
+class PadIfNeed:
+    def __init__(self, pad_value: Union[int, Sequence], mode: str):
+        if isinstance(pad_value, int):
+            pad_value = (pad_value, pad_value, pad_value)
+        else:
+            assert len(pad_value) == 3, 'pad_value 只能是三维向量或int'
+
+        assert mode in ('edge', 'average'), 'mode 只能edge[填一端]和average[填两端]'
+
+        self.pad_value = pad_value
+        self.mode = mode
+
+    def __call__(self, image):
+        w, h = image.size
+        max_size = max(w, h)
+        new_im = Image.new('RGB', (max_size, max_size), self.pad_value)
+        if self.mode == 'average':
+            new_im.paste(image, ((max_size - w) // 2, (max_size - h) // 2))
+        else:
+            new_im.paste(image, (max_size-w, max_size-h))
+        return new_im
+
 
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
@@ -301,6 +324,11 @@ def random_grayscale(p: float = 0.5): # 图是几通道 灰度输出也是几通
 @register_method
 def random_crop_and_resize(size, *args, **kwargs):
     return T.RandomResizedCrop(size = size, *args, **kwargs)
+
+@register_method
+def pad2square(pad_value: Union[int, Sequence] = 0, mode: str = 'average'):
+    return PadIfNeed(pad_value, mode)
+
 @register_method
 def random_choice(transforms: list):
     return T.RandomChoice(transforms=transforms)
@@ -336,4 +364,4 @@ def list_augments():
     augments = [k for k, v in AUG_METHODS.items()]
     return sorted(augments)
 
-SPATIAL_TRANSFORMS = set([T.CenterCrop, T.Resize, CenterCropAndResize, T.RandomCrop, T.RandomResizedCrop])
+SPATIAL_TRANSFORMS = set([T.CenterCrop, T.Resize, CenterCropAndResize, T.RandomCrop, T.RandomResizedCrop, PadIfNeed])

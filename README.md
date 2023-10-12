@@ -145,7 +145,8 @@
       # FocalLoss 仅支持BCELoss
       focal: 
         - False # 是否开启
-        - 0 #  从第几个epoch开启focalloss 排除warmup 即梯度热身期间是正常bce
+        - 0.25 # alpha
+        - 1.5 # gamma  
   
       # OHEM 困难样例挖掘 仅支持CELoss
       ohem: 

@@ -16,7 +16,7 @@ def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfgs', default = ROOT / 'configs/complete.yaml', help='configs for models, data, hyps')
     parser.add_argument('--resume', default = '', help='if no resume, not write')
-    parser.add_argument('--sync_bn', default=False, type=bool, help='turn on syncBN, if on, speed will be slower')
+    parser.add_argument('--sync_bn', action='store_true', help='turn on syncBN, if on, speed will be slower')
     parser.add_argument('--project', default=ROOT / 'run', help='save to project/name')
     parser.add_argument('--name', default='exp', help='save to project/name')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')

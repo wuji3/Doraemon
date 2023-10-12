@@ -110,8 +110,8 @@ def check_cfgs(cfgs):
     # assert train_augs[-n_val_augs:] == val_augs, 'augment in val should be same with end-part of train'
 
 class CenterProcessor:
-    def __init__(self, cfgs, rank, project):
-        filename = Path(project) / "log{}.log".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    def __init__(self, cfgs: dict, rank: int, project: str):
+        log_filename = Path(project) / "log{}.log".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
         self.project = project
         if rank in {-1, 0}: project.mkdir(parents=True, exist_ok=True)
 
@@ -134,7 +134,7 @@ class CenterProcessor:
         # data processor
         self.data_processor = SmartDataProcessor(self.data_cfg, rank=rank, project=project)
         # logger
-        self.logger = SmartLogger(filename=filename, level=1) if rank in {-1,0} else None
+        self.logger = SmartLogger(filename=log_filename, level=1) if rank in {-1,0} else None
         if self.logger is not None and rank in {-1, 0}:
             self.logger.both(cfgs) # output configs
         # optimizer
