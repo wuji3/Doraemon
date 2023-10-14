@@ -1,9 +1,9 @@
 import os
 import shutil
 from os.path import join as opj
-# -------------------------------------用于划分斯坦福宠物数据集--------------------------------------- #
 
-def splitImg2Category(dataDir="images/", resDir="data/"):
+# -------------------------------------用于划分斯坦福宠物数据集--------------------------------------- #
+def splitImg2Category(dataDir="oxford-iiit-pet/images/", resDir="pet/"):
     '''
     归类图像到不同目录中
     '''
@@ -19,7 +19,7 @@ if __name__ == '__main__':
     splitImg2Category()
 
     # 划分数据集
-    annos = ['annotations/trainval.txt', 'annotations/test.txt' ]
+    annos = ['oxford-iiit-pet/annotations/trainval.txt', 'oxford-iiit-pet/annotations/test.txt' ]
 
     for i, anno in enumerate(annos):
         mode = 'train' if i == 0 else 'val'

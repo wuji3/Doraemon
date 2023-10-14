@@ -319,13 +319,15 @@ class CenterProcessor:
                 print(f"{'Epoch':>10}{'GPU_mem':>10}{'train_loss':>12}{f'val_loss':>12}{'precision':>12}{'recall':>12}{'f1score':>12}")
             time.sleep(0.2)
 
+        # total epochs
+        total_epoch = epochs+warm_ep
+
         # trainer
         trainer = Trainer(model, train_dataloader, val_dataloader, optimizer,
-                          scaler, device, epochs, logger, rank, scheduler, self.ema, sampler, thresh,
+                          scaler, device, total_epoch, logger, rank, scheduler, self.ema, sampler, thresh,
                           self.teacher if hasattr(self, 'teacher') else None)
 
         t0 = time.time()
-        total_epoch = epochs+warm_ep
         for epoch in range(start_epoch, total_epoch):
             # warmup set augment as val
             if epoch == 0:

@@ -14,7 +14,7 @@ data:
     - 320 
     - 320 # [h,w] / [s,s] / [s,]->[adaptive, s] or [s, adaptive]
   train:
-    bs: 128 # one gpus if DDP
+    bs: 32 # one gpus if DDP
     common_aug: null 
     class_aug: null 
       #S: 0 1 2 4 5 6
