@@ -17,7 +17,7 @@
 ## 仓库简介
 * 训练可视化参考YOLOv5 -> https://github.com/ultralytics/yolov5
 * 本仓库解耦Dataset, Augment Pipeline, Optimizer, Scheduler, Sampler, Loss, Engine, Model，现在Model是使用Torchvision的模型，如果想用自己的模型，需要稍稍改动代码，这一块作者没需求所以一直空着没写 
-* 所有的策略只修改configs/complete.yaml这个配置文件就可以完成了，方便大家写论文跑实验、打比赛和做项目
+* 所有的策略只修改configs/xxx.yaml这个配置文件就可以完成了，方便大家写论文跑实验、打比赛和做项目
 * b站链接 https://space.bilibili.com/122771869
 #### 配置文件简介
 * model
@@ -203,8 +203,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py
 ```
 训练结束后，脚本会自动提示验证和推理的命令 
 predict.py中传入--badcase会自动把模型预测错误的样本存在badcase文件夹中 传入--is_cam会同时将注意力图也输出 便于大家分析case
-python val.py --weight run/exp9/best.pt --choice torchvision-swin_t --kwargs "{}" --root data --num_classes 5 --transforms "{'resize': {'size': [640, 640]}, 'to_tensor': 'no_params', 'normalize': {'mean': '(0.485, 0.456, 0.406)', 'std': '(0.229, 0.224, 0.225)'}}" --thresh 0 --head ce --multi_label False
-python predict.py --weight run/exp9/best.pt --badcase --save_txt --choice torchvision-swin_t --kwargs "{}" --class_head ce --class_json run/exp9/class_indices.json --num_classes 5 --transforms "{'resize': {'size': [640, 640]}, 'to_tensor': 'no_params', 'normalize': {'mean': '(0.485, 0.456, 0.406)', 'std': '(0.229, 0.224, 0.225)'}}" --root data/val/XXX_cls
+python val.py --weight run/exp9/best.pt --choice torchvision-swin_t --kwargs "{}" --root data --num_classes 5 --transforms "{'resize': {'size': [640, 640]}, 'to_tensor': 'no_params', 'normalize': {'mean': '(0.485, 0.456, 0.406)', 'std': '(0.229, 0.224, 0.225)'}}" --thresh 0 --head ce --multi_label False --ema
+python predict.py --weight run/exp9/best.pt --badcase --save_txt --choice torchvision-swin_t --kwargs "{}" --class_head ce --class_json run/exp9/class_indices.json --num_classes 5 --transforms "{'resize': {'size': [640, 640]}, 'to_tensor': 'no_params', 'normalize': {'mean': '(0.485, 0.456, 0.406)', 'std': '(0.229, 0.224, 0.225)'}}" --ema --root data/val/XXX_cls
 ```
 5. 界面简介  
 CELoss训练指标参考ImageNet 有Top1和Top5
@@ -212,6 +212,7 @@ CELoss训练指标参考ImageNet 有Top1和Top5
 BCELoss训练指标有Precision Recall F1-Score
 ![](./configs/bceloss.jpg)
 
+6. Oxford-IIIT Pet实战 >> [Oxford-IIIT Pet](./oxford-iiit-pet/README.md)
 ## 其他
 1. 数据增强可视化调试  
 仓库提供数据增强可视化脚本，在做策略之前，可以启动test_augment.py看一下想用的增强方式 适不适用于当前数据

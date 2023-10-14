@@ -1,7 +1,6 @@
 import torch
 from torchvision.transforms import CenterCrop, Resize, RandomResizedCrop, Compose
 import torch.nn as nn
-from typing import Callable
 from torch.cuda.amp import GradScaler
 from dataset.basedataset import BaseDatasets
 from dataset.transforms import CenterCropAndResize
@@ -10,7 +9,7 @@ from utils.logger import SmartLogger
 from engine.optimizer import create_Optimizer
 from engine.scheduler import create_Scheduler
 from models.losses.loss import create_Lossfn
-from engine.procedure.train import train_one_epoch
+from engine.procedure.train import Trainer
 from functools import reduce, partial
 from pathlib import Path
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -153,7 +152,7 @@ class CenterProcessor:
         self.thresh = self.hyp_cfg['loss']['bce'][1] if loss_choice == 'bce' else 0
 
         # train_one_epoch
-        self.train_one_epoch: Callable = train_one_epoch # include val
+        # self.train_one_epoch: Callable = train_one_epoch # include val
 
         # add label_transforms
         if loss_choice == 'bce':
@@ -205,13 +204,13 @@ class CenterProcessor:
 
         return d
 
-    def auto_mixup(self, mixup: float, epoch:int, milestone: list):
-        if mixup == 0 or epoch < milestone[0] or self.dist_sampler['beta'] is None: return (False, None) # is_mixup, lam
+    def auto_mixup(self, mixup: float, epoch:int, milestone: list) -> float:
+        if mixup == 0 or epoch < milestone[0] or self.dist_sampler['beta'] is None : return 0
         else:
             mix_prob = self.dist_sampler['uniform'].sample()
-            is_mixup: bool = mix_prob < mixup
-            lam = self.dist_sampler['beta'].sample().to(self.device)
-            return is_mixup.item() if isinstance(is_mixup, torch.Tensor) else is_mixup, lam
+            lam = self.dist_sampler['beta'].sample().to(self.device) if mix_prob < mixup else 0
+
+            return lam
 
     def auto_prog(self, epoch: int):
         def create_AugSequence(train_augs : list, size):
@@ -320,6 +319,11 @@ class CenterProcessor:
                 print(f"{'Epoch':>10}{'GPU_mem':>10}{'train_loss':>12}{f'val_loss':>12}{'precision':>12}{'recall':>12}{'f1score':>12}")
             time.sleep(0.2)
 
+        # trainer
+        trainer = Trainer(model, train_dataloader, val_dataloader, optimizer,
+                          scaler, device, epochs, logger, rank, scheduler, self.ema, sampler, thresh,
+                          self.teacher if hasattr(self, 'teacher') else None)
+
         t0 = time.time()
         total_epoch = epochs+warm_ep
         for epoch in range(start_epoch, total_epoch):
@@ -345,10 +349,11 @@ class CenterProcessor:
                 self.auto_prog(epoch=int(epoch-warm_ep))
 
             # mixup epoch-wise
-            is_mixup, lam = self.auto_mixup(mixup=mixup, epoch=int(epoch-warm_ep), milestone=mixup_milestone)
+            lam = self.auto_mixup(mixup=mixup, epoch=int(epoch-warm_ep), milestone=mixup_milestone)
 
             # train for one epoch
-            fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, self.lossfn, optimizer, scaler, device, epoch, total_epoch, logger, is_mixup, rank, lam, scheduler, self.ema, sampler, thresh)
+            # fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, self.lossfn, optimizer, scaler, device, epoch, total_epoch, logger, is_mixup, rank, lam, scheduler, self.ema, sampler, thresh)
+            fitness = trainer.train_one_epoch(epoch, lam, self.lossfn)
 
             if rank in {-1, 0}:
                 # Best fitness

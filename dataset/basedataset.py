@@ -56,8 +56,8 @@ class BaseDatasets(Dataset):
         img = Image.open(self.images[idx]).convert('RGB')
         label = self.hashtable[os.path.basename(self.images[idx])] if self.multi_label else self.labels[idx]
         if self.transforms is not None:
-            if type(self.transforms) is ClassWiseAugmenter: img = self.transforms(img, label, self.class_indices)
-            else: img = self.transforms(img)
+            img = self.transforms(img, label, self.class_indices) if type(self.transforms) is ClassWiseAugmenter else self.transforms(img)
+
         if self.label_transforms is not None:
             label = self.label_transforms(label)
 

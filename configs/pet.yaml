@@ -1,0 +1,90 @@
+model:
+  choice: torchvision-swin_t  # torchvision- or custom-
+  kwargs: {} # kwargs feed into torchvision-style models.__init__ 'attention_dropout': 0.1,
+  num_classes: 35 # out_channels of fc, maybe be not equal to num_classes of train_dir. eg: maybe more than num_classes
+  pretrained: True
+  backbone_freeze: False
+  bn_freeze: False
+  bn_freeze_affine: False
+  attention_pool: False
+data:
+  root: ./pet  # -train -val
+  nw: 4 # if not multi-nw, set to 0
+  imgsz: # 训练尺寸 和augment最后一个resize尺寸保持一致
+    - 320 
+    - 320 # [h,w] / [s,s] / [s,]->[adaptive, s] or [s, adaptive]
+  train:
+    bs: 128 # one gpus if DDP
+    common_aug: null 
+    class_aug: null 
+      #S: 0 1 2 4 5 6
+      #B-: 0 1 2 4 5 6
+    augment: # refer to utils/augment.py
+      random_choice: 
+      - random_color_jitter:
+            prob: 0.5
+            brightness: 0.1
+            contrast: 0.1
+            saturation: 0.1
+            hue: 0.1
+      - random_cutout:
+            n_holes: 4
+            length: 80 
+            ratio: 0.3
+            prob: 0.1
+      - random_horizonflip:
+            p: 0.5
+      - random_gaussianblur:
+            prob: 0.1
+            kernel_size: 7
+      pad2square: no_params
+      random_crop_and_resize:
+        size: 320
+      to_tensor: no_params 
+      normalize: # default use ImageNet1K mean & var, if not pretrained, del normalize 
+        mean: (0.485, 0.456, 0.406)
+        std: (0.229, 0.224, 0.225)
+    aug_epoch: 50 # augment for epochs, on which epoch to weaken, except warm_epoch
+  val:
+    bs: 32
+    augment:
+        pad2square: no_params
+        resize:
+          size: 320
+        to_tensor: no_params
+        normalize: # default use ImageNet1K mean & var, if not pretrained, del normalize
+          mean: (0.485, 0.456, 0.406)
+          std: (0.229, 0.224, 0.225)
+hyp:
+  epochs: 65 
+  lr0: 0.008 # sgd=1e-2, adam=1e-3
+  lrf_ratio: null # decay to lrf_ratio * lr0, if None, 0.1
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_momentum: 0.8
+  warm_ep: 3 # out of epochs, imp linear
+  loss:
+    ce: True 
+    bce:
+      - False
+      - 0.5 # thresh
+      - True # is_multi_label 影响sample和label_vector
+  label_smooth: 0.1
+  strategy:
+    prog_learn: True # progressive learning, will effect on mixup and imgsz, devide epoch into 3 parts in default, mixup alpha 0 -> 0.1 -> 0.2, imgsz 0.5 -> ? -> 1
+    mixup:
+      - 0.1 
+      - [0, 30] # prob and [start, end), 从正式epoch开始算(去掉warm_ep) 比如正式40epoch 那么0-40就是全程mixup[左闭右开] 10-35就是从第10个epoch开始到34[含]结束 共25个epoch
+    focal: 
+      - False
+      - 0.25
+      - 1.5
+    ohem:
+      - False
+      - 8 # min_kept
+      - 0.7 # thresh_prob
+      - 255 # ignore_index
+  optimizer: 
+    - sgd # sgd or adam
+    - False
+  scheduler: cosine_with_warm # linear or cosine

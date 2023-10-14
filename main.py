@@ -2,6 +2,7 @@ import torch
 from torch.distributed import init_process_group
 from engine.vision_engine import CenterProcessor, yaml_load, increment_path, check_cfgs
 from utils.plots import colorstr
+from distills import DistillCenterProcessor
 import os
 import argparse
 from pathlib import Path
@@ -19,6 +20,7 @@ def parse_opt():
     parser.add_argument('--sync_bn', action='store_true', help='turn on syncBN, if on, speed will be slower')
     parser.add_argument('--project', default=ROOT / 'run', help='save to project/name')
     parser.add_argument('--name', default='exp', help='save to project/name')
+    parser.add_argument('--distill', action='store_true')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
     return parser.parse_args()
 
@@ -32,7 +34,7 @@ def main(opt):
     cfgs = yaml_load(opt.cfgs)
     check_cfgs(cfgs)
     # init cpu
-    cpu = CenterProcessor(cfgs, LOCAL_RANK, project=save_dir)
+    cpu = CenterProcessor(cfgs, LOCAL_RANK, project=save_dir) if not opt.distill else DistillCenterProcessor(cfgs, LOCAL_RANK, project=save_dir)
     # syncBN
     if LOCAL_RANK != -1 and opt.sync_bn:
         cpu.set_sync_bn()

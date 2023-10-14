@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from typing import Callable
 from functools import wraps
+import torch.nn.functional as F
+from torch import Tensor
 
 __all__ = ['bce',
            'ce',
@@ -50,6 +52,18 @@ class FocalLoss(nn.Module):
             return loss.sum()
         else:  # 'none'
             return loss
+
+class DistillKL(nn.Module):
+    """Distilling the Knowledge in a Neural Network"""
+    def __init__(self, T: float):
+        super(DistillKL, self).__init__()
+        self.T = T
+
+    def forward(self, y_s: Tensor, y_t: Tensor):
+        p_s = F.log_softmax(y_s/self.T, dim=1)
+        p_t = F.softmax(y_t/self.T, dim=1)
+        loss = F.kl_div(p_s, p_t, size_average=False) * (self.T**2) / y_s.shape[0]
+        return loss
 
 @register_loss
 def bce():

@@ -1,34 +1,16 @@
 import torch
 from tqdm import tqdm
-from typing import Callable
-from functools import wraps
+from torch import Tensor
 from engine.procedure.evaluation import valuate
+from typing import Callable
 import math
 from engine.optimizer import SAM
 
-__all__ = ['train_one_epoch']
-
-STRATEGY = {}
-def register_strategy(fn: Callable):
-    key = fn.__name__.split('_')[-1]
-    if key in STRATEGY:
-        raise ValueError(f"An entry is already registered under the name '{key}'.")
-    STRATEGY[key] = fn
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        return fn(*args, **kwargs)
-
-    return wrapper
+__all__ = ['Trainer']
 
 def make_divisible(x: int, divisor = 32):
     # Returns nearest x divisible by divisor
     return math.ceil(x / divisor) * divisor
-
-def smooth_BCE(eps=0.1):  # https://github.com/ultralytics/yolov3/issues/238#issuecomment-598028441
-    # return positive, negative label smoothing BCE targets
-    return 1.0 - 0.5 * eps, 0.5 * eps
-    # t = torch.full_like(torch.randn([3,5]), 0.05)
-    # t[range(3), torch.tensor([1,0,4])] = 0.95
 
 def print_imgsz(images: torch.Tensor):
     h, w = images.shape[-2:]
@@ -47,113 +29,157 @@ def mixup_data(x, y, device, lam):
 def mixup_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
-# scale + backward + grad_clip + step + zero_grad
-def update(model, loss, scaler, optimizer, ema=None):
-    # backward
-    scaler.scale(loss).backward()
+class Trainer:
+    def __init__(self,
+                 model,
+                 train_dataloader,
+                 val_dataloader,
+                 optimizer,
+                 scaler,
+                 device: torch.device,
+                 epochs: int,
+                 logger,
+                 rank: int,
+                 schduler,
+                 ema, sampler = None,
+                 thresh = 0,
+                 teacher = None,
+                 ):
 
-    # optimize
-    scaler.unscale_(optimizer)  # unscale gradients
-    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0)  # clip gradients
-    scaler.step(optimizer)
-    scaler.update()
+        self.model = model
+        self.train_dataloader = train_dataloader
+        self.val_dataloader = val_dataloader
+        self.optimizer = optimizer
+        self.scaler = scaler
+        self.device = device
+        self.epochs = epochs
+        self.logger = logger
+        self.rank = rank
+        self.schduler = schduler
+        self.ema = ema
+        self.sampler = sampler
+        self.thresh = thresh
+        self.teacher = teacher
+        self.sam: bool = type(self.optimizer) is SAM
+        self.distill: bool = teacher is not None
 
-    optimizer.zero_grad()
-    if ema:
-        ema.update(model)
+    def train_one_epoch(self, epoch: int, lam: float, criterion: Callable):
+        # train mode
+        self.model.train()
 
+        cuda: bool = self.device != torch.device('cpu')
 
-def update_sam(model: torch.nn.Module, inputs, targets, optimizer, lossfn, rank, ema=None, mixup=False, **kwargs):
-    # first forward-backward step
-    optimizer.enable_running_stats(model)
-    if not mixup:
-        loss = lossfn(model(inputs), targets)
-    else:
-        loss = mixup_criterion(lossfn, model(inputs), **kwargs)
-    if rank >= 0: # 多卡训练
-        with model.no_sync():
+        if self.rank != -1:
+            self.train_dataloader.sampler.set_epoch(epoch)
+        pbar = enumerate(self.train_dataloader)
+        if self.rank in {-1, 0}:
+            pbar = tqdm(enumerate(self.train_dataloader),
+                        total=len(self.train_dataloader),
+                        bar_format='{l_bar}{bar:10}{r_bar}')
+
+        tloss, fitness = 0., 0.,
+
+        for i, (images, labels) in pbar:  # progress bar
+            images, labels = images.to(self.device, non_blocking=True), labels.to(self.device)
+            if self.sampler is not None:  # OHEM-Softmax
+                with torch.no_grad():
+                    valid = self.sampler.sample(self.model(images), labels)
+                    images, labels = images[valid], labels[valid]
+            with torch.cuda.amp.autocast(enabled=cuda):
+                loss = self.compute_loss(images, labels, lam, criterion)
+
+            if self.rank in {-1, 0}:
+                tloss = (tloss * i + loss.item()) / (i + 1)  # update mean losses
+                mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if cuda else 0)  # (GB)
+                pbar.desc = f"{f'{epoch + 1}/{self.epochs}':>10}{mem:>10}{tloss:>12.3g}" + ' ' * 36
+                pbar.postfix = f'lr:{self.optimizer.param_groups[0]["lr"]:.5f}, imgsz:{print_imgsz(images)}'
+
+                if i == len(pbar) - 1:  # last batch
+                    self.logger.log(f'epoch:{epoch + 1:d}  t_loss:{tloss:4f}  lr:{self.optimizer.param_groups[0]["lr"]:.5f}')
+                    if self.thresh == 0:
+                        self.logger.log(f'{"name":<8}{"nums":>8}{"top1":>10}{"top5":>10}')
+                        # val
+                        top1, top5, v_loss = valuate(self.ema.ema, self.val_dataloader, self.device, pbar, True, criterion, self.logger,
+                                                     self.thresh)
+                        self.logger.log(f'v_loss:{v_loss:4f}  mtop1:{top1:.3g}  mtop5:{top5:.3g}\n')
+                    else:
+                        self.logger.log(f'{"name":<8}{"nums":>8}{"precision":>15}{"recall":>10}{"f1score":>10}')
+                        # val
+                        precision, recall, f1score, v_loss = valuate(self.ema.ema, self.val_dataloader, self.device, pbar, True,
+                                                                     criterion, self.logger, self.thresh)
+                        self.logger.log(
+                            f'v_loss:{v_loss:4f}  precision:{precision:.3g}  recall:{recall:.3g}  f1score:{f1score:.3g}\n')
+
+                    fitness = top1 if self.thresh == 0 else f1score  # define fitness as top1 accuracy
+
+        self.schduler.step()  # step epoch-wise
+
+        return fitness
+
+    @staticmethod
+    def update_sam(model: torch.nn.Module, inputs, targets, optimizer, lossfn, rank, ema=None, mixup=False, **kwargs):
+        # first forward-backward step
+        optimizer.enable_running_stats(model)
+        if not mixup:
+            loss = lossfn(model(inputs), targets)
+        else:
+            loss = mixup_criterion(lossfn, model(inputs), **kwargs)
+        if rank >= 0:  # 多卡训练
+            with model.no_sync():
+                loss.mean().backward()
+        else:
             loss.mean().backward()
-    else:
-        loss.mean().backward()
-    optimizer.first_step(zero_grad=True)
+        optimizer.first_step(zero_grad=True)
 
-    # second forward-backward step
-    optimizer.disable_running_stats(model)
-    if not mixup:
-        lossfn(model(inputs), targets).mean().backward()
-    else:
-        mixup_criterion(lossfn, model(inputs), **kwargs).mean().backward()
-    optimizer.second_step(zero_grad=True)
+        # second forward-backward step
+        optimizer.disable_running_stats(model)
+        if not mixup:
+            lossfn(model(inputs), targets).mean().backward()
+        else:
+            mixup_criterion(lossfn, model(inputs), **kwargs).mean().backward()
+        optimizer.second_step(zero_grad=True)
 
-    if ema:
-        ema.update(model)
+        if ema:
+            ema.update(model)
 
-    return loss
+        return loss
 
-def train_one_epoch(model, train_dataloader, val_dataloader, criterion, optimizer,
-                    scaler, device: torch.device, epoch: int,
-                    epochs: int, logger, is_mixup: bool, rank: int,
-                    lam, schduler, ema, sampler = None, thresh = 0):
-    # train mode
-    model.train()
+    def compute_loss(self, images: Tensor, labels: Tensor, lam: float, criterion: Callable):
+        mixup: bool = lam > 0
 
-    cuda: bool = device != torch.device('cpu')
+        assert not (mixup and self.distill), 'distill not be True when mixup is True'
+        if mixup and self.sam: # close
+            images, targets_a, targets_b = mixup_data(images, labels, self.device, lam)
+            kwargs = dict(y_a=targets_a, y_b=targets_b, lam=lam)
+            loss = Trainer.update_sam(self.model, images, labels, self.optimizer, criterion, self.rank, self.ema, mixup=True, **kwargs)
+        elif mixup: # close
+            images, targets_a, targets_b = mixup_data(images, labels, self.device, lam)
+            loss = mixup_criterion(criterion, self.model(images), targets_a, targets_b, lam)
+            Trainer.update(self.model, loss, self.scaler, self.optimizer, self.ema)
+        elif self.sam and self.distill:
+            pass
+        elif self.sam: # close
+            loss = Trainer.update_sam(self.model, images, labels, self.optimizer, criterion, self.rank, self.ema, mixup=False)
+        elif self.distill:
+            pass
+        else: # close
+            loss = criterion(self.model(images), labels)
+            Trainer.update(self.model, loss, self.scaler, self.optimizer, self.ema)
 
-    if rank != -1:
-        train_dataloader.sampler.set_epoch(epoch)
-    pbar = enumerate(train_dataloader)
-    if rank in {-1, 0}:
-        pbar = tqdm(enumerate(train_dataloader),
-                    total=len(train_dataloader),
-                    bar_format='{l_bar}{bar:10}{r_bar}')
+        return loss
 
-    tloss, fitness = 0., 0.,
+    # scale + backward + grad_clip + step + zero_gra
+    @staticmethod
+    def update(model, loss, scaler, optimizer, ema=None):
+        # backward
+        scaler.scale(loss).backward()
 
-    for i, (images, labels) in pbar:  # progress bar
-        images, labels = images.to(device, non_blocking=True), labels.to(device)
-        if sampler is not None: # OHEM-Softmax
-            with torch.no_grad():
-                valid = sampler.sample(model(images), labels)
-                images, labels = images[valid], labels[valid]
-        with torch.cuda.amp.autocast(enabled=cuda):
-            # mixup
-            if is_mixup:
-                images, targets_a, targets_b = mixup_data(images, labels, device, lam)
-                if type(optimizer) is SAM:
-                    kwargs = dict(y_a=targets_a, y_b=targets_b, lam=lam)
-                    loss = update_sam(model, images, labels, optimizer, criterion, rank, ema, mixup=True, **kwargs)
-                else:
-                    loss = mixup_criterion(criterion, model(images), targets_a, targets_b, lam)
-                    update(model, loss, scaler, optimizer, ema)
-            else:
-                if type(optimizer) is SAM:
-                    loss = update_sam(model, images, labels, optimizer, criterion, rank, ema, mixup=False)
-                else:
-                    loss = criterion(model(images), labels)
-                    update(model, loss, scaler, optimizer, ema)
+        # optimize
+        scaler.unscale_(optimizer)  # unscale gradients
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0)  # clip gradients
+        scaler.step(optimizer)
+        scaler.update()
 
-        if rank in {-1, 0}:
-            tloss = (tloss * i + loss.item()) / (i + 1)  # update mean losses
-            mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if cuda else 0)  # (GB)
-            pbar.desc = f"{f'{epoch + 1}/{epochs}':>10}{mem:>10}{tloss:>12.3g}" + ' ' * 36
-            pbar.postfix = f'lr:{optimizer.param_groups[0]["lr"]:.5f}, imgsz:{print_imgsz(images)}'
-
-            if i == len(pbar) - 1:  # last batch
-                logger.log(f'epoch:{epoch + 1:d}  t_loss:{tloss:4f}  lr:{optimizer.param_groups[0]["lr"]:.5f}')
-                if thresh == 0:
-                    logger.log(f'{"name":<8}{"nums":>8}{"top1":>10}{"top5":>10}')
-                    # val
-                    top1, top5, v_loss = valuate(ema.ema, val_dataloader, device, pbar, True, criterion, logger, thresh)
-                    logger.log(f'v_loss:{v_loss:4f}  mtop1:{top1:.3g}  mtop5:{top5:.3g}\n')
-                else:
-                    logger.log(f'{"name":<8}{"nums":>8}{"precision":>15}{"recall":>10}{"f1score":>10}')
-                    # val
-                    precision, recall, f1score, v_loss = valuate(ema.ema, val_dataloader, device, pbar, True, criterion, logger, thresh)
-                    logger.log(f'v_loss:{v_loss:4f}  precision:{precision:.3g}  recall:{recall:.3g}  f1score:{f1score:.3g}\n')
-
-                fitness = top1 if thresh == 0 else f1score  # define fitness as top1 accuracy
-
-    schduler.step()  # step epoch-wise
-
-    return fitness
-
+        optimizer.zero_grad()
+        if ema:
+            ema.update(model)

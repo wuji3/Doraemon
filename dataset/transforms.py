@@ -30,6 +30,7 @@ __all__ = ['color_jitter', # 颜色抖动
            'random_gaussianblur', # 随机高斯模糊
            'random_autocontrast', # 随机对比度增强
            'random_adjustsharpness', # 随机锐化
+           'random_rotate', # 随机(角度)旋转
            'random_invert', # 随机翻转 黑变白 白变黑 这种翻转
            'random_equalize',
            'random_augmix', # 随机样本自混合
@@ -40,7 +41,7 @@ __all__ = ['color_jitter', # 颜色抖动
            'list_augments']
 
 """
-References: https://pytorch.org/vision/stable/auto_examples/plot_transforms.html#sphx-glr-auto-examples-plot-transforms-py
+References: https://pytorch.org/vision/stable/auto_examples/transforms/plot_transforms_illustrations.html#sphx-glr-auto-examples-transforms-plot-transforms-illustrations-py
 """
 
 AUG_METHODS = {}
@@ -219,7 +220,6 @@ class PadIfNeed:
             new_im.paste(image, (max_size-w, max_size-h))
         return new_im
 
-
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5):
@@ -273,6 +273,9 @@ def random_horizonflip(p: float = 0.5):
 def random_verticalflip(p: float = 0.5):
     return T.RandomVerticalFlip(p=p)
 
+@register_method
+def random_rotate(degrees: Union[Sequence, int]):
+    return T.RandomRotation(degrees = degrees, interpolation=InterpolationMode.BILINEAR)
 @register_method
 def to_tensor():
     return T.ToTensor()
