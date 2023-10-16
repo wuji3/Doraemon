@@ -63,16 +63,14 @@ def predict_images(model, root, visual_path, transforms, class_head: str, class_
     # cam
     if is_cam:
         from utils.cam import ClassActivationMaper
-        cam = ClassActivationMaper(model, method='gradcam', device=device)
+        cam = ClassActivationMaper(model, method='gradcam', device=device, transforms=dataset.transforms)
 
     for i, (img, inputs, img_path) in enumerate(dataloader):
         img = img[0]
         img_path = img_path[0]
 
         if is_cam:
-            cam_image = cam(image=img, input_tensor=inputs, transforms=dataset.transforms)
-            # cam_image = Image.fromarray(cv2.cvtColor(cam_image, cv2.COLOR_BGR2RGB).astype('uint8'))
-            # cam_image = cam_image.resize(img.size, resample=2)
+            cam_image = cam(image=img, input_tensor=inputs, dsize=img.size)
             cam_image = cv2.resize(cam_image, img.size, interpolation=cv2.INTER_LINEAR)
 
         # system

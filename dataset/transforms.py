@@ -220,6 +220,25 @@ class PadIfNeed:
             new_im.paste(image, (max_size-w, max_size-h))
         return new_im
 
+class Reverse_PadIfNeed:
+    def __init__(self, mode: str):
+        self.mode = mode
+
+    # image: square
+    def __call__(self, image: np.array, dsize: Tuple[int, int]):
+        if dsize[0] == dsize[1]: return image
+
+        dst_h, dst_w = dsize
+        height, width = image.shape[:2]
+        if self.mode == 'average':
+            x1, y1 = (width-dst_w) // 2, (height-dst_h) // 2
+            x2, y2 = x1 + dst_w, y1 + dst_h
+        else:
+            x1, y1 = width-dst_w, height-dst_h
+            x2, y2 = x1 + dst_w, y1 + dst_h
+
+        return image[x1: x2, y1: y2]
+
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5):

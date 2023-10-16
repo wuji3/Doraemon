@@ -7,7 +7,8 @@ from PIL.JpegImagePlugin import JpegImageFile
 from PIL.Image import Image as ImageType
 from torchvision.transforms import Compose
 from dataset.transforms import SPATIAL_TRANSFORMS
-
+from dataset.transforms import PadIfNeed, Reverse_PadIfNeed
+import cv2
 
 from pytorch_grad_cam import GradCAM, \
     ScoreCAM, \
@@ -39,7 +40,7 @@ class ClassActivationMaper:
          "layercam": LayerCAM,
          "fullgrad": FullGrad}
 
-    def __init__(self, model: nn.Module, method: str, device):
+    def __init__(self, model: nn.Module, method: str, device, transforms):
         self.model = model
         self.device = device
 
@@ -60,10 +61,14 @@ class ClassActivationMaper:
                                        use_cuda=device != torch.device('cpu'),
                                        reshape_transform=reshape_transform)
 
+        self.spatial_transforms, pad2square_mode = ClassActivationMaper.pickup_spatial_transforms(transforms)
+
+        if pad2square_mode is not None:
+            self.reverse_pad2square = Reverse_PadIfNeed(mode = pad2square_mode)
     def __call__(self,
                  image,
                  input_tensor: torch.Tensor,
-                 transforms: Compose,
+                 dsize: Tuple[int, int],# w, h
                  targets: Optional[List[ClassifierOutputTarget]] = None) -> np.array:
         grayscale_cam = self.cam(input_tensor=input_tensor,
                                  targets=targets,
@@ -74,12 +79,17 @@ class ClassActivationMaper:
 
         if type(image) not in (JpegImageFile, ImageType): raise ValueError("只能输入PIL.Image读取的图")
 
-        spatial_transforms = ClassActivationMaper.pickup_spatial_transforms(transforms)
-        image = spatial_transforms(image)
+        image = self.spatial_transforms(image)
         image = np.array(image, dtype=np.float32)
 
         cam_image = show_cam_on_image(image / 255, grayscale_cam)
 
+        # 若训练的transforms是 pad2square -> resize
+        # 则输出注意力图是 resize -> pad2square 保证注意力图和原图一样
+        if hasattr(self, 'reverse_pad2square'):
+            if max(dsize) != max(cam_image.shape):
+                cam_image = cv2.resize(cam_image, (max(dsize), max(dsize)), cv2.INTER_LINEAR)
+                cam_image = self.reverse_pad2square(cam_image, dsize)
         return cam_image
 
     def _create_target_layers_and_transform(self, model: nn.Module) -> Tuple[list, Callable]:
@@ -91,9 +101,11 @@ class ClassActivationMaper:
     @staticmethod
     def pickup_spatial_transforms(transforms: Compose):
         sequence = []
+        pad2square_mode = None
         for t in transforms.transforms:
             if type(t) in SPATIAL_TRANSFORMS:
                 sequence.append(t)
+            if type(t) is PadIfNeed:
+                pad2square_mode = t.mode
 
-        return Compose(sequence)
-
+        return Compose(sequence), pad2square_mode
