@@ -29,6 +29,7 @@ def parse_opt():
     parser.add_argument('--show_path', default = ROOT / 'visualization')
     parser.add_argument('--save_txt', action='store_true')
     parser.add_argument('--badcase', action='store_true')
+    parser.add_argument('--no_annotation', action='store_true', help = '不输出左上角预测结果')
     parser.add_argument('--is_cam', action='store_true')
     parser.add_argument('--ema', action='store_true')
     parser.add_argument('--name', default = 'exp')
@@ -44,7 +45,7 @@ def parse_opt():
 
     return parser.parse_args()
 
-def predict_images(model, root, visual_path, transforms, class_head: str, class_indices: dict, save_txt: bool, logger, device, badcase: bool, is_cam: bool):
+def predict_images(model, root, visual_path, transforms, class_head: str, class_indices: dict, save_txt: bool, logger, device, badcase: bool, is_cam: bool, no_annotation: bool):
 
     assert class_head in {'bce', 'ce'}
     os.makedirs(visual_path, exist_ok=True)
@@ -95,7 +96,9 @@ def predict_images(model, root, visual_path, transforms, class_head: str, class_
 
         text = '\n'.join(f'{probs[j].item():.2f} {class_indices[j]}' for j in top5i)
 
-        annotator.text((32, 32), text, txt_color=(0, 0, 0))
+        if not no_annotation:
+            annotator.text((32, 32), text, txt_color=(0, 0, 0))
+
         if save_txt:  # Write to file
             os.makedirs(os.path.join(visual_path, 'labels'), exist_ok=True)
             with open(os.path.join(visual_path, 'labels', os.path.basename(img_path).replace('.jpg','.txt')), 'a') as f:
@@ -119,6 +122,7 @@ def predict_images(model, root, visual_path, transforms, class_head: str, class_
                     except FileNotFoundError:
                         print(f'FileNotFoundError->{txt}')
 def main(opt):
+    if opt.badcase: assert opt.save_txt, '输出badcase必须也要确保输出txt 请在命令行增加 --save_txt'
 
     visual_dir = increment_path(Path(opt.show_path) / opt.name)
 
@@ -154,7 +158,7 @@ def main(opt):
 
     # predict
     t0 = time.time()
-    predict_images(model, opt.root, visual_dir, opt.transforms, opt.class_head, class_dict, opt.save_txt, logger, device, opt.badcase, opt.is_cam)
+    predict_images(model, opt.root, visual_dir, opt.transforms, opt.class_head, class_dict, opt.save_txt, logger, device, opt.badcase, opt.is_cam, opt.no_annotation)
 
 
     logger.console(f'\nPredicting complete ({(time.time() - t0) / 60:.3f} minutes)'
