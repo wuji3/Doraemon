@@ -33,3 +33,6 @@
 
 ### 启动训练和测试可视化
 请参考[Vision](../README.md)
+
+### 视频讲解
+b站 >> https://www.bilibili.com/video/BV1Au411T7zt
