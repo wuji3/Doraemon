@@ -53,7 +53,7 @@ class BaseDatasets(Dataset):
 
 
     def __getitem__(self, idx):
-        img = Image.open(self.images[idx]).convert('RGB')
+        img = BaseDatasets.read_image(self.images[idx])
         label = self.hashtable[os.path.basename(self.images[idx])] if self.multi_label else self.labels[idx]
         if self.transforms is not None:
             img = self.transforms(img, label, self.class_indices) if type(self.transforms) is ClassWiseAugmenter else self.transforms(img)
@@ -85,6 +85,17 @@ class BaseDatasets(Dataset):
 
         return vector
 
+    @staticmethod
+    def read_image(path: str):
+        try:
+            img = Image.open(path).convert('RGB')
+        except OSError: # 若图像损坏 使用opencv读
+            import cv2
+            img = cv2.imread(path)
+            img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+
+        return img
+
 class PredictDatasets(Dataset):
     def __init__(self, root, transforms = None, postfix: str = 'jpg'):
         assert transforms is not None, 'transforms不能为None'
@@ -93,7 +104,7 @@ class PredictDatasets(Dataset):
         self.transforms = transforms
 
     def __getitem__(self, idx: int):
-        img = Image.open(self.imgs_path[idx]).convert('RGB')
+        img = BaseDatasets.read_image(self.imgs_path[idx])
 
         tensor = self.transforms(img)
 

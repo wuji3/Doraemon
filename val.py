@@ -16,6 +16,7 @@ def parse_opt():
     parser.add_argument('--root', default = ROOT / 'data', help='data/val')
     parser.add_argument('--choice', default = 'torchvision-shufflenet_v2_x1_0', type=str)
     parser.add_argument('--batchsize', default = 8, type=int)
+    parser.add_argument('--nw', default=4, type=int, help='num_workers in dataloader')
     parser.add_argument('--thresh', default = 0.7, type=float)
     parser.add_argument('--head', default = 'ce', type=str)
     parser.add_argument('--ema', action='store_true')
@@ -45,7 +46,7 @@ def main(opt):
             partial(BaseDatasets.set_label_transforms,
                     num_classes=opt.num_classes,
                     label_smooth=0)
-    dataloader = data_processor.set_dataloader(data_processor.val_dataset, bs=opt.batchsize, collate_fn=data_processor.val_dataset.collate_fn)
+    dataloader = data_processor.set_dataloader(data_processor.val_dataset, nw = opt.nw , bs=opt.batchsize, collate_fn=data_processor.val_dataset.collate_fn)
 
     # model
     model_cfg = {}
