@@ -2,7 +2,7 @@ from typing import Tuple, Callable, Optional, List
 import numpy as np
 import torch
 import torch.nn as nn
-from torchvision.models import SwinTransformer
+from torchvision.models import SwinTransformer, ResNet, MobileNetV2, MobileNetV3, ConvNeXt, ShuffleNetV2, EfficientNet
 from PIL.JpegImagePlugin import JpegImageFile
 from PIL.Image import Image as ImageType
 from torchvision.transforms import Compose
@@ -92,9 +92,15 @@ class ClassActivationMaper:
                 cam_image = self.reverse_pad2square(cam_image, dsize)
         return cam_image
 
-    def _create_target_layers_and_transform(self, model: nn.Module) -> Tuple[list, Callable]:
+    def _create_target_layers_and_transform(self, model: nn.Module) -> Tuple[list, Optional[Callable]]:
         if type(model) is SwinTransformer:
             return [model.features[-1][-1].norm2], lambda tensor: torch.permute(tensor, dims=[0, 3, 1, 2])
+        elif type(model) is ResNet:
+            return [model.layer4], None
+        elif type(model) in (MobileNetV2, MobileNetV3, ConvNeXt, EfficientNet):
+            return [model.features[-1]], None
+        elif type(model) is ShuffleNetV2:
+            return [model.conv5], None
         else: # CNN暂未实现
             raise KeyError(f'{type(model)} 还没在仓库里支持')
 
