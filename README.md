@@ -174,10 +174,13 @@
 ## 使用指南
 1. 环境准备  
 ```shell
-# torch==2.0.1(低几个版本也可以) -> https://pytorch.org/get-started/locally/
 conda create -n vision python=3.9 # 建议单独创建一个虚拟环境
 conda activate vision
-conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia # 安装torch
+
+# torch==2.0.1(低几个版本也可以) -> https://pytorch.org/get-started/locally/
+conda install pytorch torchvision torchaudio cpuonly -c pytorch # cpu版本
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia # cuda版本
+
 pip install -r requirements.txt
 ```
 2. 数据准备
