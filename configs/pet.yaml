@@ -39,11 +39,12 @@ data:
             kernel_size: 7
       pad2square: no_params
       random_crop_and_resize:
+        scale: [0.2, 1.0]
         size: 320
       to_tensor: no_params 
       normalize: # default use ImageNet1K mean & var, if not pretrained, del normalize 
-        mean: (0.485, 0.456, 0.406)
-        std: (0.229, 0.224, 0.225)
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
     aug_epoch: 50 # augment for epochs, on which epoch to weaken, except warm_epoch
   val:
     bs: 32
@@ -53,8 +54,8 @@ data:
           size: 320
         to_tensor: no_params
         normalize: # default use ImageNet1K mean & var, if not pretrained, del normalize
-          mean: (0.485, 0.456, 0.406)
-          std: (0.229, 0.224, 0.225)
+          mean: [0.485, 0.456, 0.406]
+          std: [0.229, 0.224, 0.225]
 hyp:
   epochs: 65 
   lr0: 0.008 # sgd=1e-2, adam=1e-3

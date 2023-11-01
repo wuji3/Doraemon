@@ -216,5 +216,32 @@ BCELoss训练指标有Precision Recall F1-Score
 
 6. Oxford-IIIT Pet实战 >> [Oxford-IIIT Pet](./oxford-iiit-pet/README.md)
 ## 其他
-1. 数据增强可视化调试  
+1. 数据集切分  
+```
+""
+切分前
+--vision
+  --data
+    --clsXXX-1
+    --clsXXX-2
+    ...
+  --tools
+    
+切分后
+--vision
+  --data
+    --train
+      --clsXXX-1
+      --clsXXX-2
+      ...
+    --val
+      --clsXXX-1
+      --clsXXX-2
+      ...
+  --tools
+""
+# root: 数据集路径 postfix: 后缀 frac: 训练集占比 
+python tools/data_prepare.py --postfix jpg --root data --frac 0.9 
+```
+2. 数据增强可视化调试  
 仓库提供数据增强可视化脚本，在做策略之前，可以启动test_augment.py看一下想用的增强方式 适不适用于当前数据

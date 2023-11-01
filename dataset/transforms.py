@@ -304,9 +304,9 @@ def to_tensor_without_div():
     return PILToTensorNoDiv()
 
 @register_method
-def normalize(mean: Tuple = (0.485, 0.456, 0.406), std: Tuple = (0.229, 0.224, 0.225)):
-    return T.Normalize(mean=mean if isinstance(mean, tuple) else eval(mean),
-                       std=std if isinstance(std, tuple) else eval(std))
+def normalize(mean: Sequence = (0.485, 0.456, 0.406), std: Sequence = (0.229, 0.224, 0.225)):
+    return T.Normalize(mean=mean if isinstance(mean, Sequence) else eval(mean),
+                       std=std if isinstance(std, Sequence) else eval(std))
 
 @register_method
 def random_augment(num_ops: int = 2, magnitude: int = 9, num_magnitude_bins: int = 31,):
