@@ -10,6 +10,7 @@ import glob
 import os
 from torchvision.transforms.functional import InterpolationMode
 from abc import ABCMeta, abstractmethod
+import cv2
 
 # all methods based on PIL
 __all__ = ['color_jitter', # 颜色抖动
@@ -22,6 +23,7 @@ __all__ = ['color_jitter', # 颜色抖动
            'resize', # 缩放
            'centercrop_resize', # 中心抠图+缩放
            'random_cutout', # 随机CutOut
+           'random_localgaussian', # 随机局部高斯
            'random_cutaddnoise', # 随机CutOut+增加噪音
            'random_affine', # 随机仿射变换
            'to_tensor', # 转Tensor
@@ -239,6 +241,65 @@ class Reverse_PadIfNeed:
 
         return image[x1: x2, y1: y2]
 
+class LocalGaussian:
+    def __init__(self, prob: float, ksize: Tuple[int, int], h_range: Optional[Tuple[int, int]] = None,
+                 w_range: Optional[Tuple[int, int]] = None):
+        """
+        Argument:
+            ksize: gaussian2D kernel size
+            h_range: range of valid point
+            w_range: range of valid point
+        """
+        self.prob = prob
+        self.kszie = ksize
+        self.valid_h_range = h_range
+        self.valid_w_range = w_range
+
+    def generate_seamless_mask(self, flaw: np.array):
+        mask = np.zeros(flaw.shape[:-1], dtype=np.uint8)
+        if random.random() < 0.5:  # square
+            mask.fill(255)
+        else:  # ellipse
+            # start_angle = random.randint(0, 180)
+            # end_angle = max(start_angle + random.randint(90, 180), 360)
+            h, w = mask.shape
+            mask = cv2.ellipse(mask, (w // 2, h // 2), (w // 2, h // 2), 0, 0, 360, 255, -1)
+        return mask
+
+    def random_binary_mask_location(self, image: np.array, local_height_range: Optional[Tuple[int, int]] = None,
+                                    local_width_range: Optional[Tuple[int, int]] = None) -> Tuple[int, int, int, int]:
+
+        assert type(image) is np.ndarray, 'image 必须是numpy.ndarray'
+        height, width = image.shape if image.ndim == 2 else image.shape[:-1]
+        if self.valid_w_range is None: self.valid_w_range = (0, width)
+        if self.valid_h_range is None: self.valid_h_range = (0, height)
+
+        for _ in range(10000):
+            x = random.randint(*self.valid_w_range)
+            y = random.randint(*self.valid_h_range)
+            h = random.randint(*local_height_range if local_height_range is not None else (height // 5, height // 10 * 3))
+            w = random.randint(*local_width_range if local_width_range is not None else (width // 5, width // 10 * 3))
+            if x + w > self.valid_w_range[1] or y + h > self.valid_h_range[1]:
+                continue
+            else:
+                break
+
+        return x, y, w, h
+
+    def __call__(self, image):
+        if random.random() < self.prob:
+            image = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
+            blur = cv2.GaussianBlur(image, self.kszie, sigmaX=0)
+            x, y, w, h = self.random_binary_mask_location(image)
+
+            roi = blur[y: y + h, x: x + w]
+            mask = self.generate_seamless_mask(roi)
+            merge_image = cv2.seamlessClone(roi, image, mask, p=(x + w // 2, y + h // 2), flags=cv2.NORMAL_CLONE)
+
+            return Image.fromarray(cv2.cvtColor(merge_image, cv2.COLOR_BGR2RGB))
+        else:
+            return image
+
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5):
@@ -248,6 +309,10 @@ def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
 def random_cutaddnoise(n_holes:int = 1, length: int = 200, noisy_src: str = None,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5):
     return CutAddNoise(n_holes, length, noisy_src, h_range, w_range, prob)
+
+@register_method
+def random_localgaussian(prob: float = 0.5, ksize: Tuple[int, int] = (7, 7), *args, **kwargs):
+    return LocalGaussian(prob=prob, ksize=ksize, *args, **kwargs)
 
 @register_method
 def color_jitter(brightness: float = 0.1,

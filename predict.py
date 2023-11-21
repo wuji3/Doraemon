@@ -27,6 +27,7 @@ def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', default = ROOT / 'data/val/a', help='data/val')
     parser.add_argument('--show_path', default = ROOT / 'visualization')
+    parser.add_argument('--postfix', default = 'jpg', type=str)
     parser.add_argument('--save_txt', action='store_true')
     parser.add_argument('--badcase', action='store_true')
     parser.add_argument('--no_annotation', action='store_true', help = '不输出左上角预测结果')
@@ -46,14 +47,14 @@ def parse_opt():
 
     return parser.parse_args()
 
-def predict_images(model, root, visual_path, transforms, class_head: str, class_indices: dict, save_txt: bool, nw: int, logger, device, badcase: bool, is_cam: bool, no_annotation: bool):
+def predict_images(model, root, visual_path, transforms, class_head: str, class_indices: dict, save_txt: bool, nw: int, logger, device, badcase: bool, is_cam: bool, no_annotation: bool, postfix: str):
 
     assert class_head in {'bce', 'ce'}
     os.makedirs(visual_path, exist_ok=True)
 
     dataset = PredictDatasets(root,
                               transforms=create_AugTransforms(eval(transforms) if isinstance(transforms, str) else transforms),
-                              postfix='jpg')
+                              postfix=postfix)
     dataloader = DataLoader(dataset, shuffle=False, pin_memory=True, num_workers=nw, batch_size=1, collate_fn=PredictDatasets.collate_fn)
 
     # if not imgs_path: raise FileExistsError(f'root不含图像')
@@ -100,7 +101,7 @@ def predict_images(model, root, visual_path, transforms, class_head: str, class_
 
         if save_txt:  # Write to file
             os.makedirs(os.path.join(visual_path, 'labels'), exist_ok=True)
-            with open(os.path.join(visual_path, 'labels', os.path.basename(img_path).replace('.jpg','.txt')), 'a') as f:
+            with open(os.path.join(visual_path, 'labels', os.path.basename(img_path).replace(f'.{postfix}','.txt')), 'a') as f:
                 f.write(text + '\n')
 
         logger.console(f"[{i+1}|{n}] " + os.path.basename(img_path) +" " + reduce(lambda x,y: x + " "+ y, text.split()))
@@ -117,7 +118,7 @@ def predict_images(model, root, visual_path, transforms, class_head: str, class_
             with open(txt, 'r') as f:
                 if f.readlines()[0].split()[1] != cls:
                     try:
-                        shutil.move(os.path.join(visual_path, os.path.basename(txt).replace('.txt', '.jpg')), os.path.dirname(txt).replace('labels','bad_case'))
+                        shutil.move(os.path.join(visual_path, os.path.basename(txt).replace('.txt', f'.{postfix}')), os.path.dirname(txt).replace('labels','bad_case'))
                     except FileNotFoundError:
                         print(f'FileNotFoundError->{txt}')
 def main(opt):
@@ -157,7 +158,7 @@ def main(opt):
 
     # predict
     t0 = time.time()
-    predict_images(model, opt.root, visual_dir, opt.transforms, opt.class_head, class_dict, opt.save_txt, opt.nw, logger, device, opt.badcase, opt.is_cam, opt.no_annotation)
+    predict_images(model, opt.root, visual_dir, opt.transforms, opt.class_head, class_dict, opt.save_txt, opt.nw, logger, device, opt.badcase, opt.is_cam, opt.no_annotation, opt.postfix)
 
 
     logger.console(f'\nPredicting complete ({(time.time() - t0) / 60:.3f} minutes)'
