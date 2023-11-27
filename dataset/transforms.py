@@ -227,7 +227,7 @@ class Reverse_PadIfNeed:
         self.mode = mode
 
     # image: square
-    def __call__(self, image: np.array, dsize: Tuple[int, int]):
+    def __call__(self, image: np.ndarray, dsize: Tuple[int, int]):
         if dsize[0] == dsize[1]: return image
 
         dst_h, dst_w = dsize
@@ -255,7 +255,7 @@ class LocalGaussian:
         self.valid_h_range = h_range
         self.valid_w_range = w_range
 
-    def generate_seamless_mask(self, flaw: np.array):
+    def generate_seamless_mask(self, flaw: np.ndarray):
         mask = np.zeros(flaw.shape[:-1], dtype=np.uint8)
         if random.random() < 0.5:  # square
             mask.fill(255)
@@ -266,7 +266,7 @@ class LocalGaussian:
             mask = cv2.ellipse(mask, (w // 2, h // 2), (w // 2, h // 2), 0, 0, 360, 255, -1)
         return mask
 
-    def random_binary_mask_location(self, image: np.array, local_height_range: Optional[Tuple[int, int]] = None,
+    def random_binary_mask_location(self, image: np.ndarray, local_height_range: Optional[Tuple[int, int]] = None,
                                     local_width_range: Optional[Tuple[int, int]] = None) -> Tuple[int, int, int, int]:
 
         assert type(image) is np.ndarray, 'image 必须是numpy.ndarray'
