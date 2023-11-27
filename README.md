@@ -241,7 +241,7 @@ BCELoss训练指标有Precision Recall F1-Score
   --tools
 ""
 # root: 数据集路径 postfix: 后缀 frac: 训练集占比 
-python tools/data_prepare.py --postfix jpg --root data --frac 0.9 
+python tools/data_prepare.py --postfix jpg --root data(realpath) --frac 0.9 0.6 0.3 0.9 0.9 
 ```
 2. 数据增强可视化调试  
 仓库提供数据增强可视化脚本，在做策略之前，可以启动test_augment.py看一下想用的增强方式 适不适用于当前数据
