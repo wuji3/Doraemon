@@ -3,13 +3,18 @@ from PIL import Image
 import numpy as np
 
 augs = {
-    'random_color_jitter': dict(brightness=0.5, contrast = 0.5, saturation = 0.5, hue = 0.5),
-    'random_cutout': dict(n_holes = 4, length = 50, prob=0.1, )
+    'random_color_jitter': dict(brightness=0.1, contrast = 0.1, saturation = 0.1, hue = 0.1),
+    # 'random_equalize': 'no_params',
+    'random_crop_and_resize': dict(size = 640, scale = (0.2, 1.0)),
+    'random_cutout': dict(n_holes=4, length=50, prob=0.1, ),
+    'random_grayscale': 'no_params',
+    # 'random_gaussianblur': dict(kernel_size=5),
+    'random_localgaussian': dict(ksize = (37, 37))
 }
 
 t = create_AugTransforms(augs)
 
-img = Image.open('/Users/xxx/project/vision_classification/data/val/S/123456.jpg')
+img = Image.open('/Users/duke/vision-classifier/data/train/S/gds_level40_gds_id21271181_spu_id367361.png')
 
 images = []
 for i in range(1, 29):

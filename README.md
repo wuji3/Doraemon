@@ -210,9 +210,9 @@ python predict.py --weight run/exp9/best.pt --badcase --save_txt --choice torchv
 ```
 5. 界面简介  
 CELoss训练指标参考ImageNet 有Top1和Top5
-![](tools/celoss.jpg)
+![](misc/celoss.jpg)
 BCELoss训练指标有Precision Recall F1-Score
-![](tools/bceloss.jpg)
+![](misc/bceloss.jpg)
 
 6. Oxford-IIIT Pet实战 >> [Oxford-IIIT Pet](./oxford-iiit-pet/README.md)
 ## 其他
