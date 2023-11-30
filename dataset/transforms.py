@@ -17,6 +17,7 @@ __all__ = ['color_jitter', # 颜色抖动
            'random_color_jitter',# [随机]颜色抖动
            'random_horizonflip', # [随机]水平翻转
            'random_verticalflip', # [随机]上下翻转
+           'random_doubleflip', # [随机]上下或左右翻转
            'random_crop', # [随机]抠图
            'random_augment', # RandAug
            'center_crop', # 中心抠图
@@ -300,6 +301,15 @@ class LocalGaussian:
         else:
             return image
 
+class RandomDoubleFlip:
+    def __init__(self, prob: Union[Sequence, float] = 0.5):
+        assert type(prob) in (Sequence, float), 'prob 只能是Sequence或float'
+        self.prob = prob if isinstance(prob, Sequence) else (prob, prob)
+        self.choices = [random_verticalflip(0.5), random_horizonflip(0.5)]
+
+    def __call__(self, image):
+        return random.choices(self.choices, weights=self.prob, k=1)[0](image)
+
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5):
@@ -356,6 +366,10 @@ def random_horizonflip(p: float = 0.5):
 @register_method
 def random_verticalflip(p: float = 0.5):
     return T.RandomVerticalFlip(p=p)
+
+@register_method
+def random_doubleflip(prob: Union[Sequence, float] = 0.5):
+    return RandomDoubleFlip(prob = prob)
 
 @register_method
 def random_rotate(degrees: Union[Sequence, int]):
