@@ -2,6 +2,7 @@ from engine.vision_engine import SmartLogger, BaseDatasets
 from dataset.dataprocessor import SmartDataProcessor
 from models import SmartModel
 import os
+from os.path import join as opj
 import argparse
 from pathlib import Path
 from engine.procedure.evaluation import valuate
@@ -73,7 +74,8 @@ def main(opt):
     logger = SmartLogger()
 
     # val
-    valuate(model, dataloader, device, None, False, None, logger, thresh=opt.thresh, top_k=opt.eval_topk)
+    conm_path = opj(os.path.dirname(opt.weight), 'conm.png')
+    valuate(model, dataloader, device, None, False, None, logger, thresh=opt.thresh, top_k=opt.eval_topk, conm_path=conm_path)
 
 if __name__ == '__main__':
     opt = parse_opt()

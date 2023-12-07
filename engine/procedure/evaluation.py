@@ -4,9 +4,51 @@ from torch.cuda.amp import autocast
 from tqdm import tqdm
 from typing import Callable, Optional
 from torchmetrics import Precision, Recall, F1Score
+from torch import Tensor
+import itertools
+import matplotlib.pyplot as plt
+import numpy as np
+from typing import Sequence
 
 __all__ = ['valuate']
-def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_training: bool = False, lossfn: Optional[Callable] = None, logger = None, thresh: float = 0, top_k: int = 5):
+
+class ConfusedMatrix:
+    def __init__(self, nc: int):
+        self.nc = nc
+        self.mat = None
+
+    def update(self, gt: Tensor, pred: Tensor):
+        if self.mat is None: self.mat = torch.zeros((self.nc, self.nc), dtype=torch.int64, device = gt.device)
+
+        idx = gt * self.nc + pred
+        self.mat += torch.bincount(idx, minlength=self.nc).reshape(self.nc, self.nc)
+
+    def save_conm(self, cm: np.ndarray, classes: Sequence, save_path: str, cmap=plt.cm.cool):
+        """
+        - cm : 计算出的混淆矩阵的值
+        - classes : 混淆矩阵中每一行每一列对应的列
+        - normalize : True:显示百分比, False:显示个数
+        """
+        ax = plt.gca()
+        ax.tick_params(axis="x", top=True, labeltop=True, bottom=False, labelbottom=False)
+        plt.imshow(cm, interpolation='nearest', cmap=cmap)
+        plt.colorbar()
+        tick_marks = [x for x in range(len(classes))]
+        plt.xticks(tick_marks, classes, rotation=0, fontsize=10)
+        plt.yticks(tick_marks, classes, fontsize=10)
+        fmt = '.2f'
+        for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+            plt.text(j, i, format(cm[i, j], fmt),
+                     horizontalalignment="center",
+                     color="black")
+        plt.tight_layout()
+        plt.ylabel('GT', fontsize=12)
+        plt.xlabel('Predict', fontsize=12)
+        ax.xaxis.set_label_position('top')
+        plt.gcf().subplots_adjust(top=0.9)
+        plt.savefig(save_path)
+
+def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_training: bool = False, lossfn: Optional[Callable] = None, logger = None, thresh: float = 0, top_k: int = 5, conm_path: str = None):
 
     assert thresh == 0 or thresh > 0 and thresh < 1, 'softmax时thresh为0 bce时0 < thresh < 1'
     # eval mode
@@ -36,7 +78,11 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_trainin
 
     loss /= n
     pred, targets = torch.cat(pred), torch.cat(targets)
-    # if targets.dim() > 1: targets = torch.argmax(targets, dim=-1) # bce label, only used in training in order to compute loss
+    if not is_training:
+        conm = ConfusedMatrix(len(dataloader.dataset.class_indices))
+        conm.update(targets, pred[:, 0])
+        conm.save_conm(conm.mat.detach().cpu().numpy(), dataloader.dataset.class_indices, conm_path if conm_path is not None else 'conm.png')
+
     if thresh == 0:
         correct = (targets[:, None] == pred).float()
         acc = torch.stack((correct[:, 0], correct.max(1).values), dim=1)  # (top1, top5) accuracy
