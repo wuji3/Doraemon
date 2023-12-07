@@ -87,5 +87,5 @@ hyp:
       - 255 # ignore_index
   optimizer: 
     - sgd # sgd or adam
-    - False
+    - False # True or False 特殊的层需要调学习率
   scheduler: cosine_with_warm # linear or cosine

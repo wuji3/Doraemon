@@ -8,7 +8,7 @@ model:
   bn_freeze_affine: False
   attention_pool: False
 data:
-  root: ./data # -train -val
+  root: data # -train -val
   nw: 2 # if not multi-nw, set to 0
   imgsz: # 训练尺寸 和augment最后一个resize尺寸保持一致
     - 480
@@ -81,5 +81,5 @@ hyp:
       - 255 # ignore_index
   optimizer:
     - sgd # sgd adam or sam
-    - False # [layer, alpha] 特殊的层需要调学习率
+    - False # True or False 特殊的层需要调学习率
   scheduler: cosine_with_warm # linear or cosine

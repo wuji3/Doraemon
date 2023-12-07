@@ -19,6 +19,7 @@ def parse_opt():
     parser.add_argument('--nw', default=4, type=int, help='num_workers in dataloader')
     parser.add_argument('--thresh', default = 0.7, type=float)
     parser.add_argument('--head', default = 'ce', type=str)
+    parser.add_argument('--eval_topk', default = 5, type=int)
     parser.add_argument('--ema', action='store_true')
     parser.add_argument('--multi_label', action='store_true')
     parser.add_argument('--num_classes', default = 6, type=int)
@@ -72,7 +73,7 @@ def main(opt):
     logger = SmartLogger()
 
     # val
-    valuate(model, dataloader, device, None, False, None, logger, thresh=opt.thresh)
+    valuate(model, dataloader, device, None, False, None, logger, thresh=opt.thresh, top_k=opt.eval_topk)
 
 if __name__ == '__main__':
     opt = parse_opt()

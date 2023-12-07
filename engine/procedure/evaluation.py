@@ -6,7 +6,7 @@ from typing import Callable, Optional
 from torchmetrics import Precision, Recall, F1Score
 
 __all__ = ['valuate']
-def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_training: bool = False, lossfn: Optional[Callable] = None, logger = None, thresh: float = 0):
+def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_training: bool = False, lossfn: Optional[Callable] = None, logger = None, thresh: float = 0, top_k: int = 5):
 
     assert thresh == 0 or thresh > 0 and thresh < 1, 'softmax时thresh为0 bce时0 < thresh < 1'
     # eval mode
@@ -23,7 +23,7 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_trainin
                 images, labels = images.to(device, non_blocking = True), labels.to(device)
                 y = model(images)
                 if thresh == 0:
-                    pred.append(y.argsort(1, descending=True)[:, :5])
+                    pred.append(y.argsort(1, descending=True)[:, :top_k])
                     targets.append(labels)
                 else:
                     pred.append(y.sigmoid())
@@ -41,7 +41,7 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_trainin
         correct = (targets[:, None] == pred).float()
         acc = torch.stack((correct[:, 0], correct.max(1).values), dim=1)  # (top1, top5) accuracy
         top1, top5 = acc.mean(0).tolist()
-        if not is_training: logger.console(f'{"name":<15}{"nums":>8}{"top1":>10}{"top5":>10}')
+        if not is_training: logger.console(f'{"name":<15}{"nums":>8}{"top1":>10}{f"top{top_k}":>10}')
         for i, c in enumerate(dataloader.dataset.class_indices):
             acc_i = acc[targets == i]
             top1i, top5i = acc_i.mean(0).tolist()
