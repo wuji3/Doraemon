@@ -3,7 +3,7 @@ from copy import deepcopy
 from torch.nn.init import normal_, constant_
 import torch.nn as nn
 from built import atten_pool_replace
-
+import torch
 
 class _Init_Nc_Torchvision:
 
@@ -30,7 +30,9 @@ class _Init_Nc_Torchvision:
             model.fc = nn.Linear(model.fc.in_features, nc)
 
 class SmartModel:
-    def __init__(self, model_cfgs: dict):
+    def __init__(self, model_cfgs: dict, logger = None):
+        self.logger = logger
+
         self.model_cfgs = model_cfgs
 
         self.kwargs = model_cfgs['kwargs']
@@ -57,19 +59,34 @@ class SmartModel:
         if not self.pretrained: self.reset_parameters()
 
     def create_model(self, choice: str, num_classes: int = 1000, pretrained: bool = False, kind: str = 'torchvision',
-                     backbone_freeze: bool = False, bn_freeze: bool = False, bn_freeze_affine: bool = False, **kwargs):
+                     backbone_freeze: bool = False, bn_freeze: bool = False, bn_freeze_affine: bool = False, load_from: str = None ,**kwargs):
         assert kind in {'torchvision', 'custom'}, 'kind must be torchvision or custom'
         if kind == 'torchvision':
             model = torchvision.models.get_model(choice, weights = torchvision.models.get_model_weights(choice) if pretrained else None, **kwargs['kwargs'])
-            # init num_classes from torchvision.models
-            if self.init_nc_torchvision is not None:
+            # load weight if need
+            if load_from is not None:
+                weights = self.load_weight(load_from)
+                weigths_out_nc = weights[list(weights.keys())[-1]].numel()
+                self.init_nc_torchvision.init_nc(model, choice, weigths_out_nc)
+                model.load_state_dict(weights)
+                if weigths_out_nc != num_classes: self.init_nc_torchvision.init_nc(model, choice, num_classes)
+                if self.logger is not None: self.logger.both(f'load_from: {load_from}')
+            else:
+                # init num_classes from torchvision.models
                 self.init_nc_torchvision.init_nc(model, choice, num_classes)
 
         else:
-            pass
+            model = ...
         if backbone_freeze: self.freeze_backbone()
         if bn_freeze: self.freeze_bn(bn_freeze_affine)
+
         return model
+
+    def load_weight(self, load_from_path: str):
+        weights = torch.load(load_from_path, map_location='cpu')
+        weights = weights['ema'].float().state_dict() if weights.get('ema', None) is not None else weights['model']
+
+        return weights
 
     def init_parameters(self, m: nn.Module):
         if isinstance(m, nn.Conv2d):

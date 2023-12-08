@@ -17,6 +17,7 @@ def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfgs', default = ROOT / 'configs/complete.yaml', help='configs for models, data, hyps')
     parser.add_argument('--resume', default = '', help='if no resume, not write')
+    parser.add_argument('--load_from', default = '', help='load weight for finetune')
     parser.add_argument('--sync_bn', action='store_true', help='turn on syncBN, if on, speed will be slower')
     parser.add_argument('--project', default=ROOT / 'run', help='save to project/name')
     parser.add_argument('--name', default='exp', help='save to project/name')
@@ -33,6 +34,8 @@ def main(opt):
     # configs
     cfgs = yaml_load(opt.cfgs)
     check_cfgs(cfgs)
+    # add load_from if need
+    if opt.load_from:  cfgs['model']['load_from'] = opt.load_from
     # init cpu
     cpu = CenterProcessor(cfgs, LOCAL_RANK, project=save_dir) if not opt.distill else DistillCenterProcessor(cfgs, LOCAL_RANK, project=save_dir)
     # syncBN

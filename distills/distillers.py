@@ -32,11 +32,11 @@ class Distiller:
         return loss
 
 class DistillCenterProcessor(CenterProcessor):
-    def __init__(self, cfgs: dict, rank: int, project: str):
+    def __init__(self, cfgs: dict, rank: int, project: str, logger = None):
         super().__init__(cfgs=cfgs['student'], rank=rank, project= project)
 
         # init teacher model
-        self.teacher = SmartModel(model_cfgs=cfgs['teacher'])
+        self.teacher = SmartModel(cfgs['teacher'], logger = logger)
 
 
 

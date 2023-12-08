@@ -1,4 +1,5 @@
 import logging
+from typing import Union
 
 class SmartLogger:
 
@@ -18,14 +19,14 @@ class SmartLogger:
             self.console_logger = self.create_logger('console', 'console')
             self.level = level
 
-    def log(self, msg: str):
+    def log(self, msg: Union[str, dict]):
         if isinstance(msg, dict):
             for k, v in msg.items():
                 self.file_logger.info(f'{k}')
                 self.file_logger.info(f'{v}')
         else: self.file_logger.info(msg)
 
-    def console(self, msg: str):
+    def console(self, msg: Union[str, dict]):
         if isinstance(msg, dict):
             for k, v in msg.items():
                 self.console_logger.info(f'{k}')
@@ -33,7 +34,7 @@ class SmartLogger:
         else:
             self.console_logger.info(msg)
 
-    def both(self, msg: str):
+    def both(self, msg: Union[str, dict]):
         self.log(msg)
         self.console(msg)
 

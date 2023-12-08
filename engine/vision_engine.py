@@ -127,15 +127,17 @@ class CenterProcessor:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.device: torch.device = device
 
-        # model processor
-        self.model_processor = SmartModel(self.model_cfg)
-        self.model_processor.model.to(device)
-        # data processor
-        self.data_processor = SmartDataProcessor(self.data_cfg, rank=rank, project=project)
         # logger
         self.logger = SmartLogger(filename=log_filename, level=1) if rank in {-1,0} else None
         if self.logger is not None and rank in {-1, 0}:
             self.logger.both(cfgs) # output configs
+
+        # model processor
+        self.model_processor = SmartModel(self.model_cfg, self.logger)
+        self.model_processor.model.to(device)
+        # data processor
+        self.data_processor = SmartDataProcessor(self.data_cfg, rank=rank, project=project)
+
         # optimizer
         params = SeperateLayerParams(self.model_processor.model)
         self.optimizer = create_Optimizer(optimizer=self.hyp_cfg['optimizer'][0], lr=self.hyp_cfg['lr0'],
