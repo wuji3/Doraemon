@@ -1,28 +1,26 @@
 # vision classifier
-[中文](./README_ch.md)
+[English](./README.md)
 
-## Tutorials
+## 使用指南
 
 <details open>
-<summary>Install ☘️</summary>
+<summary>环境 ☘️</summary>
 
 ```shell
-# It is recommended to create a separate virtual environment
-conda create -n vision python=3.9 
+conda create -n vision python=3.9 # 建议单独创建一个虚拟环境
 conda activate vision
 
-# torch==2.0.1(lower is also ok) -> https://pytorch.org/get-started/locally/
-conda install pytorch torchvision torchaudio cpuonly -c pytorch # cpu-version
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia  # cuda-version
+# torch==2.0.1(低几个版本也可以) -> https://pytorch.org/get-started/locally/
+conda install pytorch torchvision torchaudio cpuonly -c pytorch # cpu版本
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia # cuda版本
 
 pip install -r requirements.txt
 ```
 </details>
 
 <details close>
-<summary>Data 🚀️</summary>
+<summary>数据 🚀️</summary>
 
-[If for learning, refer to oxford-iiit-pet](./oxford-iiit-pet/README_ch_.md)
 ```shell
 python tools/data_prepare.py --postfix <jpg or png> --root <input your data realpath> --frac <train segment ratio, eg: 0.9 0.6 0.3 0.9 0.9>
 ```
@@ -56,31 +54,31 @@ project
 </details>
 
 <details close>
-<summary>Configuration 🌟🌟️</summary>
+<summary>参数配置 🌟🌟️</summary>
 
-If custom data, refer to [Config](./configs/README.md) for writing your own config.  (Recommend🌟:  that modify based on [complete.yaml](./configs/complete.yaml) or [pet.yaml](./configs/pet.yaml))  
-If [oxford-iiit-pet](./oxford-iiit-pet/README_ch_.md), [pet.yaml](./configs/pet.yaml) has prepared for you.
+如果用自己的数据, 参考[Config](./configs/README.md)写配置文件(推荐🌟️：在[complete.yaml](./configs/complete.yaml)或[pet.yaml](./configs/pet.yaml)上面修改)  
+如果公开数据集[oxford-iiit-pet](./oxford-iiit-pet/README_ch_.md), 配置文件已准备好[pet.yaml](./configs/pet.yaml)
 </details>
 
 <details close>
-<summary>Training 🌟️</summary>
+<summary>训练 🌟️</summary>
 
 ```shell
-# one machine one gpu
+# 单机单卡
 python main.py --cfgs 'configs/pet.yaml'
 
-# one machine multiple gpus
+# 单机多卡
 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs 'configs/pet.yaml'
 ```
 </details>
 
 <details close>
-<summary>Valitate & Predict 🌟</summary>
+<summary>验证和推理 🌟</summary>
 
-###### After training, check the verification and inference commands in run/exp?/xxx.log
+###### 训练结束在run/exp?/xxx.log查看验证和推理命令
 </details>
 
-## Method & Paper
+## 相关方法和论文
 | Method                                                   | Paper                                                                            |
 |----------------------------------------------------------|----------------------------------------------------------------------------------|
 | [SAM](https://arxiv.org/abs/2010.01412v3)                | Sharpness-Aware Minimization for Efficiently Improving Generalization            |
@@ -94,7 +92,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs 'configs
 | [Attention Pool](https://arxiv.org/abs/2112.13692)       | Augmenting Convolutional networks with attention-based aggregation               |
 | [GradCAM](https://arxiv.org/abs/1610.02391)              | Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization |
 
-## Model & Paper
+## 模型
 
 | Method                                                 | Paper                                                                 | Name in configs, eg: torchvision-mobilenet_v2                                   |
 |--------------------------------------------------------|-----------------------------------------------------------------------|---------------------------------------------------------------------------------|
@@ -110,12 +108,12 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs 'configs
 | [Swin Transformerv2](https://arxiv.org/abs/2111.09883) | Swin Transformer V2: Scaling Up Capacity and Resolution | swin_v2_t, swin_v2_s, swin_v2_b |
 
 
-## Tools  
-1. Split the data set into training set and validation set
+## 工具  
+1. 数据集切分
 ```shell
 python tools/data_prepare.py --postfix <jpg or png> --root <input your data realpath> --frac <train segment ratio, eg: 0.9 0.6 0.3 0.9 0.9>
 ```
-2. Data augmented visualization 
+2. 数据增强可视化  
 ```shell
 python tools/test_augment.py
 ```
