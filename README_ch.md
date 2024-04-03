@@ -21,6 +21,7 @@ pip install -r requirements.txt
 <details close>
 <summary>数据 🚀️</summary>
 
+[若学习使用, 转至oxford-iiit-pet](./oxford-iiit-pet/README.md)
 ```shell
 python tools/data_prepare.py --postfix <jpg or png> --root <input your data realpath> --frac <train segment ratio, eg: 0.9 0.6 0.3 0.9 0.9>
 ```
