@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from typing import Sequence
 
-__all__ = ['valuate']
+
+__all__ = ['valuate', 'predict_images']
 
 class ConfusedMatrix:
     def __init__(self, nc: int):
@@ -78,7 +79,7 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_trainin
 
     loss /= n
     pred, targets = torch.cat(pred), torch.cat(targets)
-    if not is_training:
+    if not is_training and thresh == 0:
         conm = ConfusedMatrix(len(dataloader.dataset.class_indices))
         conm.update(targets, pred[:, 0])
         conm.save_conm(conm.mat.detach().cpu().numpy(), dataloader.dataset.class_indices, conm_path if conm_path is not None else 'conm.png')
@@ -124,3 +125,83 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_trainin
         if thresh == 0: return top1, top5
         else: return precision.mean().item(), recall.mean().item(), f1score.mean().item(),
 
+def predict_images(model, dataloader, root, device, visual_path, class_indices: dict, logger, class_head: str, badcase: bool, is_cam: bool, no_annotation: bool, target_class: Optional[str] = None):
+
+    import glob
+    from utils.plots import Annotator
+    from functools import reduce
+    import platform
+    import shutil
+    import os
+    import torch.nn.functional as F
+    import cv2
+
+    os.makedirs(visual_path, exist_ok=True)
+
+    # eval mode
+    model.eval()
+    n = len(dataloader)
+
+    # cam
+    if is_cam:
+        from utils.cam import ClassActivationMaper
+        cam = ClassActivationMaper(model, method='gradcam', device=device, transforms=dataloader.dataset.transforms)
+
+    image_postfix_table = dict() # use for badcase
+    for i, (img, inputs, img_path) in enumerate(dataloader):
+        img = img[0]
+        img_path = img_path[0]
+
+        if is_cam:
+            cam_image = cam(image=img, input_tensor=inputs, dsize=img.size)
+            cam_image = cv2.resize(cam_image, img.size, interpolation=cv2.INTER_LINEAR)
+
+        # system
+        if platform.system().lower() == 'windows':
+            annotator = Annotator(img, font=r'C:/WINDOWS/FONTS/SIMSUN.TTC') # windows
+        else:
+            annotator = Annotator(img) # linux
+
+        # transforms
+        inputs = inputs.to(device)
+        # forward
+        logits = model(inputs).squeeze()
+
+        # post process
+        if class_head == 'ce':
+            probs = F.softmax(logits, dim=0)
+        else:
+            probs = F.sigmoid(logits)
+
+        top5i = probs.argsort(0, descending=True)[:5].tolist()
+
+        text = '\n'.join(f'{probs[j].item():.2f} {class_indices[j]}' for j in top5i)
+
+        if not no_annotation:
+            annotator.text((32, 32), text, txt_color=(0, 0, 0))
+
+
+        if badcase:  # Write to file
+            os.makedirs(os.path.join(visual_path, 'labels'), exist_ok=True)
+            image_postfix_table[os.path.basename(os.path.splitext(img_path)[0] + '.txt')] = os.path.splitext(img_path)[1]
+            with open(os.path.join(visual_path, 'labels', os.path.basename(os.path.splitext(img_path)[0] + '.txt')), 'a') as f:
+                f.write(text + '\n')
+
+        logger.console(f"[{i+1}|{n}] " + os.path.basename(img_path) +" " + reduce(lambda x,y: x + " "+ y, text.split()))
+
+        if is_cam:
+            img = np.hstack([cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR), cam_image])
+            cv2.imwrite(os.path.join(visual_path, os.path.basename(img_path)), img)
+        else: img.save(os.path.join(visual_path, os.path.basename(img_path)))
+
+    if badcase:
+        cls = root.split('/')[-1] if target_class is None else target_class
+        assert cls in class_indices.values(), 'Either specify the correct category through target_class or the category of the folder name itself'
+        os.makedirs(os.path.join(visual_path, 'bad_case'), exist_ok=True)
+        for txt in glob.glob(os.path.join(visual_path, 'labels', '*.txt')):
+            with open(txt, 'r') as f:
+                if f.readlines()[0].split()[1] != cls:
+                    try:
+                        shutil.move(os.path.join(visual_path, os.path.basename(txt).replace('.txt', image_postfix_table[os.path.basename(txt)])), os.path.dirname(txt).replace('labels','bad_case'))
+                    except FileNotFoundError:
+                        print(f'FileNotFoundError->{txt}')

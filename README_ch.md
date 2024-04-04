@@ -15,6 +15,10 @@ conda install pytorch torchvision torchaudio cpuonly -c pytorch # cpu版本
 conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia # cuda版本
 
 pip install -r requirements.txt
+
+# 若无字体文件 推理可能会受网络IO影响导致非常缓慢
+mkdir -p ~/.config/Ultralytics
+cp misc/Arial.ttf ~/.config/Ultralytics
 ```
 </details>
 
@@ -74,9 +78,29 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs 'configs
 </details>
 
 <details close>
-<summary>验证和推理 🌟</summary>
+<summary>验证和可视化 🌟</summary>
 
-###### 训练结束在run/exp?/xxx.log查看验证和推理命令
+<p align="center">
+  <img src="misc/visual&validation.jpg" width="40%" height="auto" >
+</p>
+
+```markdown
+# 训练结束在log下方可以看到指令提示
+
+Training complete (0.093 hours)  
+Results saved to /home/duke/project/vision-face/run/exp3  
+Predict:         python visualize.py --weight /xxx/.../vision-classifier/run/exp/best.pt --badcase --class_json /xxx/.../vision-classifier/run/exp/class_indices.json --ema --cam --data <your data>/val/XXX_cls 
+Validate:        python validate.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --eval_topk 5 --weight /xxx/.../vision-classifier/run/exp/best.pt --ema
+```
+
+```shell
+# visualize.py 传入--cam可以看到模型注意力图可视化
+python visualize.py --weight /xxx/.../vision-classifier/run/exp/best.pt --badcase --class_json /xxx/.../vision-classifier/run/exp/class_indices.json --ema --cam --data <your data>/val/XXX_cls
+```
+```shell
+python validate.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --eval_topk 5 --weight /xxx/.../vision-classifier/run/exp/best.pt --ema
+```
+
 </details>
 
 ## 相关方法和论文

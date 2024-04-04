@@ -1,13 +1,12 @@
-# vision classifier
+## <div align="center">vision classifier</div>
 [中文](./README_ch.md)
-
 ## Tutorials
 
 <details open>
 <summary>Install ☘️</summary>
 
 ```shell
-# It is recommended to create a separate virtual environment
+# It is recommanded to create a separate virtual environment
 conda create -n vision python=3.9 
 conda activate vision
 
@@ -16,6 +15,10 @@ conda install pytorch torchvision torchaudio cpuonly -c pytorch # cpu-version
 conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia  # cuda-version
 
 pip install -r requirements.txt
+
+# Without Arial.ttf, inference may be slow due to network IO.
+mkdir -p ~/.config/Ultralytics
+cp misc/Arial.ttf ~/.config/Ultralytics
 ```
 </details>
 
@@ -23,11 +26,11 @@ pip install -r requirements.txt
 <summary>Data 🚀️</summary>
 
 [If for learning, refer to oxford-iiit-pet](./oxford-iiit-pet/README.md)
-```shell
+```bash
 python tools/data_prepare.py --postfix <jpg or png> --root <input your data realpath> --frac <train segment ratio, eg: 0.9 0.6 0.3 0.9 0.9>
 ```
 
-```
+```markdown
 project                    
 │
 ├── data  
@@ -58,7 +61,7 @@ project
 <details close>
 <summary>Configuration 🌟🌟️</summary>
 
-If custom data, refer to [Config](./configs/README.md) for writing your own config.  (Recommend🌟:  that modify based on [complete.yaml](./configs/complete.yaml) or [pet.yaml](./configs/pet.yaml))  
+If custom data, refer to [Config](./configs/README.md) for writing your own config.  (Recommend🌟: modify based on [complete.yaml](./configs/complete.yaml) or [pet.yaml](./configs/pet.yaml))  
 If [oxford-iiit-pet](./oxford-iiit-pet/README_ch_.md), [pet.yaml](./configs/pet.yaml) has prepared for you.
 </details>
 
@@ -67,17 +70,37 @@ If [oxford-iiit-pet](./oxford-iiit-pet/README_ch_.md), [pet.yaml](./configs/pet.
 
 ```shell
 # one machine one gpu
-python main.py --cfgs 'configs/pet.yaml'
+python main.py --cfgs configs/pet.yaml
 
 # one machine multiple gpus
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs 'configs/pet.yaml'
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/pet.yaml
 ```
 </details>
 
 <details close>
-<summary>Valitate & Predict 🌟</summary>
+<summary>Validate & Visualization 🌟</summary>
 
-###### After training, check the verification and inference commands in run/exp?/xxx.log
+<p align="center">
+  <img src="misc/visual&validation.jpg" width="40%" height="auto" >
+</p>
+
+```markdown
+# You will find context below in log when training completes.
+
+Training complete (0.093 hours)  
+Results saved to /home/duke/project/vision-face/run/exp3  
+Predict:         python visualize.py --weight /xxx/.../vision-classifier/run/exp/best.pt --badcase --class_json /xxx/.../vision-classifier/run/exp/class_indices.json --ema --cam --data <your data>/val/XXX_cls 
+Validate:        python validate.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --eval_topk 5 --weight /xxx/.../vision-classifier/run/exp/best.pt --ema
+```
+
+```shell
+# visualize.py provides the attention heatmalp function, which can be called by passing "--cam"
+python visualize.py --weight /xxx/.../vision-classifier/run/exp/best.pt --badcase --class_json /xxx/.../vision-classifier/run/exp/class_indices.json --ema --cam --data <your data>/val/XXX_cls
+```
+```shell
+python validate.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --eval_topk 5 --weight /xxx/.../vision-classifier/run/exp/best.pt --ema
+```
+
 </details>
 
 ## Method & Paper

@@ -1,3 +1,4 @@
+import shutil
 import torch
 from torch.distributed import init_process_group
 from engine.vision_engine import CenterProcessor, yaml_load, increment_path, check_cfgs
@@ -38,6 +39,9 @@ def main(opt):
     if opt.load_from:  cfgs['model']['load_from'] = opt.load_from
     # init cpu
     cpu = CenterProcessor(cfgs, LOCAL_RANK, project=save_dir) if not opt.distill else DistillCenterProcessor(cfgs, LOCAL_RANK, project=save_dir)
+    # record config
+    shutil.copy(opt.cfgs, save_dir)
+    cpu.cfg_path = opt.cfgs
     # syncBN
     if LOCAL_RANK != -1 and opt.sync_bn:
         cpu.set_sync_bn()

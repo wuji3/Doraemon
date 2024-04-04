@@ -109,10 +109,11 @@ def check_cfgs(cfgs):
     # assert train_augs[-n_val_augs:] == val_augs, 'augment in val should be same with end-part of train'
 
 class CenterProcessor:
-    def __init__(self, cfgs: dict, rank: int, project: str):
-        log_filename = Path(project) / "log{}.log".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    def __init__(self, cfgs: dict, rank: int, project: str = None, train: bool = True):
+        log_filename = Path(project) / "log{}.log".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S")) if project is not None else None
         self.project = project
-        if rank in {-1, 0}: project.mkdir(parents=True, exist_ok=True)
+        if rank in {-1, 0} and train:
+            project.mkdir(parents=True, exist_ok=True)
 
         self.model_cfg = cfgs['model']
         self.data_cfg = cfgs['data']
@@ -129,8 +130,8 @@ class CenterProcessor:
 
         # logger
         self.logger = SmartLogger(filename=log_filename, level=1) if rank in {-1,0} else None
-        if self.logger is not None and rank in {-1, 0}:
-            self.logger.both(cfgs) # output configs
+        if self.logger is not None and rank in {-1, 0} and train:
+            self.logger.console(dict([('------------------------config------------------------', cfgs)])) # output configs
 
         # model processor
         self.model_processor = SmartModel(self.model_cfg, self.logger)
@@ -139,18 +140,20 @@ class CenterProcessor:
         self.data_processor = SmartDataProcessor(self.data_cfg, rank=rank, project=project)
 
         # optimizer
-        params = SeperateLayerParams(self.model_processor.model)
-        self.optimizer = create_Optimizer(optimizer=self.hyp_cfg['optimizer'][0], lr=self.hyp_cfg['lr0'],
-                                          weight_decay=self.hyp_cfg['weight_decay'], momentum=self.hyp_cfg['warmup_momentum'],
-                                          params=params.create_ParamSequence(layer_wise=self.hyp_cfg['optimizer'][1], lr=self.hyp_cfg['lr0']))
-        # scheduler
-        self.scheduler = create_Scheduler(scheduler=self.hyp_cfg['scheduler'], optimizer=self.optimizer,
-                                          warm_ep=self.hyp_cfg['warm_ep'], epochs=self.hyp_cfg['epochs'], lr0=self.hyp_cfg['lr0'],lrf_ratio=self.hyp_cfg['lrf_ratio'])
+        if train:
+            params = SeperateLayerParams(self.model_processor.model)
+            self.optimizer = create_Optimizer(optimizer=self.hyp_cfg['optimizer'][0], lr=self.hyp_cfg['lr0'],
+                                              weight_decay=self.hyp_cfg['weight_decay'], momentum=self.hyp_cfg['warmup_momentum'],
+                                              params=params.create_ParamSequence(layer_wise=self.hyp_cfg['optimizer'][1], lr=self.hyp_cfg['lr0']))
+            # scheduler
+            self.scheduler = create_Scheduler(scheduler=self.hyp_cfg['scheduler'], optimizer=self.optimizer,
+                                              warm_ep=self.hyp_cfg['warm_ep'], epochs=self.hyp_cfg['epochs'], lr0=self.hyp_cfg['lr0'],lrf_ratio=self.hyp_cfg['lrf_ratio'])
         # loss
         loss_choice: str = 'ce' if self.hyp_cfg['loss']['ce'] else 'bce'
-        self.lossfn = create_Lossfn(loss_choice)() \
-            if loss_choice == 'bce' \
-            else create_Lossfn(loss_choice)(label_smooth = self.hyp_cfg['label_smooth'])
+        if train:
+            self.lossfn = create_Lossfn(loss_choice)() \
+                if loss_choice == 'bce' \
+                else create_Lossfn(loss_choice)(label_smooth = self.hyp_cfg['label_smooth'])
         self.thresh = self.hyp_cfg['loss']['bce'][1] if loss_choice == 'bce' else 0
 
         # train_one_epoch
@@ -175,25 +178,26 @@ class CenterProcessor:
         else: self.sampler = None
 
         self.loss_choice = loss_choice
-        # distributions sampler
-        self.dist_sampler = self._distributions_sampler()
+        if train:
+            # distributions sampler
+            self.dist_sampler = self._distributions_sampler()
 
-        # progressive learning
-        self.prog_learn = self.hyp_cfg['strategy']['prog_learn']
-        # mixup change node
-        if self.prog_learn: self.mixup_chnodes = torch.linspace(*self.hyp_cfg['strategy']['mixup'][-1], 3,dtype=torch.int32).round_().tolist()
+            # progressive learning
+            self.prog_learn = self.hyp_cfg['strategy']['prog_learn']
+            # mixup change node
+            if self.prog_learn: self.mixup_chnodes = torch.linspace(*self.hyp_cfg['strategy']['mixup'][-1], 3,dtype=torch.int32).round_().tolist()
 
-        # focalloss hard
-        if loss_choice == 'bce' and self.hyp_cfg['strategy']['focal'][0]:
-            self.focal = create_Lossfn('focal')(gamma=self.hyp_cfg['strategy']['focal'][2], alpha= self.hyp_cfg['strategy']['focal'][1])
-        else:
-            self.focal = None
-        # self.focal_eff_epo = 0
-        # on or off
-        # self.focal_on = self.hyp_cfg['strategy']['focal'][0]
+            # focalloss hard
+            if loss_choice == 'bce' and self.hyp_cfg['strategy']['focal'][0]:
+                self.focal = create_Lossfn('focal')(gamma=self.hyp_cfg['strategy']['focal'][2], alpha= self.hyp_cfg['strategy']['focal'][1])
+            else:
+                self.focal = None
+            # self.focal_eff_epo = 0
+            # on or off
+            # self.focal_on = self.hyp_cfg['strategy']['focal'][0]
 
-        # ema
-        self.ema = ModelEMA(self.model_processor.model) if rank in {-1, 0} else None
+            # ema
+            self.ema = ModelEMA(self.model_processor.model) if rank in {-1, 0} else None
 
     def set_optimizer_momentum(self, momentum) -> None:
         self.optimizer.param_groups[0]['momentum'] = momentum
@@ -388,5 +392,5 @@ class CenterProcessor:
                 if final_epoch:
                     logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                                    f"\nResults saved to {colorstr('bold', self.project)}"
-                                   f'\nPredict:         python predict.py --weight {best} --badcase --save_txt --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --class_head {self.loss_choice} --class_json {self.project}/class_indices.json --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}" {"--attention_pool" if self.model_cfg["attention_pool"] else ""} --ema --root {data_processor.data_cfgs["root"]}/val/{colorstr("blue", "XXX_cls")}'
-                                   f'\nValidate:        python val.py --weight {best} --choice {self.model_cfg["choice"]} --kwargs "{self.model_cfg["kwargs"]}" --root {data_processor.data_cfgs["root"]} --num_classes {self.model_cfg["num_classes"]} --transforms "{self.data_cfg["val"]["augment"]}" --thresh {thresh} --head {self.loss_choice} {"--multi_label" if self.hyp_cfg["loss"]["bce"][0] and self.hyp_cfg["loss"]["bce"][2] else ""} {"--attention_pool" if self.model_cfg["attention_pool"] else ""} --ema')
+                                   f'\nPredict:         python visualize.py --cfgs {os.path.join(os.path.dirname(best), os.path.basename(self.cfg_path))} --weight {best} --badcase --class_json {self.project}/class_indices.json --ema --cam --data {data_processor.data_cfgs["root"]}/val/{colorstr("blue", "XXX_cls")}'
+                                   f'\nValidate:        python validate.py --cfgs {os.path.join(os.path.dirname(best), os.path.basename(self.cfg_path))} --eval_topk 5 --weight {best} --ema' )

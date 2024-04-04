@@ -1,5 +1,6 @@
 import logging
 from typing import Union
+import yaml
 
 class SmartLogger:
 
@@ -21,16 +22,14 @@ class SmartLogger:
 
     def log(self, msg: Union[str, dict]):
         if isinstance(msg, dict):
-            for k, v in msg.items():
-                self.file_logger.info(f'{k}')
-                self.file_logger.info(f'{v}')
+            self.file_logger.info(yaml.dump(msg, sort_keys=False, default_flow_style=False))
+
         else: self.file_logger.info(msg)
 
     def console(self, msg: Union[str, dict]):
         if isinstance(msg, dict):
-            for k, v in msg.items():
-                self.console_logger.info(f'{k}')
-                self.console_logger.info(f'{v}')
+            self.console_logger.info(yaml.dump(msg, sort_keys=False, default_flow_style=False))
+
         else:
             self.console_logger.info(msg)
 

@@ -77,7 +77,7 @@ class Trainer:
                         total=len(self.train_dataloader),
                         bar_format='{l_bar}{bar:10}{r_bar}')
 
-        tloss, fitness = 0., 0.,
+        tloss, fitness = 0., 0.
 
         for i, (images, labels) in pbar:  # progress bar
             images, labels = images.to(self.device, non_blocking=True), labels.to(self.device)

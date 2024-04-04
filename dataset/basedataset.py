@@ -97,10 +97,10 @@ class BaseDatasets(Dataset):
         return img
 
 class PredictDatasets(Dataset):
-    def __init__(self, root, transforms = None, postfix: str = 'jpg'):
-        assert transforms is not None, 'transforms不能为None'
-        self.imgs_path = glob.glob(os.path.join(root, f'*.{postfix}'))
-        assert len(self.imgs_path) != 0, f'推理路径内没有{postfix}结尾的文件'
+    def __init__(self, root, transforms = None, postfix: tuple = ('jpg', 'png')):
+        assert transforms is not None, 'transforms would not be None'
+        self.imgs_path = glob.glob(os.path.join(root, f'*.{postfix[0]}')) + glob.glob(os.path.join(root, f'*.{postfix[1]}'))
+        assert len(self.imgs_path) != 0, f'there are no files with postfix as {postfix}'
         self.transforms = transforms
 
     def __getitem__(self, idx: int):

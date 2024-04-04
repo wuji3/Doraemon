@@ -62,8 +62,8 @@ def is_ascii(s=''):
     return len(s.encode().decode('ascii', 'ignore')) == len(s)
 
 class Annotator:
-    # 服务器/home/xxx/.config/Ultralytics无字体文件时且下载超时 把misc下的字体文件cp到Ultralytics里面
-    # 字体链接https://ultralytics.com/assets/Arial.ttf
+    # cp misc/Arial.ttf ~/.config/Ultralytics
+    # Font URL: https://ultralytics.com/assets/Arial.ttf
     def __init__(self, im, font='Arial.ttf'):
         font_size = None
         non_ascii = not is_ascii('abc')
