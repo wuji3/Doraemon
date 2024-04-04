@@ -1,4 +1,4 @@
-# vision classifier
+## <div align="center">vision classifier</div>
 [English](./README.md)
 
 ## 使用指南
