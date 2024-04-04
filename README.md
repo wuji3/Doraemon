@@ -81,7 +81,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/
 <summary>Validate & Visualization 🌟</summary>
 
 <p align="center">
-  <img src="misc/visual&validation.jpg" width="40%" height="auto" >
+  <img src="./misc/visual&validation.jpg" width="40%" height="auto" >
 </p>
 
 ```markdown
