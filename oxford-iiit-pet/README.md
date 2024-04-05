@@ -48,18 +48,6 @@ project
 │       ├── val
 ├── split2dataset.py
 ```
-```
---vision(根目录)
-    --oxford-iiit-pet
-        --oxford-iiit-pet
-            --annotations
-            --images
-        --pet(脚本执行后多出的文件夹)
-            --train
-            --val
-        --split2dataset.py
-
-```
 </details>
 
 ### Train & Infer
