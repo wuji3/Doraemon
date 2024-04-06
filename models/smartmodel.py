@@ -4,8 +4,9 @@ from torch.nn.init import normal_, constant_
 import torch.nn as nn
 from built import atten_pool_replace
 import torch
+from .faceX import FaceWrapper
 
-class _Init_Nc_Torchvision:
+class SetOutFeatures:
 
     def __init__(self):
         self.models = {
@@ -29,7 +30,7 @@ class _Init_Nc_Torchvision:
         else: # self.fc
             model.fc = nn.Linear(model.fc.in_features, nc)
 
-class SmartModel:
+class TorchVisionWrapper:
     def __init__(self, model_cfgs: dict, logger = None):
         self.logger = logger
 
@@ -44,10 +45,10 @@ class SmartModel:
 
 
         model_cfgs_copy = deepcopy(model_cfgs)
-        model_cfgs_copy['kind'], model_cfgs_copy['choice'] = model_cfgs['choice'].split('-')
+        model_cfgs_copy['kind'], model_cfgs_copy['choice'] = model_cfgs['name'].split('-')
 
         # init num_classes if torchvision
-        self.init_nc_torchvision = _Init_Nc_Torchvision() if model_cfgs_copy['kind'] == 'torchvision' else None
+        self.init_nc_torchvision = SetOutFeatures() if model_cfgs_copy['kind'] == 'torchvision' else None
         # init model
         self.model = self.create_model(**model_cfgs_copy)
         # pool layer
@@ -118,3 +119,10 @@ class SmartModel:
                 if bn_freeze_affine:
                     m.weight.requires_grad_(False)
                     m.bias.requires_grad_(False)
+
+def get_model(model_cfg, logger):
+    assert 'task' in model_cfg, 'image classification or face recognition ?'
+
+    match model_cfg['task']:
+        case 'face': return FaceWrapper(model_cfg, logger)
+        case 'classification': return TorchVisionWrapper(model_cfg, logger)

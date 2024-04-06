@@ -2,10 +2,10 @@ import os
 import shutil
 from os.path import join as opj
 
-# -------------------------------------用于划分斯坦福宠物数据集--------------------------------------- #
+# -------------------------------------tag class--------------------------------------- #
 def splitImg2Category(dataDir="oxford-iiit-pet/images/", resDir="pet/"):
     '''
-    归类图像到不同目录中
+    Give tag to images
     '''
     for one_pic in os.listdir(dataDir):
         one_path = dataDir + one_pic
@@ -15,10 +15,10 @@ def splitImg2Category(dataDir="oxford-iiit-pet/images/", resDir="pet/"):
 
 if __name__ == '__main__':
 
-    # 归类
+    # tag class
     splitImg2Category()
 
-    # 划分数据集
+    # split
     annos = ['oxford-iiit-pet/annotations/trainval.txt', 'oxford-iiit-pet/annotations/test.txt' ]
 
     for i, anno in enumerate(annos):
@@ -36,7 +36,7 @@ if __name__ == '__main__':
                 if not os.path.exists(opj(dstDir, img_name + '.jpg')):
                     shutil.move(opj('pet', img_catogary, img_name + '.jpg'), dstDir)
 
-    # 清空
+    # remove
     for dir_ in os.listdir('pet'):
         if dir_ not in ('train', 'val'):
             shutil.rmtree(opj('pet', dir_))

@@ -163,6 +163,7 @@ class CenterCropAndResize(nn.Sequential):
     def __init__(self, center_size, re_size):
         super().__init__(T.CenterCrop(center_size),
                          T.Resize(re_size, interpolation=InterpolationMode.BILINEAR))
+        self.size = re_size
 
 class RandomColorJitter(T.ColorJitter):
     def __init__(self, prob: float = 0.5, *args, **kargs):
@@ -465,4 +466,5 @@ def list_augments():
     augments = [k for k, v in AUG_METHODS.items()]
     return sorted(augments)
 
+# transforms about image size
 SPATIAL_TRANSFORMS = set([T.CenterCrop, T.Resize, CenterCropAndResize, T.RandomCrop, T.RandomResizedCrop, PadIfNeed])

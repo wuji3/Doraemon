@@ -39,7 +39,7 @@ if __name__ == '__main__':
     visual_dir = increment_path(Path(opt.show_path) / opt.name)
 
     cfgs = yaml_load(opt.cfgs)
-    cpu = CenterProcessor(cfgs, LOCAL_RANK, train=False)
+    cpu = CenterProcessor(cfgs, LOCAL_RANK, train=False, opt=opt)
 
     # checkpoint loading
     model = cpu.model_processor.model

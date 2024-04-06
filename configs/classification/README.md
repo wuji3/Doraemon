@@ -1,5 +1,5 @@
 # Configuration instructions
-I have prepared two configuration files for you in configs/[complete.yaml](./complete.yaml), [pet.yaml](./pet.yaml), you could modify based on your own task.
+I have prepared two configuration files for you in configs/[complete.yaml](complete.yaml), [pet.yaml](pet.yaml), you could modify based on your own task.
 
 Please see below for the meaning of each parameter setting
 * model

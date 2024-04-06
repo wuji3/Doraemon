@@ -1,7 +1,7 @@
 import torch.nn as nn
 from torch import Tensor
 from typing import Callable
-from models import SmartModel
+from models import TorchVisionWrapper
 from engine.vision_engine import CenterProcessor
 
 class Distiller:
@@ -32,11 +32,12 @@ class Distiller:
         return loss
 
 class DistillCenterProcessor(CenterProcessor):
-    def __init__(self, cfgs: dict, rank: int, project: str, logger = None):
+    def __init__(self, cfgs: dict, rank: int, project: str, logger = None, opt = None):
         super().__init__(cfgs=cfgs['student'], rank=rank, project= project)
 
         # init teacher model
-        self.teacher = SmartModel(cfgs['teacher'], logger = logger)
+        self.teacher = TorchVisionWrapper(cfgs['teacher'], logger = logger)
+        self.opt = opt
 
 
 

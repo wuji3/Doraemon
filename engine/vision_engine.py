@@ -3,7 +3,7 @@ from torchvision.transforms import CenterCrop, Resize, RandomResizedCrop, Compos
 import torch.nn as nn
 from torch.cuda.amp import GradScaler
 from dataset.basedataset import BaseDatasets
-from dataset.transforms import CenterCropAndResize
+from dataset.transforms import CenterCropAndResize, SPATIAL_TRANSFORMS, create_AugTransforms
 from torch.utils.data import DistributedSampler
 from utils.logger import SmartLogger
 from engine.optimizer import create_Optimizer
@@ -23,10 +23,11 @@ import yaml
 from copy import deepcopy
 from models.ema import ModelEMA
 from built.class_augmenter import ClassWiseAugmenter
-from models import SmartModel
+from models import get_model
 from dataset.dataprocessor import SmartDataProcessor
+from utils.average_meter import AverageMeter
 
-__all__ = ['yaml_load', 'CenterProcessor','increment_path', 'check_cfgs']
+__all__ = ['yaml_load', 'CenterProcessor','increment_path', 'check_cfgs_classification']
 
 
 def yaml_load(file='data.yaml'):
@@ -60,15 +61,22 @@ def increment_path(path, exist_ok=False, sep='', mkdir=False):
 
     return path
 
-def check_cfgs(cfgs):
+def check_cfgs_face(cfgs):
+    model_cfg = cfgs['model']
+    data_cfg = cfgs['data']
+    # num_classes
+    train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') if not (x.startswith('.') or x.startswith('_'))]
+    assert model_cfg['num_classes'] == len(train_classes), 'num_classes in model should be equal to classes in data folder'
+
+def check_cfgs_classification(cfgs):
     model_cfg = cfgs['model']
     data_cfg = cfgs['data']
     hyp_cfg = cfgs['hyp']
     # num_classes
     train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') if not (x.startswith('.') or x.startswith('_'))]
-    assert model_cfg['num_classes'] == len(train_classes), 'config中num_classes 必须等于 实际训练文件夹中的类别'
+    assert model_cfg['num_classes'] == len(train_classes), 'num_classes in model should be equal to classes in data folder'
     # model
-    assert model_cfg['choice'].split('-')[0] in {'torchvision', 'custom'}, 'if from torchvision, torchvision-ModelName; if from your own, custom-ModelName'
+    assert model_cfg['name'].split('-')[0] in {'torchvision', 'custom'}, 'if from torchvision, torchvision-ModelName; if from your own, custom-ModelName'
     if model_cfg['kwargs'] and model_cfg['pretrained']:
         for k in model_cfg['kwargs'].keys():
             if k not in {'dropout','attention_dropout', 'stochastic_depth_prob'}: raise KeyError('set kwargs except dropout, pretrained must be False')
@@ -97,19 +105,19 @@ def check_cfgs(cfgs):
     hyp_cfg['strategy']['mixup'] = [mixup, mixup_milestone]
     # progressive learning
     if hyp_cfg['strategy']['prog_learn']: assert mixup > 0 and data_cfg['train']['aug_epoch'] >= mix1, 'if progressive learning, make sure mixup > 0, and aug_epoch >= mix_end'
-    # augment
-    # augs = ['center_crop', 'resize']
-    # train_augs = list(data_cfg['train']['augment'].keys())
-    # val_augs = list(data_cfg['val']['augment'].keys())
-    # assert not (augs[0] in train_augs and augs[1] in train_augs), 'if need centercrop and resize, please centercrop offline, not support use two'
-    # for a in augs:
-    #     if a in train_augs:
-    #         assert a in val_augs, 'augment about image size should be same in train and val'
-    # n_val_augs = len(val_augs)
-    # assert train_augs[-n_val_augs:] == val_augs, 'augment in val should be same with end-part of train'
+    # imgsz
+    assert get_imgsz(cfgs['data']['train']['augment']) == get_imgsz(cfgs['data']['val']['augment']), 'imgsz should be same in training and inference'
+
+def get_imgsz(augment: dict):
+    augments = create_AugTransforms(augment)
+    for a in augments.transforms[::-1]:
+        if type(a) in SPATIAL_TRANSFORMS and hasattr(a, 'size'):
+            if type(a.size) is int: return (a.size, a.size)
+            elif type(a.size) in [tuple, list]: return tuple(a.size)
+            else: raise ValueError('size be int, tuple or list')
 
 class CenterProcessor:
-    def __init__(self, cfgs: dict, rank: int, project: str = None, train: bool = True):
+    def __init__(self, cfgs: dict, rank: int, project: str = None, train: bool = True, opt = None):
         log_filename = Path(project) / "log{}.log".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S")) if project is not None else None
         self.project = project
         if rank in {-1, 0} and train:
@@ -118,6 +126,11 @@ class CenterProcessor:
         self.model_cfg = cfgs['model']
         self.data_cfg = cfgs['data']
         self.hyp_cfg = cfgs['hyp']
+        self.opt = opt
+        self.imgsz = get_imgsz(cfgs['data']['train']['augment'])
+
+        # task
+        self.face = self.model_cfg['task'] == 'face'
 
         # rank
         self.rank: int = rank
@@ -134,51 +147,42 @@ class CenterProcessor:
             self.logger.console(dict([('------------------------config------------------------', cfgs)])) # output configs
 
         # model processor
-        self.model_processor = SmartModel(self.model_cfg, self.logger)
+        self.model_processor = get_model(self.model_cfg, self.logger)
         self.model_processor.model.to(device)
         # data processor
         self.data_processor = SmartDataProcessor(self.data_cfg, rank=rank, project=project)
 
-        # optimizer
-        if train:
-            params = SeperateLayerParams(self.model_processor.model)
-            self.optimizer = create_Optimizer(optimizer=self.hyp_cfg['optimizer'][0], lr=self.hyp_cfg['lr0'],
-                                              weight_decay=self.hyp_cfg['weight_decay'], momentum=self.hyp_cfg['warmup_momentum'],
-                                              params=params.create_ParamSequence(layer_wise=self.hyp_cfg['optimizer'][1], lr=self.hyp_cfg['lr0']))
-            # scheduler
-            self.scheduler = create_Scheduler(scheduler=self.hyp_cfg['scheduler'], optimizer=self.optimizer,
-                                              warm_ep=self.hyp_cfg['warm_ep'], epochs=self.hyp_cfg['epochs'], lr0=self.hyp_cfg['lr0'],lrf_ratio=self.hyp_cfg['lrf_ratio'])
         # loss
         loss_choice: str = 'ce' if self.hyp_cfg['loss']['ce'] else 'bce'
-        if train:
-            self.lossfn = create_Lossfn(loss_choice)() \
-                if loss_choice == 'bce' \
-                else create_Lossfn(loss_choice)(label_smooth = self.hyp_cfg['label_smooth'])
-        self.thresh = self.hyp_cfg['loss']['bce'][1] if loss_choice == 'bce' else 0
-
-        # train_one_epoch
-        # self.train_one_epoch: Callable = train_one_epoch # include val
-
-        # add label_transforms
-        if loss_choice == 'bce':
-            self.data_processor.train_dataset.label_transforms = \
-                partial(BaseDatasets.set_label_transforms,
-                        num_classes = self.model_cfg['num_classes'],
-                        label_smooth = self.hyp_cfg['label_smooth'])
-            self.data_processor.val_dataset.label_transforms = \
-                partial(BaseDatasets.set_label_transforms,
-                        num_classes=self.model_cfg['num_classes'],
-                        label_smooth=self.hyp_cfg['label_smooth'])
-            # bce not support self.sampler
-            self.sampler = None
-            self.data_processor.train_dataset.multi_label = self.hyp_cfg['loss']['bce'][2]
-            self.data_processor.val_dataset.multi_label = self.hyp_cfg['loss']['bce'][2]
-        # ohem
-        elif self.hyp_cfg['strategy']['ohem'][0]: self.sampler = OHEMImageSampler(*self.hyp_cfg['strategy']['ohem'][1:])
-        else: self.sampler = None
-
         self.loss_choice = loss_choice
-        if train:
+        if not self.face:
+            if train:
+                self.lossfn = create_Lossfn(loss_choice)() \
+                    if loss_choice == 'bce' \
+                    else create_Lossfn(loss_choice)(label_smooth = self.hyp_cfg['label_smooth'])
+            self.thresh = self.hyp_cfg['loss']['bce'][1] if loss_choice == 'bce' else 0
+
+            # add label_transforms
+            if loss_choice == 'bce':
+                self.data_processor.train_dataset.label_transforms = \
+                    partial(BaseDatasets.set_label_transforms,
+                            num_classes = self.model_cfg['num_classes'],
+                            label_smooth = self.hyp_cfg['label_smooth'])
+                self.data_processor.val_dataset.label_transforms = \
+                    partial(BaseDatasets.set_label_transforms,
+                            num_classes=self.model_cfg['num_classes'],
+                            label_smooth=self.hyp_cfg['label_smooth'])
+                # bce not support self.sampler
+                self.sampler = None
+                self.data_processor.train_dataset.multi_label = self.hyp_cfg['loss']['bce'][2]
+                self.data_processor.val_dataset.multi_label = self.hyp_cfg['loss']['bce'][2]
+            # ohem
+            elif self.hyp_cfg['strategy']['ohem'][0]: self.sampler = OHEMImageSampler(*self.hyp_cfg['strategy']['ohem'][1:])
+            else: self.sampler = None
+
+        else: self.lossfn = create_Lossfn(loss_choice)(label_smooth = self.hyp_cfg['label_smooth'])
+
+        if train and not self.face:
             # distributions sampler
             self.dist_sampler = self._distributions_sampler()
 
@@ -192,12 +196,11 @@ class CenterProcessor:
                 self.focal = create_Lossfn('focal')(gamma=self.hyp_cfg['strategy']['focal'][2], alpha= self.hyp_cfg['strategy']['focal'][1])
             else:
                 self.focal = None
-            # self.focal_eff_epo = 0
-            # on or off
-            # self.focal_on = self.hyp_cfg['strategy']['focal'][0]
 
-            # ema
-            self.ema = ModelEMA(self.model_processor.model) if rank in {-1, 0} else None
+        # ema
+        if train: self.ema = ModelEMA(self.model_processor.model) if rank in {-1, 0} else None
+
+        self.loss_meter = AverageMeter()
 
     def set_optimizer_momentum(self, momentum) -> None:
         self.optimizer.param_groups[0]['momentum'] = momentum
@@ -246,7 +249,7 @@ class CenterProcessor:
             if alpha != 0:
                 self.dist_sampler['beta'] = torch.distributions.beta.Beta(alpha, alpha)
         # image resize, based on mixup_milestone
-        min_imgsz = min(self.data_cfg['imgsz']) if isinstance(self.data_cfg['imgsz'][0], int) else min(self.data_cfg['imgsz'][-1])
+        min_imgsz = min(self.imgsz)
         imgsz_milestone = torch.linspace(int(min_imgsz * 0.5), int(min_imgsz), 3, dtype=torch.int32).tolist()
 
         if epoch == chnodes[0]: size = imgsz_milestone[0]
@@ -271,13 +274,14 @@ class CenterProcessor:
     def set_sync_bn(self):
         self.model_processor.model = nn.SyncBatchNorm.convert_sync_batchnorm(module=self.model_processor.model)
 
-    def run(self, resume = None): # train+val per epoch
+    def run_classifier(self, resume = None): # train+val per epoch
         last, best = self.project / 'last.pt', self.project / 'best.pt'
-        model, data_processor, optimizer, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, scheduler, focal, sampler, thresh = \
-            self.model_processor.model, self.data_processor, self.optimizer, \
+
+        model, data_processor, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, focal, sampler, thresh = \
+            self.model_processor.model, self.data_processor, \
             GradScaler(enabled = (self.device != torch.device('cpu'))), self.device, self.hyp_cfg['epochs'], \
             self.logger, self.hyp_cfg['strategy']['mixup'], self.rank, self.dist_sampler, self.hyp_cfg['warm_ep'], \
-            self.data_cfg['train']['aug_epoch'], self.scheduler, self.focal, self.sampler, self.thresh
+            self.data_cfg['train']['aug_epoch'], self.focal, self.sampler, self.thresh
 
         # data
         train_dataset, val_dataset = data_processor.train_dataset, data_processor.val_dataset
@@ -289,6 +293,7 @@ class CenterProcessor:
                                                          sampler=data_sampler,
                                                          shuffle=data_sampler is None,
                                                          collate_fn=train_dataset.collate_fn)
+
         if self.rank in {-1, 0}:
             val_dataloader = data_processor.set_dataloader(dataset=val_dataset,
                                                            bs=self.data_cfg['val']['bs'],
@@ -296,7 +301,26 @@ class CenterProcessor:
                                                            pin_memory=False,
                                                            shuffle=False,
                                                            collate_fn=val_dataset.collate_fn)
-        else: val_dataloader = None
+        else:
+            val_dataloader = None
+
+        # optimizer
+        params = SeperateLayerParams(model)
+        optimizer = create_Optimizer(optimizer=self.hyp_cfg['optimizer'][0],
+                                     lr=self.hyp_cfg['lr0'],
+                                     weight_decay=self.hyp_cfg['weight_decay'],
+                                     momentum=self.hyp_cfg['warmup_momentum'],
+                                     params=params.create_ParamSequence(layer_wise=self.hyp_cfg['optimizer'][1],
+                                                                        lr=self.hyp_cfg['lr0']))
+        self.optimizer = optimizer
+        # scheduler
+        scheduler = create_Scheduler(scheduler=self.hyp_cfg['scheduler'],
+                                     optimizer=optimizer,
+                                     warm_ep=self.hyp_cfg['warm_ep'],
+                                     epochs=self.hyp_cfg['epochs'],
+                                     lr0=self.hyp_cfg['lr0'],
+                                     lrf_ratio=self.hyp_cfg['lrf_ratio'])
+
         best_fitness = 0.
         start_epoch = 0
 
@@ -360,7 +384,6 @@ class CenterProcessor:
             lam = self.auto_mixup(mixup=mixup, epoch=int(epoch-warm_ep), milestone=mixup_milestone)
 
             # train for one epoch
-            # fitness = self.train_one_epoch(model, train_dataloader, val_dataloader, self.lossfn, optimizer, scaler, device, epoch, total_epoch, logger, is_mixup, rank, lam, scheduler, self.ema, sampler, thresh)
             fitness = trainer.train_one_epoch(epoch, lam, self.lossfn)
 
             if rank in {-1, 0}:
@@ -392,5 +415,88 @@ class CenterProcessor:
                 if final_epoch:
                     logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                                    f"\nResults saved to {colorstr('bold', self.project)}"
-                                   f'\nPredict:         python visualize.py --cfgs {os.path.join(os.path.dirname(best), os.path.basename(self.cfg_path))} --weight {best} --badcase --class_json {self.project}/class_indices.json --ema --cam --data {data_processor.data_cfgs["root"]}/val/{colorstr("blue", "XXX_cls")}'
-                                   f'\nValidate:        python validate.py --cfgs {os.path.join(os.path.dirname(best), os.path.basename(self.cfg_path))} --eval_topk 5 --weight {best} --ema' )
+                                   f'\nPredict:         python visualize.py --cfgs {os.path.join(os.path.dirname(best), os.path.basename(self.opt.cfgs))} --weight {best} --badcase --class_json {self.project}/class_indices.json --ema --cam --data {data_processor.data_cfgs["root"]}/val/{colorstr("blue", "XXX_cls")}'
+                                   f'\nValidate:        python validate.py --cfgs {os.path.join(os.path.dirname(best), os.path.basename(self.opt.cfgs))} --eval_topk 5 --weight {best} --ema' )
+
+    def run_face(self, resume = None):
+        model, data_processor, scaler, device, epochs, logger, rank, warm_ep, aug_epoch = self.model_processor.model, self.data_processor, \
+            GradScaler(enabled = (self.device != torch.device('cpu'))), self.device, self.hyp_cfg['epochs'], self.logger, self.rank, self.hyp_cfg['warm_ep'], \
+            self.data_cfg['train']['aug_epoch']
+
+        # data
+        train_dataset, val_dataset = data_processor.train_dataset, data_processor.val_dataset
+        data_sampler = None if self.rank == -1 else DistributedSampler(dataset=train_dataset)
+        train_dataloader = data_processor.set_dataloader(dataset=train_dataset,
+                                                         bs=self.data_cfg['train']['bs'],
+                                                         nw=self.data_cfg['nw'],
+                                                         pin_memory=True,
+                                                         sampler=data_sampler,
+                                                         shuffle=data_sampler is None,
+                                                         collate_fn=train_dataset.collate_fn)
+
+        # optimizer
+        params = SeperateLayerParams(model)
+        optimizer = create_Optimizer(optimizer=self.hyp_cfg['optimizer'][0],
+                                     lr=self.hyp_cfg['lr0'],
+                                     weight_decay=self.hyp_cfg['weight_decay'],
+                                     momentum=self.hyp_cfg['warmup_momentum'],
+                                     params=params.create_ParamSequence(layer_wise=self.hyp_cfg['optimizer'][1],
+                                                                        lr=self.hyp_cfg['lr0']))
+        self.optimizer = optimizer
+        # scheduler
+        scheduler = create_Scheduler(scheduler=self.hyp_cfg['scheduler'],
+                                     optimizer=optimizer,
+                                     warm_ep=self.hyp_cfg['warm_ep'] * len(train_dataloader),
+                                     epochs=self.hyp_cfg['epochs'] * len(train_dataloader),
+                                     lr0=self.hyp_cfg['lr0'],
+                                     lrf_ratio=self.hyp_cfg['lrf_ratio'])
+
+        start_epoch = 0
+
+        # resume
+        if resume is not None:
+            ckp = torch.load(resume, map_location=device)
+            start_epoch = ckp['epoch'] + 1
+            best_fitness = ckp['best_fitness']
+            if self.rank in {-1, 0}:
+                self.ema.ema.load_state_dict(ckp['ema'].float().state_dict())
+                self.ema.updates = ckp['updates']
+            model.load_state_dict(ckp['model'])
+            optimizer.load_state_dict(ckp['optimizer'])
+            scheduler.load_state_dict(ckp['scheduler'])
+            if device != torch.device('cpu'):
+                scaler.load_state_dict(ckp['scaler'])
+
+        if rank != -1:
+            model = DDP(model, device_ids=[self.rank])
+
+        if self.rank in {-1, 0}:
+
+            time.sleep(0.2)
+
+        # total epochs
+        total_epoch = epochs + warm_ep
+
+        # trainer
+        trainer = Trainer(model, train_dataloader, None, optimizer,
+                          scaler, device, total_epoch, logger, rank, scheduler, self.ema, None, None,
+                          self.teacher if hasattr(self, 'teacher') else None, self.opt.print_freq, self.opt.save_dir)
+
+        t0 = time.time()
+        for epoch in range(start_epoch, total_epoch):
+            # warmup set augment as val
+            if epoch == 0:
+                self.data_processor.set_augment('train', sequence=None)
+
+            # change optimizer momentum from warm_moment0.8 -> momentum0.937
+            if epoch == warm_ep:
+                self.set_optimizer_momentum(self.hyp_cfg['momentum'])
+                self.data_processor.set_augment('train',
+                                                sequence=ClassWiseAugmenter(self.data_cfg['train']['augment'],
+                                                                            self.data_cfg['train']['class_aug'],
+                                                                            self.data_cfg['train']['common_aug']))
+            # weaken data augment at milestone
+            self.data_processor.auto_aug_weaken(int(epoch-warm_ep), milestone=aug_epoch)
+
+            # train for one epoch
+            trainer.train_one_epoch_face(self.lossfn, epoch, self.loss_meter)

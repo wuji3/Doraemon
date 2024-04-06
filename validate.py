@@ -21,7 +21,7 @@ def parse_opt():
 def main(opt):
 
     cfgs = yaml_load(opt.cfgs)
-    cpu = CenterProcessor(cfgs, LOCAL_RANK, train=False)
+    cpu = CenterProcessor(cfgs, LOCAL_RANK, train=False, opt=opt)
 
     # checkpoint loading
     model = cpu.model_processor.model

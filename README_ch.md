@@ -61,8 +61,8 @@ project
 <details close>
 <summary>参数配置 🌟🌟️</summary>
 
-如果用自己的数据, 参考[Config](./configs/README.md)写配置文件(推荐🌟️：在[complete.yaml](./configs/complete.yaml)或[pet.yaml](./configs/pet.yaml)上面修改)  
-如果公开数据集[oxford-iiit-pet](./oxford-iiit-pet/README_ch_.md), 配置文件已准备好[pet.yaml](./configs/pet.yaml)
+如果用自己的数据, 参考[Config](configs/classification/README.md)写配置文件(推荐🌟️：在[complete.yaml](configs/classification/complete.yaml)或[pet.yaml](configs/classification/pet.yaml)上面修改)  
+如果公开数据集[oxford-iiit-pet](./oxford-iiit-pet/README_ch_.md), 配置文件已准备好[pet.yaml](configs/classification/pet.yaml)
 </details>
 
 <details close>
@@ -70,10 +70,10 @@ project
 
 ```shell
 # 单机单卡
-python main.py --cfgs 'configs/pet.yaml'
+python main.py --cfgs configs/classification/pet.yaml
 
 # 单机多卡
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs 'configs/pet.yaml'
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/classification/pet.yaml
 ```
 </details>
 

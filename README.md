@@ -61,8 +61,8 @@ project
 <details close>
 <summary>Configuration 🌟🌟️</summary>
 
-If custom data, refer to [Config](./configs/README.md) for writing your own config.  (Recommend🌟: modify based on [complete.yaml](./configs/complete.yaml) or [pet.yaml](./configs/pet.yaml))  
-If [oxford-iiit-pet](./oxford-iiit-pet/README_ch_.md), [pet.yaml](./configs/pet.yaml) has prepared for you.
+If custom data, refer to [Config](configs/classification/README.md) for writing your own config.  (Recommend🌟: modify based on [complete.yaml](configs/classification/complete.yaml) or [pet.yaml](configs/classification/pet.yaml))  
+If [oxford-iiit-pet](./oxford-iiit-pet/README_ch_.md), [pet.yaml](configs/classification/pet.yaml) has prepared for you.
 </details>
 
 <details close>
@@ -70,10 +70,10 @@ If [oxford-iiit-pet](./oxford-iiit-pet/README_ch_.md), [pet.yaml](./configs/pet.
 
 ```shell
 # one machine one gpu
-python main.py --cfgs configs/pet.yaml
+python main.py --cfgs configs/classification/pet.yaml
 
 # one machine multiple gpus
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/pet.yaml
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py configs/classification/pet.yaml
 ```
 </details>
 

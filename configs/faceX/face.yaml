@@ -1,22 +1,30 @@
 model:
-  choice: torchvision-swin_t  # torchvision- or custom-
-  kwargs: {} # kwargs feed into torchvision-style models.__init__ 'attention_dropout': 0.1,
-  num_classes: 35
-  pretrained: True
-  backbone_freeze: False
-  bn_freeze: False
-  bn_freeze_affine: False
-  attention_pool: False
+  task: face
+  backbone:
+    resnet:
+        depth: 50
+        drop_ratio: 0.4
+        net_mode: ir_se
+        feat_dim: 512
+        out_h: 7
+        out_w: 7
+  head:
+    arcface:
+      feat_dim: 512
+      num_class: 72778
+      margin_arc: 0.35
+      margin_am: 0.0
+      scale: 32
 data:
-  root: pet  # -train -val
+  root: oxford-iiit-pet/pet  # -train -val
   nw: 4 # if not multi-nw, set to 0
   imgsz:
-    - 320
-    - 320
+    - 112
+    - 112
   train:
-    bs: 32 # one gpus if DDP
+    bs: 8 # one gpus if DDP
     common_aug: null 
-    class_aug: null 
+    class_aug: null
       #S: 0 1 2 4 5 6
       #B-: 0 1 2 4 5 6
     augment: # refer to utils/augment.py
@@ -38,10 +46,9 @@ data:
             prob: 0.1
             kernel_size: 7
       pad2square: no_params
-      random_crop_and_resize:
-        scale: [0.2, 1.0]
-        size: 320
-      to_tensor: no_params 
+      resize:
+        size: 112
+      to_tensor: no_params
       normalize: # default use ImageNet1K mean & var, if not pretrained, del normalize 
         mean: [0.485, 0.456, 0.406]
         std: [0.229, 0.224, 0.225]
@@ -51,7 +58,7 @@ data:
     augment:
         pad2square: no_params
         resize:
-          size: 320
+          size: 112
         to_tensor: no_params
         normalize: # default use ImageNet1K mean & var, if not pretrained, del normalize
           mean: [0.485, 0.456, 0.406]
@@ -63,29 +70,11 @@ hyp:
   momentum: 0.937
   weight_decay: 0.0005
   warmup_momentum: 0.8
-  warm_ep: 1
+  warm_ep: 0
   loss:
     ce: True
-    bce:
-      - False
-      - 0.5
-      - True # multi-label
-  label_smooth: 0.1
-  strategy:
-    prog_learn: False
-    mixup:
-      - 0.1 
-      - [0, 20]
-    focal: 
-      - False
-      - 0.25
-      - 1.5
-    ohem:
-      - False
-      - 8 # min_kept
-      - 0.7 # thresh_prob
-      - 255 # ignore_index
+  label_smooth: 0.0
   optimizer: 
-    - sgd # sgd or adam
-    - False # True or False 特殊的层需要调学习率
-  scheduler: cosine_with_warm # linear or cosine
+    - sgd # sgd, adam or sam
+    - False # Different layers in the model set different learning rates, in built/layer_optimizer
+  scheduler: linear # linear or cosine

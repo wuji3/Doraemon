@@ -5,6 +5,7 @@ from engine.procedure.evaluation import valuate
 from typing import Callable
 import math
 from engine.optimizer import SAM
+from torch.utils.tensorboard import SummaryWriter
 
 __all__ = ['Trainer']
 
@@ -40,10 +41,13 @@ class Trainer:
                  epochs: int,
                  logger,
                  rank: int,
-                 schduler,
+                 scheduler,
                  ema, sampler = None,
                  thresh = 0,
                  teacher = None,
+                 # face
+                 print_freq = 50,
+                 out_dir = None
                  ):
 
         self.model = model
@@ -55,13 +59,17 @@ class Trainer:
         self.epochs = epochs
         self.logger = logger
         self.rank = rank
-        self.schduler = schduler
+        self.scheduler = scheduler
         self.ema = ema
         self.sampler = sampler
         self.thresh = thresh
         self.teacher = teacher
         self.sam: bool = type(self.optimizer) is SAM
         self.distill: bool = teacher is not None
+
+        # face
+        self.print_freq = print_freq
+        self.writer = SummaryWriter(log_dir=out_dir)
 
     def train_one_epoch(self, epoch: int, lam: float, criterion: Callable):
         # train mode
@@ -112,7 +120,7 @@ class Trainer:
 
                     fitness = top1 if self.thresh == 0 else f1score  # define fitness as top1 accuracy
 
-        self.schduler.step()  # step epoch-wise
+        self.scheduler.step()  # step epoch-wise
 
         return fitness
 
@@ -124,7 +132,7 @@ class Trainer:
             loss = lossfn(model(inputs), targets)
         else:
             loss = mixup_criterion(lossfn, model(inputs), **kwargs)
-        if rank >= 0:  # 多卡训练
+        if rank >= 0:  # multi-gpu
             with model.no_sync():
                 loss.mean().backward()
         else:
@@ -144,7 +152,7 @@ class Trainer:
 
         return loss
 
-    def compute_loss(self, images: Tensor, labels: Tensor, lam: float, criterion: Callable):
+    def compute_loss(self, images: Tensor, labels: Tensor, lam: float, criterion: Callable, face: bool = False):
         mixup: bool = lam > 0
 
         assert not (mixup and self.distill), 'distill not be True when mixup is True'
@@ -163,7 +171,7 @@ class Trainer:
         elif self.distill:
             pass
         else: # close
-            loss = criterion(self.model(images), labels)
+            loss = criterion(self.model(images), labels) if not face else criterion(self.model(images, labels), labels)
             Trainer.update(self.model, loss, self.scaler, self.optimizer, self.ema)
 
         return loss
@@ -183,3 +191,51 @@ class Trainer:
         optimizer.zero_grad()
         if ema:
             ema.update(model)
+
+    def train_one_epoch_face(self, criterion, cur_epoch, loss_meter):
+        """Tain one epoch by traditional training.
+        """
+
+        import os
+        from copy import deepcopy
+
+        iters_per_epoch = len(self.train_dataloader)
+
+        for batch_idx, (images, labels) in enumerate(self.train_dataloader):
+            images, labels = images.to(self.device, non_blocking=True), labels.to(self.device)
+
+            loss = self.compute_loss(images, labels, lam=0, criterion = criterion, face = True)
+
+            global_batch_idx = cur_epoch * iters_per_epoch + batch_idx
+            self.scheduler.step() # step batch-wise
+
+            torch.cuda.synchronize()
+            loss_meter.update(loss.item(), images.shape[0])
+
+            if self.rank in (-1, 0) and batch_idx % self.print_freq == 0:
+                loss_avg = loss_meter.avg
+                lr = self.optimizer.param_groups[0]["lr"]
+                self.logger.both('Epoch %d, iter %d/%d, lr %f, loss %f' %
+                            (cur_epoch, batch_idx, iters_per_epoch, lr, loss_avg))
+                self.writer.add_scalar('Train_loss', loss_avg, global_batch_idx)
+                self.writer.add_scalar('Train_lr', lr, global_batch_idx)
+                loss_meter.reset()
+
+            torch.cuda.empty_cache()
+
+        if self.rank in (-1, 0):
+
+            saved_name = 'Epoch_%d.pt' % cur_epoch
+            ckpt = {
+                'epoch': cur_epoch,
+                'batch_id': batch_idx,
+                # 'best_fitness': best_fitness,
+                'model': self.model.state_dict() if self.rank == -1 else self.model.module.state_dict(),
+                'ema': deepcopy(self.ema.ema),
+                'updates': self.ema.updates,
+                'optimizer': self.optimizer.state_dict(),  # optimizer.state_dict(),
+                'scheduler': self.scheduler.state_dict(),
+            }
+            torch.save(ckpt, os.path.join(self.writer.log_dir, saved_name))
+            self.logger.both('Save checkpoint %s to disk...' % saved_name)
+
