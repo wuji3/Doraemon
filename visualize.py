@@ -1,7 +1,7 @@
 from engine import increment_path
 from dataset.transforms import create_AugTransforms
 from utils.plots import colorstr
-from dataset.basedataset import PredictDatasets
+from dataset.basedataset import PredictImageDatasets
 from torch.utils.data import DataLoader
 import os
 import argparse
@@ -53,10 +53,10 @@ if __name__ == '__main__':
         class_dict = json.load(f)
         class_dict = dict((eval(k), v) for k,v in class_dict.items())
 
-    dataset = PredictDatasets(opt.data,
-                              transforms=create_AugTransforms(cpu.data_cfg['val']['augment']))
+    dataset = PredictImageDatasets(opt.data,
+                                   transforms=create_AugTransforms(cpu.data_cfg['val']['augment']))
     dataloader = DataLoader(dataset, shuffle=False, pin_memory=True, num_workers=cpu.data_cfg['nw'], batch_size=1,
-                            collate_fn=PredictDatasets.collate_fn)
+                            collate_fn=PredictImageDatasets.collate_fn)
 
     t0 = time.time()
     predict_images(model,

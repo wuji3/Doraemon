@@ -2,6 +2,8 @@ from .backbone.backbone_def import BackboneFactory
 from .head.head_def import HeadFactory
 import torch.nn as nn
 from torch.nn.init import normal_, constant_
+import torch
+from typing import Optional
 
 class FaceWrapper:
     def __init__(self, model_cfg, logger = None):
@@ -45,3 +47,44 @@ class FaceModel(nn.Module):
         feat = self.model[0](data)
         pred = self.model[1](feat, label)
         return pred
+
+class FaceFeatureModel:
+    def __init__(self, model_cfg: dict, model_path: Optional[str] = None):
+        self.model = BackboneFactory(model_cfg['backbone']).get_backbone()
+        if model_path is not None:
+            self.load_model(model_path=model_path)
+
+    def load_model_default(self, model_path):
+        """The default method to load a model.
+
+        Args:
+            model_path:: the path of the weight file.
+
+        Returns:
+            model: initialized model.
+        """
+        self.model.load_state_dict(torch.load(model_path)['state_dict'], strict=True)
+
+        return self.model
+
+    def load_model(self, model_path):
+        """The custom method to load a model.
+
+        Args:
+            model_path: the path of the weight file.
+
+        Returns:
+            model: initialized model.
+        """
+        model_dict = self.model.state_dict()
+        pretrained_dict = torch.load(model_path)['state_dict']
+
+        new_pretrained_dict = {}
+        for k in model_dict:
+            new_pretrained_dict[k] = pretrained_dict['backbone.' + k]  # tradition training
+
+        model_dict.update(new_pretrained_dict)
+        self.model.load_state_dict(model_dict)
+
+        return self.model
+

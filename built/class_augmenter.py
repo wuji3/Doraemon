@@ -5,7 +5,7 @@ import torchvision.transforms as T
 class ClassWiseAugmenter(BaseClassWiseAugmenter):
     def __init__(self, base_transforms: Dict, class_transforms_mapping: Optional[Dict[str, List[int]]], common: List[int]):
         super().__init__(base_transforms=base_transforms, class_transforms_mapping=class_transforms_mapping)
-        # common_transforms 需要定制的部分 即通用增强
+        # common_transforms
         if common is not None:
             if isinstance(common, str): common = list(map(int, common.split()))
             self.common_transforms = T.Compose([t for i, t in enumerate(self.base_transforms.transforms) if i in common])
@@ -23,10 +23,10 @@ class ClassWiseAugmenter(BaseClassWiseAugmenter):
         # sigmoid
         elif isinstance(label, list): # multi-label
             # multi-label
-            if len(label) == 1: # 定制类
+            if len(label) == 1: # Customized specific class
                 c = label[0]
                 if class_indices[c] in self.class_transforms:
                     return self.class_transforms[class_indices[c]](image)
 
-            # 非定制
+            # Generally common class
             return self.common_transforms(image)

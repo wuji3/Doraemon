@@ -2,7 +2,7 @@ import torch
 from torchvision.transforms import CenterCrop, Resize, RandomResizedCrop, Compose
 import torch.nn as nn
 from torch.cuda.amp import GradScaler
-from dataset.basedataset import BaseDatasets
+from dataset.basedataset import ImageDatasets
 from dataset.transforms import CenterCropAndResize, SPATIAL_TRANSFORMS, create_AugTransforms
 from torch.utils.data import DistributedSampler
 from utils.logger import SmartLogger
@@ -66,7 +66,8 @@ def check_cfgs_face(cfgs):
     data_cfg = cfgs['data']
     # num_classes
     train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') if not (x.startswith('.') or x.startswith('_'))]
-    assert model_cfg['num_classes'] == len(train_classes), 'num_classes in model should be equal to classes in data folder'
+    nc = model_cfg['head'][next(iter(model_cfg['head'].keys()))]['num_class']
+    assert nc == len(train_classes), 'num_classes in model should be equal to classes in data folder'
 
 def check_cfgs_classification(cfgs):
     model_cfg = cfgs['model']
@@ -165,11 +166,11 @@ class CenterProcessor:
             # add label_transforms
             if loss_choice == 'bce':
                 self.data_processor.train_dataset.label_transforms = \
-                    partial(BaseDatasets.set_label_transforms,
+                    partial(ImageDatasets.set_label_transforms,
                             num_classes = self.model_cfg['num_classes'],
                             label_smooth = self.hyp_cfg['label_smooth'])
                 self.data_processor.val_dataset.label_transforms = \
-                    partial(BaseDatasets.set_label_transforms,
+                    partial(ImageDatasets.set_label_transforms,
                             num_classes=self.model_cfg['num_classes'],
                             label_smooth=self.hyp_cfg['label_smooth'])
                 # bce not support self.sampler

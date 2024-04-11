@@ -230,7 +230,7 @@ class Trainer:
                 'epoch': cur_epoch,
                 'batch_id': batch_idx,
                 # 'best_fitness': best_fitness,
-                'model': self.model.state_dict() if self.rank == -1 else self.model.module.state_dict(),
+                'state_dict': self.model.state_dict() if self.rank == -1 else self.model.module.state_dict(),
                 'ema': deepcopy(self.ema.ema),
                 'updates': self.ema.updates,
                 'optimizer': self.optimizer.state_dict(),  # optimizer.state_dict(),

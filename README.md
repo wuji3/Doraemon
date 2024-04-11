@@ -73,7 +73,7 @@ If [oxford-iiit-pet](./oxford-iiit-pet/README_ch_.md), [pet.yaml](configs/classi
 python main.py --cfgs configs/classification/pet.yaml
 
 # one machine multiple gpus
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py configs/classification/pet.yaml
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/classification/pet.yaml
 ```
 </details>
 

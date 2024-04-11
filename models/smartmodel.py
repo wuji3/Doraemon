@@ -2,7 +2,7 @@ import torchvision
 from copy import deepcopy
 from torch.nn.init import normal_, constant_
 import torch.nn as nn
-from built import atten_pool_replace
+from built.attention_based_pooler import atten_pool_replace
 import torch
 from .faceX import FaceWrapper
 

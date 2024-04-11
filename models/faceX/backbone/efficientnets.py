@@ -1,9 +1,3 @@
-"""
-@author: Jun Wang 
-@date: 20201019
-@contact: jun21wangustc@gmail.com
-""" 
-
 # based on:
 # Github repo: https://github.com/lukemelas/EfficientNet-PyTorch
 
@@ -462,7 +456,7 @@ def efficientnet_params(model_name):
     """
     """
     params_dict = {
-        # Coefficients:   width,depth,res,dropout
+        # Coefficients:   width,depth,imgsz,dropout
         'efficientnet-b0': (1.0, 1.0, 224, 0.2),
         'efficientnet-b1': (1.0, 1.1, 240, 0.2),
         'efficientnet-b2': (1.1, 1.2, 260, 0.3),
@@ -476,7 +470,7 @@ def efficientnet_params(model_name):
     }
     """
     params_dict = {
-        # Coefficients:   width,depth,res,dropout
+        # Coefficients:   width,depth,imgsz,dropout
         'efficientnet-b0': (1.0, 1.0, 112, 0.2),
         'efficientnet-b1': (1.0, 1.1, 112, 0.2),
         'efficientnet-b2': (1.1, 1.2, 112, 0.3),

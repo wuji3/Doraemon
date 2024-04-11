@@ -1,4 +1,4 @@
-from dataset.basedataset import BaseDatasets
+from dataset.basedataset import ImageDatasets
 from dataset.transforms import create_AugTransforms
 from built.class_augmenter import ClassWiseAugmenter
 import torch
@@ -20,10 +20,10 @@ class SmartDataProcessor:
 
         cfg = self.data_cfgs.get(mode, -1)
         if isinstance(cfg, dict):
-            dataset = BaseDatasets(root=self.data_cfgs['root'], mode=mode,
-                                   transforms=create_AugTransforms(augments=cfg['augment']) if mode == 'val' else \
+            dataset = ImageDatasets(root=self.data_cfgs['root'], mode=mode,
+                                    transforms=create_AugTransforms(augments=cfg['augment']) if mode == 'val' else \
                                ClassWiseAugmenter(cfg['augment'], cfg['class_aug'], cfg['common_aug']),
-                                   project=self.project, rank=self.rank)
+                                    project=self.project, rank=self.rank)
         else: dataset = None
         return dataset
 

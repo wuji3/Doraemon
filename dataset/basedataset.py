@@ -8,7 +8,7 @@ from pathlib import Path
 from collections import defaultdict
 from built.class_augmenter import ClassWiseAugmenter
 
-class BaseDatasets(Dataset):
+class ImageDatasets(Dataset):
     def __init__(self, root, mode, transforms = None, label_transforms = None, project = None, rank = None):
         assert os.path.isdir(root), "dataset root: {} does not exist.".format(root)
         src_path = os.path.join(root, mode)
@@ -53,7 +53,7 @@ class BaseDatasets(Dataset):
 
 
     def __getitem__(self, idx):
-        img = BaseDatasets.read_image(self.images[idx])
+        img = ImageDatasets.read_image(self.images[idx])
         label = self.hashtable[os.path.basename(self.images[idx])] if self.multi_label else self.labels[idx]
         if self.transforms is not None:
             img = self.transforms(img, label, self.class_indices) if type(self.transforms) is ClassWiseAugmenter else self.transforms(img)
@@ -96,17 +96,27 @@ class BaseDatasets(Dataset):
 
         return img
 
-class PredictDatasets(Dataset):
-    def __init__(self, root, transforms = None, postfix: tuple = ('jpg', 'png')):
+class PredictImageDatasets(Dataset):
+    def __init__(self, root = None, transforms = None, postfix: tuple = ('jpg', 'png')):
         assert transforms is not None, 'transforms would not be None'
-        self.imgs_path = glob.glob(os.path.join(root, f'*.{postfix[0]}')) + glob.glob(os.path.join(root, f'*.{postfix[1]}'))
-        assert len(self.imgs_path) != 0, f'there are no files with postfix as {postfix}'
+        if root is None: # used for face embedding infer
+            self.imgs_path = []
+        else:
+            self.imgs_path = glob.glob(os.path.join(root, f'*.{postfix[0]}')) + glob.glob(os.path.join(root, f'*.{postfix[1]}'))
+            assert len(self.imgs_path) != 0, f'there are no files with postfix as {postfix}'
         self.transforms = transforms
 
     def __getitem__(self, idx: int):
-        img = BaseDatasets.read_image(self.imgs_path[idx])
+        #img = ImageDatasets.read_image(self.imgs_path[idx])
 
-        tensor = self.transforms(img)
+        #tensor = self.transforms(img)
+
+        # face test
+        import numpy as np
+        import cv2
+        img = cv2.imdecode(np.fromfile(self.imgs_path[idx], dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+        img = (img.transpose((2,0,1))-127.5) / 128
+        tensor = torch.from_numpy(img.astype(np.float32))
 
         return img, tensor, self.imgs_path[idx]
 
