@@ -4,11 +4,10 @@ import argparse
 from pathlib import Path
 from engine import valuate as valuate_classifier , CenterProcessor, yaml_load
 import torch
-from models.faceX.face_model import FaceFeatureModel
-from engine import yaml_load
-from utils.logger import SmartLogger
+from models.faceX.face_model import FaceModelLoader, FeatureExtractor
 from engine.faceX.evaluation import valuate as valuate_face
 from prettytable import PrettyTable
+from utils.logger import SmartLogger
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))
 ROOT = Path(os.path.dirname(__file__))
@@ -17,9 +16,11 @@ def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfgs', default = 'run/exp/pet.yaml', help = 'Configs for models, data, hyps')
     parser.add_argument('--weight', default = 'run/exp/best.pt', help='Weight path')
-    parser.add_argument('--eval_topk', default = 5, type=int, help = 'Tell topk_acc, maybe top5, top3...')
-    parser.add_argument('--ema', action='store_true',help = 'Exponential Moving Average for model weight')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
+    parser.add_argument('--ema', action='store_true',help = 'Exponential Moving Average for model weight')
+
+    # classifer
+    parser.add_argument('--eval_topk', default = 5, type=int, help = 'Tell topk_acc, maybe top5, top3...')
 
     return parser.parse_args()
 
@@ -43,20 +44,24 @@ def main(opt):
                                                        collate_fn=cpu.data_processor.val_dataset.collate_fn)
 
         conm_path = opj(os.path.dirname(opt.weight), 'conm.png')
-        valuate_classifier (model, dataloader, cpu.device, None, False, None, cpu.logger, thresh=cpu.thresh, top_k=opt.eval_topk,
+        valuate_classifier(model, dataloader, cpu.device, None, False, None, cpu.logger, thresh=cpu.thresh, top_k=opt.eval_topk,
                 conm_path=conm_path)
     else:
-        logger = SmartLogger()
-        modelwrapper = FaceFeatureModel(cfgs['model'],
-                                        model_path='/home/duke/project/vision-classifier/lfw_test/Resnet152-irse.pt')
-        device = torch.device('cuda', 0)
-        mean, std = valuate_face(modelwrapper.model,
-                                 opt.weight,
-                                 cfgs['data']['val']['pair_txt'],
-                                 cfgs['data']['val']['augment'],
-                                 device)
+        # logger
+        logger = SmartLogger(filename=None)
+
+        # checkpoint loading
+        logger.console(f'loading model, ema is {opt.ema}')
+        model_loader = FaceModelLoader(model_cfg=cfgs['model'])
+        model = model_loader.load_weight(model_path=opt.weight, ema=opt.ema)
+
+        logger.console('valuating...')
+        mean, std = valuate_face(model, cfgs['data'], torch.device('cuda'))
         pretty_tabel = PrettyTable(["model_name", "mean accuracy", "standard error"])
-        pretty_tabel.add_row()
+        pretty_tabel.add_row([os.path.basename(opt.weight), mean, std])
+
+        logger.console('\n' + str(pretty_tabel))
+
 if __name__ == '__main__':
     opt = parse_opt()
     main(opt)

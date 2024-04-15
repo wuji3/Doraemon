@@ -18,7 +18,7 @@ def is_writeable(dir, test=False):
     except OSError:
         return False
 
-def user_config_dir(dir='Ultralytics', env_var='YOLOV5_CONFIG_DIR'):
+def user_config_dir(dir='DuKe', env_var='VISION_CONFIG_DIR'):
     # Return path of user configuration directory. Prefer environment variable if exists. Make dir if required.
     env = os.getenv(env_var)
     if env:
@@ -62,8 +62,7 @@ def is_ascii(s=''):
     return len(s.encode().decode('ascii', 'ignore')) == len(s)
 
 class Annotator:
-    # cp misc/Arial.ttf ~/.config/Ultralytics
-    # Font URL: https://ultralytics.com/assets/Arial.ttf
+    # cp misc/Arial.ttf ~/.config/DuKe
     def __init__(self, im, font='Arial.ttf'):
         font_size = None
         non_ascii = not is_ascii('abc')

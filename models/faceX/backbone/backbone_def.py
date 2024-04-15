@@ -8,8 +8,8 @@ class BackboneFactory:
     """Factory to produce backbone according the backbone_conf.yaml.
     
     Attributes:
-        backbone_type(str): which backbone will produce.
-        backbone_param(dict):  params about model structure.
+        backbone_type: which backbone will produce.
+        backbone_param:  params about model structure.
     """
 
     def __init__(self, backbone_config):
@@ -43,7 +43,7 @@ class BackboneFactory:
 
             backbone = EfficientNet(out_h, out_w, feat_dim, blocks_args, global_params)
 
-        elif self.backbone_type == 'swin transformer':
+        elif self.backbone_type == 'swintransformer':
             img_size = self.backbone_param['img_size']
             patch_size= self.backbone_param['patch_size']
             in_chans = self.backbone_param['in_chans']

@@ -28,7 +28,7 @@ class SmartLogger:
 
     def console(self, msg: Union[str, dict]):
         if isinstance(msg, dict):
-            self.console_logger.info(yaml.dump(msg, sort_keys=False, default_flow_style=False))
+            self.console_logger.info('\n'+str(yaml.dump(msg, sort_keys=False, default_flow_style=False)))
 
         else:
             self.console_logger.info(msg)

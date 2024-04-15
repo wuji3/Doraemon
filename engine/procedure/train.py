@@ -1,7 +1,13 @@
 import torch
 from tqdm import tqdm
+from os.path import join as opj
 from torch import Tensor
 from engine.procedure.evaluation import valuate
+from engine.faceX.evaluation import valuate as valuate_face, process_pairtxt
+from models.faceX.face_model import FeatureExtractor
+from dataset.basedataset import PredictImageDatasets
+from dataset.transforms import create_AugTransforms
+from torch.utils.data import DataLoader
 from typing import Callable
 import math
 from engine.optimizer import SAM
@@ -47,6 +53,8 @@ class Trainer:
                  teacher = None,
                  # face
                  print_freq = 50,
+                 save_freq = 5,
+                 cfgs: dict = None,
                  out_dir = None
                  ):
 
@@ -69,7 +77,12 @@ class Trainer:
 
         # face
         self.print_freq = print_freq
-        self.writer = SummaryWriter(log_dir=out_dir)
+        self.save_freq = save_freq
+        self.data_cfg = cfgs['data']
+        self.model_cfg = cfgs['model']
+        self.hyp_cfg = cfgs['hyp']
+        if rank in (-1, 0):
+            self.writer = SummaryWriter(log_dir=out_dir)
 
     def train_one_epoch(self, epoch: int, lam: float, criterion: Callable):
         # train mode
@@ -216,26 +229,30 @@ class Trainer:
                 loss_avg = loss_meter.avg
                 lr = self.optimizer.param_groups[0]["lr"]
                 self.logger.both('Epoch %d, iter %d/%d, lr %f, loss %f' %
-                            (cur_epoch, batch_idx, iters_per_epoch, lr, loss_avg))
+                            (cur_epoch+1, batch_idx+1, iters_per_epoch, lr, loss_avg))
                 self.writer.add_scalar('Train_loss', loss_avg, global_batch_idx)
                 self.writer.add_scalar('Train_lr', lr, global_batch_idx)
                 loss_meter.reset()
 
+            warm_epoch = self.hyp_cfg['warm_ep']
+            if self.rank in (-1, 0) and cur_epoch + 1 > warm_epoch and ((cur_epoch - warm_epoch) * iters_per_epoch + batch_idx + 1) % (self.save_freq * iters_per_epoch)== 0:
+                saved_name = 'Epoch_%d.pt' % (cur_epoch+1)
+
+                mean, std = valuate_face(self.ema.ema.trainingwrapper['backbone'],
+                                         self.data_cfg,
+                                         self.device)
+                ckpt = {
+                    'epoch': cur_epoch,
+                    'batch_id': batch_idx,
+                    'fitness': (mean, std),
+                    'state_dict': self.model.state_dict() if self.rank == -1 else self.model.module.state_dict(),
+                    'ema': deepcopy(self.ema.ema),
+                    'updates': self.ema.updates,
+                    'optimizer': self.optimizer.state_dict(),  # optimizer.state_dict(),
+                    'scheduler': self.scheduler.state_dict(),
+                }
+                if self.device != torch.device('cpu'): ckpt['scaler'] = self.scaler.state_dict()
+
+                torch.save(ckpt, os.path.join(self.writer.log_dir, saved_name))
+                self.logger.both('Save checkpoint %s, mean %f.4, std %f.4' % (saved_name, mean, std))
             torch.cuda.empty_cache()
-
-        if self.rank in (-1, 0):
-
-            saved_name = 'Epoch_%d.pt' % cur_epoch
-            ckpt = {
-                'epoch': cur_epoch,
-                'batch_id': batch_idx,
-                # 'best_fitness': best_fitness,
-                'state_dict': self.model.state_dict() if self.rank == -1 else self.model.module.state_dict(),
-                'ema': deepcopy(self.ema.ema),
-                'updates': self.ema.updates,
-                'optimizer': self.optimizer.state_dict(),  # optimizer.state_dict(),
-                'scheduler': self.scheduler.state_dict(),
-            }
-            torch.save(ckpt, os.path.join(self.writer.log_dir, saved_name))
-            self.logger.both('Save checkpoint %s to disk...' % saved_name)
-

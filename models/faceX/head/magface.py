@@ -1,9 +1,3 @@
-"""
-@author:Jun Wang
-@date: 20201123
-@contact: jun21wangustc@gmail.com
-"""
-
 import math
 import torch
 import torch.nn.functional as F

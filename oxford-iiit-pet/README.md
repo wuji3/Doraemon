@@ -5,7 +5,7 @@ This is a pet dataset with 37 categories and approximately 200 images per catego
 2. URL: https://s3.amazonaws.com/fast-ai-imageclas/oxford-iiit-pet.tgz 
 
 ### Data Prepare  
-<details close>
+<details open>
 <summary>Tips 🌟</summary>
 
 1. Remember to install the environment [Install](../README.md)
@@ -14,7 +14,7 @@ This is a pet dataset with 37 categories and approximately 200 images per catego
     Code：yjsl 
 </details>
  
-<details close>
+<details open>
 <summary>Run Script  🚀️</summary>
 
 Unzip oxford-iiit-pet.tgz to the path as followed. Then, start split2dataset.py. The directory structure will look like this. There will be an extra pet folder with train and val divided into it.  

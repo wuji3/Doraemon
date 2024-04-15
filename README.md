@@ -1,5 +1,5 @@
-## <div align="center">vision classifier</div>
-[中文](./README_ch.md)
+## <div align="center">Vision Of Image Classification & Face Recognition </div>
+
 ## Tutorials
 
 <details open>
@@ -7,7 +7,7 @@
 
 ```shell
 # It is recommanded to create a separate virtual environment
-conda create -n vision python=3.9 
+conda create -n vision python=3.10 
 conda activate vision
 
 # torch==2.0.1(lower is also ok) -> https://pytorch.org/get-started/locally/
@@ -17,105 +17,54 @@ conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvi
 pip install -r requirements.txt
 
 # Without Arial.ttf, inference may be slow due to network IO.
-mkdir -p ~/.config/Ultralytics
-cp misc/Arial.ttf ~/.config/Ultralytics
+mkdir -p ~/.config/DuKe
+cp misc/Arial.ttf ~/.config/DuKe
 ```
 </details>
 
-<details close>
-<summary>Data 🚀️</summary>
-
-[If for learning, refer to oxford-iiit-pet](./oxford-iiit-pet/README.md)
-```bash
-python tools/data_prepare.py --postfix <jpg or png> --root <input your data realpath> --frac <train segment ratio, eg: 0.9 0.6 0.3 0.9 0.9>
-```
-
-```markdown
-project                    
-│
-├── data  
-│   ├── clsXXX-1   
-│   ├── clsXXX-... 
-├── tools
-│   ├── data_prepare.py  
-
-          |
-          |
-         \|/   
-     
-project
-│
-├── data  
-│   ├── train  
-│       ├── clsXXX 
-│           ├── XXX.jpg/png 
-│   ├── val  
-│       ├── clsXXX 
-│           ├── XXX.jpg/png 
-├── tools
-│   ├── data_prepare.py  
-```
-
-</details>
-
-<details close>
-<summary>Configuration 🌟🌟️</summary>
-
-If custom data, refer to [Config](configs/classification/README.md) for writing your own config.  (Recommend🌟: modify based on [complete.yaml](configs/classification/complete.yaml) or [pet.yaml](configs/classification/pet.yaml))  
-If [oxford-iiit-pet](./oxford-iiit-pet/README_ch_.md), [pet.yaml](configs/classification/pet.yaml) has prepared for you.
-</details>
 
 <details close>
 <summary>Training 🌟️</summary>
 
 ```shell
 # one machine one gpu
-python main.py --cfgs configs/classification/pet.yaml
+python main.py --cfgs configs/task/pet.yaml
 
 # one machine multiple gpus
 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/classification/pet.yaml
+                                                                 --sync_bn[Option: this will lead to training slowly]
+                                                                 --resume[Option: training from checkpoint]
+                                                                 --load_from[Option: training from fine-tuning]
 ```
 </details>
 
-<details close>
-<summary>Validate & Visualization 🌟🌟</summary>
 
-<p align="center">
-  <img src="./misc/visual&validation.jpg" width="40%" height="auto" >
-</p>
+## What's New
+- [Apr. 2024]  [Face Recognition Task(FRT)](models/faceX/README.md) is supported now 🚀️️! We provide ResNet, EfficientNet, and Swin Transformer as backbone; As for head, ArcFace, CircleLoss, MegFace and MV Softmax could be used for training. **Note**: partial implementation refers to [JD-FaceX](https://github.com/JDAI-CV/FaceX-Zoo)
+- [Jun. 2023]  [Image Classification Task(ICT)](models/classifier/README.md) has launched 🚀️️! Supporting many powerful strategies, such as progressive learning, online enhancement, beautiful training interface, exponential moving average, etc. The models are fully integrated into torchvision.
+- [May. 2023]  The first initialization version of Vision.
 
-```markdown
-# You will find context below in log when training completes.
+## Which's task
+1. [Image Classification Task(ICT)](models/classifier/README.md)
+2. [Face Recognition Task(FRT)](models/faceX/README.md)
 
-Training complete (0.093 hours)  
-Results saved to /home/duke/project/vision-face/run/exp3  
-Predict:         python visualize.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --weight /xxx/.../vision-classifier/run/exp/best.pt --badcase --class_json /xxx/.../vision-classifier/run/exp/class_indices.json --ema --cam --data <your data>/val/XXX_cls 
-Validate:        python validate.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --eval_topk 5 --weight /xxx/.../vision-classifier/run/exp/best.pt --ema
-```
-
-```shell
-# visualize.py provides the attention heatmalp function, which can be called by passing "--cam"
-python visualize.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --weight /xxx/.../vision-classifier/run/exp/best.pt --badcase --class_json /xxx/.../vision-classifier/run/exp/class_indices.json --ema --cam --data <your data>/val/XXX_cls
-```
-```shell
-python validate.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --eval_topk 5 --weight /xxx/.../vision-classifier/run/exp/best.pt --ema
-```
-
-</details>
-
-## Method & Paper
-| Method                                                   | Paper                                                                            |
-|----------------------------------------------------------|----------------------------------------------------------------------------------|
-| [SAM](https://arxiv.org/abs/2010.01412v3)                | Sharpness-Aware Minimization for Efficiently Improving Generalization            |
-| [Progressive Learning](https://arxiv.org/abs/2104.00298) | EfficientNetV2: Smaller Models and Faster Training                               |
-| [OHEM](https://arxiv.org/abs/1604.03540)                 | Training Region-based Object Detectors with Online Hard Example Mining           |
-| [Focal Loss](https://arxiv.org/abs/1708.02002)           | Focal Loss for Dense Object Detection                                            |
-| [Cosine Annealing](https://arxiv.org/abs/1608.03983)     | SGDR: Stochastic Gradient Descent with Warm Restarts                             |
-| [Label Smoothing](https://arxiv.org/abs/1512.00567)      | Rethinking the Inception Architecture for Computer Vision                        |
-| [Mixup](https://arxiv.org/abs/1710.09412)                | MixUp: Beyond Empirical Risk Minimization                                        |
-| [CutOut](https://arxiv.org/abs/1708.04552)               | Improved Regularization of Convolutional Neural Networks with Cutout             |
-| [Attention Pool](https://arxiv.org/abs/2112.13692)       | Augmenting Convolutional networks with attention-based aggregation               |
+## Implemented Method & Paper
+| Method                                                   | Paper                                                                           |
+|----------------------------------------------------------|---------------------------------------------------------------------------------|
+| [SAM](https://arxiv.org/abs/2010.01412v3)                | Sharpness-Aware Minimization for Efficiently Improving Generalization           |
+| [Progressive Learning](https://arxiv.org/abs/2104.00298) | EfficientNetV2: Smaller Models and Faster Training                              |
+| [OHEM](https://arxiv.org/abs/1604.03540)                 | Training Region-based Object Detectors with Online Hard Example Mining          |
+| [Focal Loss](https://arxiv.org/abs/1708.02002)           | Focal Loss for Dense Object Detection                                           |
+| [Cosine Annealing](https://arxiv.org/abs/1608.03983)     | SGDR: Stochastic Gradient Descent with Warm Restarts                            |
+| [Label Smoothing](https://arxiv.org/abs/1512.00567)      | Rethinking the Inception Architecture for Computer Vision                       |
+| [Mixup](https://arxiv.org/abs/1710.09412)                | MixUp: Beyond Empirical Risk Minimization                                       |
+| [CutOut](https://arxiv.org/abs/1708.04552)               | Improved Regularization of Convolutional Neural Networks with Cutout            |
+| [Attention Pool](https://arxiv.org/abs/2112.13692)       | Augmenting Convolutional networks with attention-based aggregation              |
 | [GradCAM](https://arxiv.org/abs/1610.02391)              | Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization |
+| [ArcFace](https://arxiv.org/abs/1801.07698)              | ArcFace: Additive Angular Margin Loss for Deep Face Recognition |
+| [CircleLoss](https://arxiv.org/abs/2002.10857)           | Circle Loss: A Unified Perspective of Pair Similarity Optimization |
+| [MegFace](https://arxiv.org/abs/2103.06627)              | MagFace: A Universal Representation for Face Recognition and Quality Assessment |
+| [MV Softmax](https://arxiv.org/abs/1912.00833)           | Mis-classified Vector Guided Softmax Loss for Face Recognition |
 
 ## Model & Paper
 
@@ -142,4 +91,9 @@ python tools/data_prepare.py --postfix <jpg or png> --root <input your data real
 ```shell
 python tools/test_augment.py
 ```
-![](misc/aug_image.png)
+
+![](misc/augments.jpg)
+
+## Contact Me
+1. If you enjoy reproducing papers and algorithms, welcome to pull request.
+2. If you have some confusion about the repo, please submit issues.

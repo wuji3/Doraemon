@@ -1,9 +1,3 @@
-"""
-@author: Jun Wang
-@date: 20201019
-@contact: jun21wangustc@gmail.com
-"""
-
 # based on:
 # https://github.com/xiaoboCASIA/SV-X-Softmax/blob/master/fc_layers.py
 

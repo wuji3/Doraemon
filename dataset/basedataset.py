@@ -1,5 +1,6 @@
 import glob
 import os
+from os.path import join as opj
 import torch
 from torch.utils.data import Dataset
 import json
@@ -7,6 +8,7 @@ from PIL import Image
 from pathlib import Path
 from collections import defaultdict
 from built.class_augmenter import ClassWiseAugmenter
+from prettytable import PrettyTable
 
 class ImageDatasets(Dataset):
     def __init__(self, root, mode, transforms = None, label_transforms = None, project = None, rank = None):
@@ -29,21 +31,28 @@ class ImageDatasets(Dataset):
         images_path = []  # image path
         images_label = []  # label idx
 
-        hashtable = defaultdict(list)
+        # for multi-label
+        images_path_unique = []
+        hashtable = defaultdict(list) # image2class
+
         for cla in data_class:
             cla_path = os.path.join(src_path, cla)
             images = [os.path.join(src_path, cla, i) for i in os.listdir(cla_path)
                       if os.path.splitext(i)[-1] in support]
             image_class = class_indices[cla]
+            images_path.extend(images)
+            images_label += [image_class] * len(images)
+
+            # multi-label
             for img_path in images:
                 img_basename = os.path.basename(img_path)
-                # 若multi_label 必有重复样本 这里过滤 若不是multi_label 不会有重复样本 不会过滤掉有效样本
+                # filter the same image name in different class for multi-label strategy, in case of over-sample
                 if img_basename not in hashtable:
-                    images_path.append(img_path)
-                    images_label.append(image_class)
+                    images_path_unique.append(img_path)
                 hashtable[img_basename].append(image_class)
 
         self.hashtable = hashtable
+        self.images_unique = images_path_unique
         self.images = images_path
         self.labels = images_label
         self.transforms = transforms
@@ -53,7 +62,7 @@ class ImageDatasets(Dataset):
 
 
     def __getitem__(self, idx):
-        img = ImageDatasets.read_image(self.images[idx])
+        img = ImageDatasets.read_image(self.images[idx] if not self.multi_label else self.images_unique[idx])
         label = self.hashtable[os.path.basename(self.images[idx])] if self.multi_label else self.labels[idx]
         if self.transforms is not None:
             img = self.transforms(img, label, self.class_indices) if type(self.transforms) is ClassWiseAugmenter else self.transforms(img)
@@ -65,7 +74,7 @@ class ImageDatasets(Dataset):
 
 
     def __len__(self):
-        return len(self.images)
+        return len(self.images) if not self.multi_label else len(self.images_unique)
 
     @staticmethod
     def collate_fn(batch):
@@ -96,6 +105,27 @@ class ImageDatasets(Dataset):
 
         return img
 
+    @staticmethod
+    def tell_data_distribution(imgdir: str, logger, nc: int):
+        data_distribution, mt, mv = [], 'train', 'val'
+        train_total, val_total = 0, 0
+        for c in os.listdir(opj(imgdir, mt)):
+            if c.startswith('.'): continue
+            train_len = len(glob.glob(opj(imgdir, mt, c, '*.jpg'))) + len(glob.glob(opj(imgdir, mt, c, '*.png')))
+            val_len = len(glob.glob(opj(imgdir, mv, c, '*.jpg'))) + len(glob.glob(opj(imgdir, mv, c, '*.png')))
+            data_distribution.append(
+                (c, train_len, val_len)
+            )
+            train_total += train_len
+            val_total += val_len
+        data_distribution.append(('total', train_total, val_total))
+
+        pretty_table = PrettyTable(['Class', 'Train Samples', 'Val Samples'])
+        for row in data_distribution: pretty_table.add_row(row)
+        msg = '\n' + str(pretty_table)
+        logger.both(msg) if nc <= 50 else logger.log(msg)
+        return data_distribution
+
 class PredictImageDatasets(Dataset):
     def __init__(self, root = None, transforms = None, postfix: tuple = ('jpg', 'png')):
         assert transforms is not None, 'transforms would not be None'
@@ -107,16 +137,9 @@ class PredictImageDatasets(Dataset):
         self.transforms = transforms
 
     def __getitem__(self, idx: int):
-        #img = ImageDatasets.read_image(self.imgs_path[idx])
+        img = ImageDatasets.read_image(self.imgs_path[idx])
 
-        #tensor = self.transforms(img)
-
-        # face test
-        import numpy as np
-        import cv2
-        img = cv2.imdecode(np.fromfile(self.imgs_path[idx], dtype=np.uint8), cv2.IMREAD_UNCHANGED)
-        img = (img.transpose((2,0,1))-127.5) / 128
-        tensor = torch.from_numpy(img.astype(np.float32))
+        tensor = self.transforms(img)
 
         return img, tensor, self.imgs_path[idx]
 

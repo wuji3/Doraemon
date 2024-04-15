@@ -1,1 +1,1 @@
-from .face_model import FaceModel, FaceWrapper
+from .face_model import FaceTrainingModel, FaceTrainingWrapper

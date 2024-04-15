@@ -68,6 +68,12 @@ def check_cfgs_face(cfgs):
     train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') if not (x.startswith('.') or x.startswith('_'))]
     nc = model_cfg['head'][next(iter(model_cfg['head'].keys()))]['num_class']
     assert nc == len(train_classes), 'num_classes in model should be equal to classes in data folder'
+    # pair_txt
+    assert os.path.isfile(data_cfg['val']['pair_txt']), 'make sure pair_txt exists'
+    from engine.faceX.evaluation import Evaluator
+    with open(data_cfg['val']['pair_txt']) as f:
+        pair_list = [line.strip() for line in f.readlines()]
+    Evaluator.check_nps(pair_list)
 
 def check_cfgs_classification(cfgs):
     model_cfg = cfgs['model']
@@ -124,6 +130,7 @@ class CenterProcessor:
         if rank in {-1, 0} and train:
             project.mkdir(parents=True, exist_ok=True)
 
+        self.cfgs = cfgs
         self.model_cfg = cfgs['model']
         self.data_cfg = cfgs['data']
         self.hyp_cfg = cfgs['hyp']
@@ -145,10 +152,10 @@ class CenterProcessor:
         # logger
         self.logger = SmartLogger(filename=log_filename, level=1) if rank in {-1,0} else None
         if self.logger is not None and rank in {-1, 0} and train:
-            self.logger.console(dict([('------------------------config------------------------', cfgs)])) # output configs
+            self.logger.console(cfgs) # output configs
 
         # model processor
-        self.model_processor = get_model(self.model_cfg, self.logger)
+        self.model_processor = get_model(self.model_cfg, self.logger, rank)
         self.model_processor.model.to(device)
         # data processor
         self.data_processor = SmartDataProcessor(self.data_cfg, rank=rank, project=project)
@@ -305,6 +312,10 @@ class CenterProcessor:
         else:
             val_dataloader = None
 
+        # tell data distribution
+        if rank in (-1, 0):
+            ImageDatasets.tell_data_distribution(self.data_cfg['root'], logger, self.model_cfg['num_classes'])
+
         # optimizer
         params = SeperateLayerParams(model)
         optimizer = create_Optimizer(optimizer=self.hyp_cfg['optimizer'][0],
@@ -339,6 +350,8 @@ class CenterProcessor:
             if device != torch.device('cpu'):
                 scaler.load_state_dict(ckp['scaler'])
 
+            if rank in (-1, 0): logger.both(f'resume: {resume}')
+
         if rank != -1:
             model = DDP(model, device_ids=[self.rank])
 
@@ -356,7 +369,7 @@ class CenterProcessor:
         # trainer
         trainer = Trainer(model, train_dataloader, val_dataloader, optimizer,
                           scaler, device, total_epoch, logger, rank, scheduler, self.ema, sampler, thresh,
-                          self.teacher if hasattr(self, 'teacher') else None)
+                          self.teacher if hasattr(self, 'teacher') else None, cfgs=self.cfgs)
 
         t0 = time.time()
         for epoch in range(start_epoch, total_epoch):
@@ -424,6 +437,11 @@ class CenterProcessor:
             GradScaler(enabled = (self.device != torch.device('cpu'))), self.device, self.hyp_cfg['epochs'], self.logger, self.rank, self.hyp_cfg['warm_ep'], \
             self.data_cfg['train']['aug_epoch']
 
+        # load for fine-tune
+        if 'load_from' in self.model_cfg:
+            model.load_state_dict(torch.load(self.model_cfg['load_from'], map_location='cpu')['state_dict'], strict=True)
+            if rank in (-1, 0): logger.both(f'load_from: {self.model_cfg["load_from"]}')
+
         # data
         train_dataset, val_dataset = data_processor.train_dataset, data_processor.val_dataset
         data_sampler = None if self.rank == -1 else DistributedSampler(dataset=train_dataset)
@@ -434,6 +452,9 @@ class CenterProcessor:
                                                          sampler=data_sampler,
                                                          shuffle=data_sampler is None,
                                                          collate_fn=train_dataset.collate_fn)
+        # tell data distribution
+        if self.rank in (-1, 0):
+            ImageDatasets.tell_data_distribution(self.data_cfg['root'], logger, self.model_cfg['head'][next(iter(self.model_cfg['head'].keys()))]['num_class'])
 
         # optimizer
         params = SeperateLayerParams(model)
@@ -458,22 +479,22 @@ class CenterProcessor:
         if resume is not None:
             ckp = torch.load(resume, map_location=device)
             start_epoch = ckp['epoch'] + 1
-            best_fitness = ckp['best_fitness']
+
             if self.rank in {-1, 0}:
                 self.ema.ema.load_state_dict(ckp['ema'].float().state_dict())
                 self.ema.updates = ckp['updates']
-            model.load_state_dict(ckp['model'])
+            model.load_state_dict(ckp['state_dict'])
             optimizer.load_state_dict(ckp['optimizer'])
             scheduler.load_state_dict(ckp['scheduler'])
             if device != torch.device('cpu'):
                 scaler.load_state_dict(ckp['scaler'])
 
+            if rank in (-1, 0): logger.both(f'resume: {resume}')
+
         if rank != -1:
             model = DDP(model, device_ids=[self.rank])
 
-        if self.rank in {-1, 0}:
-
-            time.sleep(0.2)
+        if self.rank in {-1, 0}: time.sleep(0.2)
 
         # total epochs
         total_epoch = epochs + warm_ep
@@ -481,7 +502,7 @@ class CenterProcessor:
         # trainer
         trainer = Trainer(model, train_dataloader, None, optimizer,
                           scaler, device, total_epoch, logger, rank, scheduler, self.ema, None, None,
-                          self.teacher if hasattr(self, 'teacher') else None, self.opt.print_freq, self.opt.save_dir)
+                          self.teacher if hasattr(self, 'teacher') else None, self.opt.print_freq, self.opt.save_freq, self.cfgs, self.opt.save_dir)
 
         t0 = time.time()
         for epoch in range(start_epoch, total_epoch):
@@ -501,3 +522,8 @@ class CenterProcessor:
 
             # train for one epoch
             trainer.train_one_epoch_face(self.lossfn, epoch, self.loss_meter)
+
+        if rank in (-1, 0):
+            logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
+                        f"\nResults saved to {colorstr('bold', self.project)}"
+                        f'\nValidate:        python validate.py --cfgs {self.opt.cfgs} --weight {self.project}/{colorstr("blue", "which_weight")} --ema')

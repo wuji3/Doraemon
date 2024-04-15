@@ -1,10 +1,4 @@
-"""
-@author: Jun Wang    
-@date: 20201019   
-@contact: jun21wangustc@gmail.com 
-"""
-
-# based on:  
+# based on:
 # https://github.com/TreB1eN/InsightFace_Pytorch/blob/master/model.py
 
 from torch.nn import Linear, Conv2d, BatchNorm1d, BatchNorm2d, PReLU, ReLU, Sigmoid, Dropout2d, Dropout, AvgPool2d, MaxPool2d, AdaptiveAvgPool2d, Sequential, Module, Parameter

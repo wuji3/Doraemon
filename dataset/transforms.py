@@ -290,13 +290,19 @@ class LocalGaussian:
 
     def __call__(self, image):
         if random.random() < self.prob:
-            image = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
-            blur = cv2.GaussianBlur(image, self.kszie, sigmaX=0)
-            x, y, w, h = self.random_binary_mask_location(image)
+            array_image = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
+            blur = cv2.GaussianBlur(array_image, self.kszie, sigmaX=0)
+            x, y, w, h = self.random_binary_mask_location(blur)
 
-            roi = blur[y: y + h, x: x + w]
+            width, height = blur.shape[1], blur.shape[0]
+            x = min(x, width - w)
+            y = min(y, height - h)
+
+            roi = blur[y:y + h, x:x + w]
+
             mask = self.generate_seamless_mask(roi)
-            merge_image = cv2.seamlessClone(roi, image, mask, p=(x + w // 2, y + h // 2), flags=cv2.NORMAL_CLONE)
+
+            merge_image = cv2.seamlessClone(roi, array_image, mask, p=(x + w // 2, y + h // 2), flags=cv2.NORMAL_CLONE)
 
             return Image.fromarray(cv2.cvtColor(merge_image, cv2.COLOR_BGR2RGB))
         else:
@@ -304,7 +310,7 @@ class LocalGaussian:
 
 class RandomDoubleFlip:
     def __init__(self, prob: Union[Sequence, float] = 0.5):
-        assert type(prob) in (Sequence, float), 'prob 只能是Sequence或float'
+        assert type(prob) in (Sequence, float), 'prob should Sequence or float'
         self.prob = prob if isinstance(prob, Sequence) else (prob, prob)
         self.choices = [random_verticalflip(0.5), random_horizonflip(0.5)]
 
@@ -441,16 +447,16 @@ def create_AugTransforms(augments: dict):
         if params == 'no_params':
             aug_list.append(AUG_METHODS[aug_name]())
         else:
-            assert isinstance(params, dict), '参数必须以键值对[dict]的形式传进来'
+            assert isinstance(params, dict), 'params must be passed as key-value pairs, such as dict'
             aug_list.append(AUG_METHODS[aug_name](**params))
 
     augs = []
     for key, params in augments.items():
         if key == 'random_choice':
-            assert isinstance(params, list), 'random_choice必须要把增强方法写成列表形式传进来'
+            assert isinstance(params, list) or isinstance(params, tuple), 'random_choice params must be passed list or tuple'
             choice_aug_list = []
             for choice in augments[key]:
-                assert isinstance(choice, dict) and len(choice)==1, f'random_choice中每个增强方法都要求是字典 这里{len(params)}个增强需要包装成{len(params)}个字典'
+                assert isinstance(choice, dict) and len(choice)==1, f'every augment methord must be dict in random_choice, {len(params)}augments need to be {len(params)} dicts'
                 choice_key, choice_param = tuple(*choice.items())
                 addAugToSequence(choice_key, choice_param, choice_aug_list)
             # 把random_choice作为单独的aug加进去

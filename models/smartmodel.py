@@ -4,7 +4,8 @@ from torch.nn.init import normal_, constant_
 import torch.nn as nn
 from built.attention_based_pooler import atten_pool_replace
 import torch
-from .faceX import FaceWrapper
+from .faceX import FaceTrainingWrapper
+import torch.distributed as dist
 
 class SetOutFeatures:
 
@@ -31,10 +32,10 @@ class SetOutFeatures:
             model.fc = nn.Linear(model.fc.in_features, nc)
 
 class TorchVisionWrapper:
-    def __init__(self, model_cfgs: dict, logger = None):
+    def __init__(self, model_cfgs: dict, logger = None, rank = -1):
         self.logger = logger
-
         self.model_cfgs = model_cfgs
+        self.rank = rank
 
         self.kwargs = model_cfgs['kwargs']
         self.num_classes = model_cfgs['num_classes']
@@ -63,7 +64,12 @@ class TorchVisionWrapper:
                      backbone_freeze: bool = False, bn_freeze: bool = False, bn_freeze_affine: bool = False, load_from: str = None ,**kwargs):
         assert kind in {'torchvision', 'custom'}, 'kind must be torchvision or custom'
         if kind == 'torchvision':
-            model = torchvision.models.get_model(choice, weights = torchvision.models.get_model_weights(choice) if pretrained else None, **kwargs['kwargs'])
+            if pretrained and self.rank == 0:
+                torchvision.models.get_model(choice, weights = torchvision.models.get_model_weights(choice) if pretrained else None, **kwargs['kwargs'])
+            if self.rank >= 0: dist.barrier()
+
+            model = torchvision.models.get_model(choice, weights=torchvision.models.get_model_weights(
+                choice) if pretrained else None, **kwargs['kwargs'])
             # load weight if need
             if load_from is not None:
                 weights = self.load_weight(load_from)
@@ -71,7 +77,7 @@ class TorchVisionWrapper:
                 self.init_nc_torchvision.init_nc(model, choice, weigths_out_nc)
                 model.load_state_dict(weights)
                 if weigths_out_nc != num_classes: self.init_nc_torchvision.init_nc(model, choice, num_classes)
-                if self.logger is not None: self.logger.both(f'load_from: {load_from}')
+                if self.logger is not None and self.rank in (-1, 0): self.logger.both(f'load_from: {load_from}')
             else:
                 # init num_classes from torchvision.models
                 self.init_nc_torchvision.init_nc(model, choice, num_classes)
@@ -120,9 +126,9 @@ class TorchVisionWrapper:
                     m.weight.requires_grad_(False)
                     m.bias.requires_grad_(False)
 
-def get_model(model_cfg, logger):
+def get_model(model_cfg, logger, rank):
     assert 'task' in model_cfg, 'image classification or face recognition ?'
 
     match model_cfg['task']:
-        case 'face': return FaceWrapper(model_cfg, logger)
-        case 'classification': return TorchVisionWrapper(model_cfg, logger)
+        case 'face': return FaceTrainingWrapper(model_cfg, logger)
+        case 'classification': return TorchVisionWrapper(model_cfg, logger, rank)

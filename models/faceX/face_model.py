@@ -3,11 +3,14 @@ from .head.head_def import HeadFactory
 import torch.nn as nn
 from torch.nn.init import normal_, constant_
 import torch
-from typing import Optional
+from typing import Union
+import torch.nn.functional as F
+import os
+import numpy as np
 
-class FaceWrapper:
+class FaceTrainingWrapper:
     def __init__(self, model_cfg, logger = None):
-        self.model = FaceModel(model_cfg)
+        self.model = FaceTrainingModel(model_cfg)
         self.logger = logger
 
     def init_parameters(self, m: nn.Module):
@@ -23,38 +26,39 @@ class FaceWrapper:
     def reset_parameters(self):
         self.model.apply(self.init_parameters)
 
-class FaceModel(nn.Module):
+class FaceTrainingModel(nn.Module):
     """Define a traditional faceX model which contains a backbone and a head.
 
     Attributes:
-        backbone(object): the backbone of faceX model.
-        head(object): the head of faceX model.
+        backbone: the backbone of faceX model.
+        head: the head of faceX model.
     """
 
     def __init__(self, model_cfg):
         """Init faceX model by backbone factorcy and head factory.
 
         Args:
-            backbone_factory(object): produce a backbone according to config files.
-            head_factory(object): produce a head according to config files.
+            backbone_factory: produce a backbone according to config files.
+            head_factory: produce a head according to config files.
         """
         super().__init__()
         backbone = BackboneFactory(model_cfg['backbone']).get_backbone()
         head = HeadFactory(model_cfg['head']).get_head()
-        self.model = nn.ModuleList([backbone, head])
+        self.trainingwrapper = nn.ModuleDict({
+            'backbone': backbone,
+            'head': head
+        })
 
     def forward(self, data, label):
-        feat = self.model[0](data)
-        pred = self.model[1](feat, label)
+        feat = self.trainingwrapper['backbone'](data)
+        pred = self.trainingwrapper['head'](feat, label)
         return pred
 
-class FaceFeatureModel:
-    def __init__(self, model_cfg: dict, model_path: Optional[str] = None):
+class FaceModelLoader:
+    def __init__(self, model_cfg: dict):
         self.model = BackboneFactory(model_cfg['backbone']).get_backbone()
-        if model_path is not None:
-            self.load_model(model_path=model_path)
 
-    def load_model_default(self, model_path):
+    def load_weight_default(self, model_path):
         """The default method to load a model.
 
         Args:
@@ -67,8 +71,8 @@ class FaceFeatureModel:
 
         return self.model
 
-    def load_model(self, model_path):
-        """The custom method to load a model.
+    def load_weight(self, model_path, ema: bool = False):
+        """The custom method to load a model, from a model having feature extractor and head.
 
         Args:
             model_path: the path of the weight file.
@@ -77,14 +81,46 @@ class FaceFeatureModel:
             model: initialized model.
         """
         model_dict = self.model.state_dict()
-        pretrained_dict = torch.load(model_path)['state_dict']
+
+        pretrained_dict = torch.load(model_path)['ema'].float().state_dict() if ema else torch.load(model_path)['state_dict']
 
         new_pretrained_dict = {}
         for k in model_dict:
-            new_pretrained_dict[k] = pretrained_dict['backbone.' + k]  # tradition training
+            new_pretrained_dict[k] = pretrained_dict['trainingwrapper.backbone.' + k]  # tradition training
 
         model_dict.update(new_pretrained_dict)
         self.model.load_state_dict(model_dict)
 
         return self.model
 
+class FeatureExtractor:
+
+    def __init__(self, model):
+        self.model = model
+
+    def extract_online(self, dataloader, device) -> dict:
+        """Extract and return features.
+
+        Args:
+            model: initialized model.
+            dataloader: load data to be extracted.
+
+        Returns:
+            image_name2feature: key is the name of image, value is feature of image.
+        """
+        model = self.model
+        model.eval()
+        model.to(device)
+
+        image_name2feature = {}
+        with torch.no_grad():
+            for batch_idx, (_, tensors, file_realpaths) in enumerate(dataloader):
+                tensors = tensors.to(device)
+                features = model(tensors)
+                features = F.normalize(features)
+                features = features.cpu().numpy()
+                for realpath, feature in zip(file_realpaths, features):
+                    filename = os.path.join(os.path.basename(os.path.dirname(realpath)), os.path.basename(realpath))
+                    image_name2feature[filename] = feature
+
+        return image_name2feature

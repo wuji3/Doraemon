@@ -27,6 +27,7 @@ def parse_opt():
 
     # face
     parser.add_argument('--print_freq', type=int, default=50, help='The print frequency for training state')
+    parser.add_argument('--save_freq', type=int, default=5, help='The checkpoint frequency for saving state_dict epoch-wise, not contains warm epochs')
     return parser.parse_args()
 
 def main(opt):
