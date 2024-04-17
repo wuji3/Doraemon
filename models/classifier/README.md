@@ -40,10 +40,6 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/
 <details open>
 <summary>Validate & Visualization 🌟🌟</summary>
 
-<p align="center">
-  <img src="../../misc/visual&validation.jpg" width="40%" height="auto" >
-</p>
-
 ```markdown
 # You will find context below in log when training completes.
 
@@ -59,10 +55,18 @@ python visualize.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --weight 
                                                                                                                                                                                                --ema[Option: may improve performance a bit] 
                                                                                                                                                                                                --cam[Option: show the attention heatmap]
                                                                                                                                                                                                --badcase[Option: group the badcase in a folder]
+                                                                                                                                                                                               --target_class[Option: which catogary do you want to check, serving for --badcase, if not set, directory-name will be regarded as catogary]
+                                                                                                                                                                                               --no_annotation[Optition: remove model description on left-top]
 ```
+
 ```shell
 python validate.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --eval_topk 5 --weight /xxx/.../vision-classifier/run/exp/best.pt 
                                                                                     --ema[Option: may improve performance a bit]
 ```
 
+The picture below is the visualize and validate result. It is for visual reference only.
+
+<p align="center">
+  <img src="../../misc/visual&validation.jpg" width="40%" height="auto" >
+</p>
 </details>

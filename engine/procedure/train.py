@@ -241,6 +241,8 @@ class Trainer:
                 mean, std = valuate_face(self.ema.ema.trainingwrapper['backbone'],
                                          self.data_cfg,
                                          self.device)
+                self.writer.add_scalar('Val_mean', mean, global_batch_idx)
+                self.writer.add_scalar('Val_std', std, global_batch_idx)
                 ckpt = {
                     'epoch': cur_epoch,
                     'batch_id': batch_idx,

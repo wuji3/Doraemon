@@ -49,6 +49,16 @@ Validate:        python validate.py --cfgs configs/faceX/face.yaml --weight /roo
 python validate.py --cfgs configs/faceX/face.yaml --weight /root/xxx/vision/run/exp/which_weight 
                                                   --ema[Option: may improve performance a bit] 
 ```
+
+```shell
+# You may want to observe some trends, such as Train_loss, Train_lr, Val_mean, Val_std
+tensorboard --logdir /root/xxx/vision/run/exp
+```
+
+The picture below is the training result using 563 identities(27972 images, 32 epochs). It is for visual reference only.
+<p align="center">
+  <img src="../../misc/tensorboard.jpg" width="70%" height="auto" >
+</p>
 </details>
 
 ## Experiment

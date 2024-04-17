@@ -53,7 +53,7 @@ data:
     aug_epoch: 28 # augment for epochs, on which epoch to weaken, except warm_epoch
   val:
     bs: 32
-    pair_txt: ms_celeb/pair.txt
+    pair_txt: ms_celeb/pairs.txt
     augment:
         pad2square: no_params
         resize:
