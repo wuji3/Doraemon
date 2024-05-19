@@ -45,8 +45,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/
 - [May. 2023]  The first initialization version of Vision.
 
 ## Which's task
-1. [Image Classification Task(ICT)](models/classifier/README.md)
-2. [Face Recognition Task(FRT)](models/faceX/README.md)
+1. [Face Recognition Task(FRT)](models/faceX/README.md)
+2. [Image Classification Task(ICT)](models/classifier/README.md)
 
 ## Implemented Method & Paper
 | Method                                                   | Paper                                                                           |
@@ -89,7 +89,8 @@ python tools/data_prepare.py --postfix <jpg or png> --root <input your data real
 ```
 2. Data augmented visualization 
 ```shell
-python tools/test_augment.py
+cd visiondk
+python -m tools.test_augment
 ```
 
 ![](misc/augments.jpg)
