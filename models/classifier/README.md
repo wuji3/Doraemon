@@ -10,6 +10,17 @@
 - ```python
   python tools/data_prepare.py --postfix <jpg | png> --root <input your data realpath> --frac <segment ratio of train-set per category, eg: 0.9 0.6 0.3 0.9 0.9>
   ```
+```markdone
+facedata/
+├── train
+│   └── dog
+│       └── 0-dog.jpg
+└── val
+    ├── dog
+    │   └── 1-dog.jpg
+    └── cat
+        └── 0-cat.jpg
+```
 
 </details>
 

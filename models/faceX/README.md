@@ -6,7 +6,20 @@
 
 1. Training Data: We use [MS-Celeb-1M-v1c](http://trillionpairs.deepglint.com/data) for conventional training. To remove the identities which may overlap between this dataset, a cleaner id-list can be found in [CLEAN](https://github.com/IvyHuang-25/CleanAndRelabel-MS-Celeb-1M). After washing, the dataset contains 79077 identities, over 367 million faces.
 2. Testing Data: We provide [LFW](https://pan.baidu.com/s/1y4UXQkjv5PnY_6CTV_K2xQ), extracted code is **yjsl**. Including data and pairs.txt.
-
+3. Testing Data For Face Evaluation Only Support 5000~6000 Pairs Now.
+```markdone
+facedata/
+├── pairs.txt
+├── train
+│   └── 11272
+│       ├── 0-FaceId-0.jpg
+│       └── 1-FaceId-0.jpg
+└── val
+    ├── Micky_Ward
+    │   └── Micky_Ward_0001.jpg
+    └── Miguel_Aldana_Ibarra
+        └── Miguel_Aldana_Ibarra_0001.jpg
+```
 </details>
 
 <details open>
