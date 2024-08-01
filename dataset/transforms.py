@@ -67,13 +67,14 @@ class Cutout:
     """
     def __init__(self, n_holes: int, length: int, ratio: float,
                  h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None,
-                 prob: float = 0.5):
+                 prob: float = 0.5, color: tuple[int, int] = (0, 0)):
         self.n_holes = n_holes
         self.length = length
         self.ratio = ratio
         self.h_range = h_range
         self.w_range = w_range
         self.prob = prob
+        self.color = color
 
     def __call__(self, image):
         """
@@ -91,9 +92,9 @@ class Cutout:
 
         mask_w = int(random.uniform(1-self.ratio, 1+self.ratio) * self.length)
         mask_h = self.length
-        mask = Image.new('RGB', size=(mask_w, mask_h), color=0)
 
         for n in range(self.n_holes):
+            mask = Image.new('RGB', size=(mask_w, mask_h), color=(random.randint(*self.color), random.randint(*self.color), random.randint(*self.color)))
             # center
             y = np.random.randint(*h)
             x = np.random.randint(*w)
@@ -319,8 +320,8 @@ class RandomDoubleFlip:
 
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
-                  h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5):
-    return Cutout(n_holes, length, ratio, h_range, w_range, prob)
+                  h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5, color: tuple[int, int] = (0, 0)):
+    return Cutout(n_holes, length, ratio, h_range, w_range, prob, color)
 
 @register_method
 def random_cutaddnoise(n_holes:int = 1, length: int = 200, noisy_src: str = None,
