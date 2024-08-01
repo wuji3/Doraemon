@@ -17,7 +17,7 @@
 <summary>Configuration ️</summary>
 
 **ATTENTION**, [Config Instructions](../../configs/classification/README.md) Is All You Need 🌟
-- [_Oxford IIIT Pet_] [pet.yaml](configs/classification/pet.yaml) has prepared for you.
+- [_Oxford IIIT Pet_] [pet.yaml](../../configs/classification/pet.yaml) has prepared for you.
 - [_Custom Data_]  Modify based on [config.yaml](../../configs/classification/complete.yaml) or [pet.yaml](../../configs/classification/pet.yaml)  
 
 </details>
