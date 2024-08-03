@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 from engine import valuate as valuate_classifier , CenterProcessor, yaml_load
 import torch
-from models.faceX.face_model import FaceModelLoader, FeatureExtractor
+from models.faceX.face_model import FaceModelLoader
 from engine.faceX.evaluation import valuate as valuate_face
 from prettytable import PrettyTable
 from utils.logger import SmartLogger

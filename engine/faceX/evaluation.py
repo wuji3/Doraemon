@@ -27,7 +27,7 @@ class Evaluator:
     def test(self, pair_list, feature_dataloader, device):
         # check pair_list
         Evaluator.check_nps(pair_list)
-        image_name2feature = self.feature_extractor.extract_online(feature_dataloader, device)
+        image_name2feature = self.feature_extractor.extract_face(feature_dataloader, device)
         mean, std = self.test_one_model(pair_list, image_name2feature)
         return mean, std
 

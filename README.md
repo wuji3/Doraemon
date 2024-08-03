@@ -16,6 +16,9 @@ conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvi
 
 pip install -r requirements.txt
 
+# For CBIR
+conda install faiss-gpu=1.8.0
+
 # Without Arial.ttf, inference may be slow due to network IO.
 mkdir -p ~/.config/DuKe
 cp misc/Arial.ttf ~/.config/DuKe

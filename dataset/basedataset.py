@@ -9,6 +9,7 @@ from pathlib import Path
 from collections import defaultdict
 from built.class_augmenter import ClassWiseAugmenter
 from prettytable import PrettyTable
+import datasets
 
 class ImageDatasets(Dataset):
     def __init__(self, root, mode, transforms = None, label_transforms = None, project = None, rank = None):
@@ -162,12 +163,12 @@ class CBIRDatasets(Dataset):
         query_dir, gallery_dir = os.path.join(opj(root, 'query')), os.path.join(opj(root, 'gallery'))
         assert os.path.isdir(query_dir) and os.path.isdir(gallery_dir), 'make sure query dir and gallery dir exists'
 
-        is_subset, query_identity, gallery_dir = self._check_subset(query_dir, gallery_dir) 
+        is_subset, query_identity, gallery_identity = self._check_subset(query_dir, gallery_dir) 
         if not is_subset:
             raise ValueError('query identity is not subset of gallery identity')
 
         data = {'query': [], 'pos': []}
-        gallery = []
+        gallery = {'gallery': []}
         if mode == 'query':
             for q in query_identity:
                 one_identity_queries = glob.glob(opj(query_dir, q, f'*.{postfix[0]}')) + glob.glob(opj(query_dir, q, f'*.{postfix[1]}'))
@@ -176,13 +177,11 @@ class CBIRDatasets(Dataset):
                     data['query'].append(one_q)
                     data['pos'].append(one_identity_positives)
         else:
-            for g in gallery_dir:
-                one_identity_positives = glob.glob(opj(gallery_dir, g, f'/**/*.{postfix[0]}')) + glob.glob(opj(gallery_dir, g, f'/**/*.{postfix[1]}'))
-                gallery.extend(one_identity_positives)
+            gallery['gallery'] = glob.glob(opj(gallery_dir, f'**/*.{postfix[0]}')) + glob.glob(opj(gallery_dir, f'**/*.{postfix[1]}'))
         
         self.mode = mode
-        self.data = data
-        self.gallery = gallery
+        self.data = datasets.Dataset.from_dict(data)
+        self.gallery = datasets.Dataset.from_dict(gallery)
 
         self.transforms = transforms
     
@@ -197,11 +196,11 @@ class CBIRDatasets(Dataset):
         return set(query_identity).issubset(set(gallery_identity)), query_identity, gallery_identity
     
     def __getitem__(self, idx: int):
-        data = self.data['query'][idx] if self.mode == 'query' else self.gallery[idx]
+        data = self.data[idx]['query'] if self.mode == 'query' else self.gallery[idx]['gallery']
         data_image = ImageDatasets.read_image(data)
         tensor = self.transforms(data_image)
 
         return tensor     
     
     def __len__(self):
-        return len(self.data['query']) if self.mode == 'query' else len(self.gallery)
+        return self.data.num_rows if self.mode == 'query' else self.gallery.num_rows

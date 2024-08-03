@@ -86,7 +86,8 @@ class FaceModelLoader:
 
         new_pretrained_dict = {}
         for k in model_dict:
-            new_pretrained_dict[k] = pretrained_dict['trainingwrapper.backbone.' + k]  # tradition training
+            #new_pretrained_dict[k] = pretrained_dict['trainingwrapper.backbone.' + k]  # tradition training
+            new_pretrained_dict[k] = pretrained_dict['backbone.' + k]  # tradition training
 
         model_dict.update(new_pretrained_dict)
         self.model.load_state_dict(model_dict)
@@ -98,7 +99,7 @@ class FeatureExtractor:
     def __init__(self, model):
         self.model = model
 
-    def extract_online(self, dataloader, device) -> dict:
+    def extract_face(self, dataloader, device) -> dict:
         """Extract and return features.
 
         Args:
@@ -124,3 +125,29 @@ class FeatureExtractor:
                     image_name2feature[filename] = feature
 
         return image_name2feature
+    
+    def extract_cbir(self, dataloader, device) -> dict:
+        """Extract and return features.
+
+        Args:
+            model: initialized model.
+            dataloader: load data to be extracted.
+
+        Returns:
+            features: feature of image.
+        """
+        model = self.model
+        model.eval()
+        model.to(device)
+
+        features = []
+        with torch.no_grad():
+            for batch_idx, tensors in enumerate(dataloader):
+                tensors = tensors.to(device)
+                feature = model(tensors)
+                feature = F.normalize(feature)
+                feature = feature.cpu().numpy()
+
+                features.append(feature)
+
+        return np.concatenate(features, axis=0)
