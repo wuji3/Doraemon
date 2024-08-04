@@ -4,7 +4,7 @@
 torchmetrics==0.11.4
 opencv-python==4.7.0.72
 numpy==1.24.3
-tqdm==4.65.0
+tqdm==4.66.4
 Pillow==9.4.0
 grad-cam==1.4.8
 timm==0.9.16

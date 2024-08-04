@@ -1,13 +1,8 @@
 import torch
 from tqdm import tqdm
-from os.path import join as opj
 from torch import Tensor
 from engine.procedure.evaluation import valuate
-from engine.faceX.evaluation import valuate as valuate_face, process_pairtxt
-from models.faceX.face_model import FeatureExtractor
-from dataset.basedataset import PredictImageDatasets
-from dataset.transforms import create_AugTransforms
-from torch.utils.data import DataLoader
+from engine.faceX.evaluation import valuate as valuate_face
 from typing import Callable
 import math
 from engine.optimizer import SAM
@@ -48,10 +43,12 @@ class Trainer:
                  logger,
                  rank: int,
                  scheduler,
-                 ema, sampler = None,
+                 ema, 
+                 sampler = None,
                  thresh = 0,
                  teacher = None,
                  # face
+                 task: str = 'face',
                  print_freq = 50,
                  save_freq = 5,
                  cfgs: dict = None,
@@ -76,6 +73,7 @@ class Trainer:
         self.distill: bool = teacher is not None
 
         # face
+        self.task = task
         self.print_freq = print_freq
         self.save_freq = save_freq
         self.data_cfg = cfgs['data']
@@ -178,18 +176,18 @@ class Trainer:
             loss = mixup_criterion(criterion, self.model(images), targets_a, targets_b, lam)
             Trainer.update(self.model, loss, self.scaler, self.optimizer, self.ema)
         elif self.sam and self.distill:
-            pass
+            raise ValueError('SAM optimizer and Knowledge distilling have not been implemented yet.')
         elif self.sam: # close
             loss = Trainer.update_sam(self.model, images, labels, self.optimizer, criterion, self.rank, self.ema, mixup=False)
         elif self.distill:
-            pass
+            raise ValueError('Knowledge distilling have not been implemented yet.')
         else: # close
             loss = criterion(self.model(images), labels) if not face else criterion(self.model(images, labels), labels)
             Trainer.update(self.model, loss, self.scaler, self.optimizer, self.ema)
 
         return loss
 
-    # scale + backward + grad_clip + step + zero_gra
+    # scale + backward + grad_clip + step + zero_grad
     @staticmethod
     def update(model, loss, scaler, optimizer, ema=None):
         # backward
@@ -237,12 +235,15 @@ class Trainer:
             warm_epoch = self.hyp_cfg['warm_ep']
             if self.rank in (-1, 0) and cur_epoch + 1 > warm_epoch and ((cur_epoch - warm_epoch) * iters_per_epoch + batch_idx + 1) % (self.save_freq * iters_per_epoch)== 0:
                 saved_name = 'Epoch_%d.pt' % (cur_epoch+1)
+                if self.task == 'face':
 
-                mean, std = valuate_face(self.ema.ema.trainingwrapper['backbone'],
-                                         self.data_cfg,
-                                         self.device)
-                self.writer.add_scalar('Val_mean', mean, global_batch_idx)
-                self.writer.add_scalar('Val_std', std, global_batch_idx)
+                    mean, std = valuate_face(self.ema.ema.trainingwrapper['backbone'],
+                                            self.data_cfg,
+                                            self.device)
+                    self.writer.add_scalar('Val_mean', mean, global_batch_idx)
+                    self.writer.add_scalar('Val_std', std, global_batch_idx)
+                elif self.task == 'cbir':
+                    pass
                 ckpt = {
                     'epoch': cur_epoch,
                     'batch_id': batch_idx,

@@ -42,15 +42,18 @@ def main(opt):
     # configs
     cfgs = yaml_load(opt.cfgs)
     assert cfgs['model']['task'] in ('face', 'classification'), 'task should be face or classification'
-    face: bool = cfgs['model']['task'] == 'face'
+    task: str= cfgs['model'].get('task', 'classification')
     # check configs
-    check_cfgs_face(cfgs) if face else check_cfgs_classification(cfgs)
+    if task in ('face', 'cbir'): check_cfgs_face(cfgs)
+    elif task == 'classification': check_cfgs_classification(cfgs)
+    else: raise ValueError(f'{task} is not supported')
 
     # add load_from if need
     if opt.load_from:  cfgs['model']['load_from'] = opt.load_from
 
     # init cpu
-    cpu = CenterProcessor(cfgs, LOCAL_RANK, project=save_dir, opt=opt) if not opt.distill else DistillCenterProcessor(cfgs, LOCAL_RANK, project=save_dir, opt=opt)
+    cpu = CenterProcessor(cfgs, LOCAL_RANK, project=save_dir, opt=opt) \
+        if not opt.distill else DistillCenterProcessor(cfgs, LOCAL_RANK, project=save_dir, opt=opt)
 
     # record config
     shutil.copy(opt.cfgs, save_dir)
@@ -61,7 +64,8 @@ def main(opt):
         if LOCAL_RANK == 0:
             cpu.logger.both(f'{colorstr("yellow", "Attention")}: sync_bn is on')
     # run
-    cpu.run_classifier(resume=opt.resume if opt.resume else None) if not face else cpu.run_face(resume=opt.resume if opt.resume else None)
+    cpu.run_classifier(resume=opt.resume if opt.resume else None) \
+        if task == 'classification' else cpu.run_face(resume=opt.resume if opt.resume else None)
 
 if __name__ == '__main__':
     opts = parse_opt()

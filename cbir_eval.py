@@ -156,6 +156,16 @@ def evaluate(preds,
     for i, cutoff in enumerate(cutoffs):
         recall = recalls[i]
         metrics[f"Recall@{cutoff}"] = recall
+    
+    # Precision
+    precisions = np.zeros(len(cutoffs))
+    for pred, label in zip(preds, labels):
+        for k, cutoff in enumerate(cutoffs):
+            precision = np.intersect1d(label, pred[:cutoff])
+            precisions[k] += len(precision) / cutoff
+    precisions /= len(preds)
+    for i, cutoff in enumerate(cutoffs):
+        metrics[f"Precision@{cutoff}"] = precisions[i]
 
     # AUC 
     pred_hard_encodings = []
@@ -164,7 +174,12 @@ def evaluate(preds,
         pred_hard_encodings.append(pred_hard_encoding)
     
     from sklearn.metrics import roc_auc_score, ndcg_score
-    auc = 0
+    pred_hard_encodings1d = np.asarray(pred_hard_encodings).flatten() 
+    preds_scores1d = preds_scores.flatten()
+    auc = roc_auc_score(pred_hard_encodings1d, preds_scores1d)
+    
+    metrics['AUC@10'] = auc
+
     for idx in range(len(preds_scores)):
         try:
             cur_auc = roc_auc_score(pred_hard_encodings[idx], preds_scores[idx])

@@ -433,9 +433,9 @@ class CenterProcessor:
                                    f'\nValidate:        python validate.py --cfgs {os.path.join(os.path.dirname(best), os.path.basename(self.opt.cfgs))} --eval_topk 5 --weight {best} --ema' )
 
     def run_face(self, resume = None):
-        model, data_processor, scaler, device, epochs, logger, rank, warm_ep, aug_epoch = self.model_processor.model, self.data_processor, \
+        model, data_processor, scaler, device, epochs, logger, rank, warm_ep, aug_epoch, task = self.model_processor.model, self.data_processor, \
             GradScaler(enabled = (self.device != torch.device('cpu'))), self.device, self.hyp_cfg['epochs'], self.logger, self.rank, self.hyp_cfg['warm_ep'], \
-            self.data_cfg['train']['aug_epoch']
+            self.data_cfg['train']['aug_epoch'], self.model_cfg['task']
 
         # load for fine-tune
         if 'load_from' in self.model_cfg:
@@ -500,9 +500,25 @@ class CenterProcessor:
         total_epoch = epochs + warm_ep
 
         # trainer
-        trainer = Trainer(model, train_dataloader, None, optimizer,
-                          scaler, device, total_epoch, logger, rank, scheduler, self.ema, None, None,
-                          self.teacher if hasattr(self, 'teacher') else None, self.opt.print_freq, self.opt.save_freq, self.cfgs, self.opt.save_dir)
+        trainer = Trainer(model=model, 
+                          train_dataloader=train_dataloader, 
+                          val_dataloader=None, 
+                          optimizer=optimizer,
+                          scaler=scaler, 
+                          device=device, 
+                          epochs=total_epoch, 
+                          logger=logger, 
+                          rank=rank, 
+                          scheduler=scheduler, 
+                          ema=self.ema, 
+                          sampler=None, 
+                          thresh=None,
+                          teacher=self.teacher if hasattr(self, 'teacher') else None, 
+                          task=task, 
+                          print_freq=self.opt.print_freq, 
+                          save_freq=self.opt.save_freq, 
+                          cfgs=self.cfgs, 
+                          out_dir=self.opt.save_dir)
 
         t0 = time.time()
         for epoch in range(start_epoch, total_epoch):

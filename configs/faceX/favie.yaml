@@ -1,0 +1,92 @@
+model:
+  task: cbir
+  backbone:
+    swintransformer:
+        img_size: 224
+        patch_size: 4
+        in_chans: 3
+        embed_dim: 96
+        depths:
+        - 2
+        - 2
+        - 18
+        - 2
+        num_heads:
+        - 3
+        - 6
+        - 12
+        - 24
+        window_size: 7
+        mlp_ratio: 4.0
+        drop_rate: 0.0
+        drop_path_rate: 0.3
+  head:
+    arcface:
+      feat_dim: 512
+      num_class: 3314
+      margin_arc: 0.35
+      margin_am: 0.0
+      scale: 32
+data:
+  root: data/favie/v1  # -train -val
+  nw: 16 # if not multi-nw, set to 0
+  train:
+    bs: 64 # one gpus if DDP
+    common_aug: null 
+    class_aug: null
+      #S: 0 1 2 4 5 6
+      #B-: 0 1 2 4 5 6
+    augment: # refer to utils/augment.py
+      pad2square: no_params
+      random_cutout:
+        n_holes: 3
+        length: 50
+        prob: 0.2
+        color: [0, 255]
+      random_gaussianblur:
+        kernel_size: 5
+      random_localgaussian:
+        ksize: [37, 37]
+      random_rotate:
+        degrees: 20
+      random_horizonflip:
+        p: 0.5
+      random_autocontrast:
+        p: 0.5
+      random_adjustsharpness:
+        p: 0.5
+      resize:
+        size: 224
+      to_tensor: no_params
+      normalize: # default use ImageNet1K mean & var, if not pretrained, del normalize 
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+    aug_epoch: 25 # augment for epochs, on which epoch to weaken, except warm_epoch
+  val:
+    bs: 32
+    metrics:
+      - metrics: [mrr, recall, precision, auc, ndcg]
+      - cutoffs: [1, 3, 5, 10] 
+    augment:
+        pad2square: no_params
+        resize:
+          size: 224
+        to_tensor: no_params
+        normalize: # default use ImageNet1K mean & var, if not pretrained, del normalize
+          mean: [0.485, 0.456, 0.406]
+          std: [0.229, 0.224, 0.225]
+hyp:
+  epochs: 30
+  lr0: 0.01 # sgd=1e-2, adam=1e-3
+  lrf_ratio: null # decay to lrf_ratio * lr0, if None, 0.1
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_momentum: 0.8
+  warm_ep: 2
+  loss:
+    ce: True
+  label_smooth: 0.0
+  optimizer: 
+    - sgd # sgd, adam or sam
+    - False # Different layers in the model set different learning rates, in built/layer_optimizer
+  scheduler: cosine_with_warm # linear or cosine
