@@ -26,7 +26,7 @@ query_dataloader = SmartDataProcessor.set_dataloader(query_dataset, bs=256, nw=4
 gallery_dataloader = SmartDataProcessor.set_dataloader(gallery_dataset, bs=256, nw=4, shuffle=False)
 
 model_loader = FaceModelLoader(model_cfg=cfgs['model'])
-model = model_loader.load_weight(model_path='/root/autodl-tmp/visiondk/facedata/Resnet152-irse.pt', ema=False)
+model = model_loader.load_weight(model_path='/root/autodl-tmp/visiondk/facedata/lfw/resnet152-irse.pt', ema=False)
 feature_extractor = FeatureExtractor(model)
 
 # query_features = feature_extractor.extract_cbir(query_dataloader, device)
@@ -123,7 +123,7 @@ def search(extractor: FeatureExtractor,
 def evaluate(preds, 
              preds_scores, 
              labels, 
-             cutoffs=[1, 3, 10, 20]):
+             cutoffs=[1, 3, 10]):
     """
     Evaluate MRR and Recall at cutoffs.
     """
@@ -205,5 +205,5 @@ ground_truths = []
 for pos in query_dataset.data['pos']:
     ground_truths.append(pos)
 
-metrics = evaluate(retrieval_results, scores, ground_truths)
+metrics = evaluate(retrieval_results, scores, ground_truths, cutoffs=[1,3,5,10])
 print(metrics)

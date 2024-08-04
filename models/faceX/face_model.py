@@ -3,7 +3,6 @@ from .head.head_def import HeadFactory
 import torch.nn as nn
 from torch.nn.init import normal_, constant_
 import torch
-from typing import Union
 import torch.nn.functional as F
 import os
 import numpy as np
@@ -67,7 +66,7 @@ class FaceModelLoader:
         Returns:
             model: initialized model.
         """
-        self.model.load_state_dict(torch.load(model_path)['state_dict'], strict=True)
+        self.model.load_state_dict(torch.load(model_path, weights_only=False)['state_dict'], strict=True)
 
         return self.model
 
@@ -82,12 +81,11 @@ class FaceModelLoader:
         """
         model_dict = self.model.state_dict()
 
-        pretrained_dict = torch.load(model_path)['ema'].float().state_dict() if ema else torch.load(model_path)['state_dict']
+        pretrained_dict = torch.load(model_path, weights_only=False)['ema'].float().state_dict() if ema else torch.load(model_path, weights_only=False)['state_dict']
 
         new_pretrained_dict = {}
         for k in model_dict:
-            #new_pretrained_dict[k] = pretrained_dict['trainingwrapper.backbone.' + k]  # tradition training
-            new_pretrained_dict[k] = pretrained_dict['backbone.' + k]  # tradition training
+            new_pretrained_dict[k] = pretrained_dict['trainingwrapper.backbone.' + k]  # tradition training
 
         model_dict.update(new_pretrained_dict)
         self.model.load_state_dict(model_dict)
