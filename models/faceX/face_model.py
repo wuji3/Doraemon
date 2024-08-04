@@ -124,7 +124,7 @@ class FeatureExtractor:
 
         return image_name2feature
     
-    def extract_cbir(self, dataloader, device) -> dict:
+    def extract_cbir(self, dataloader, device) -> np.ndarray:
         """Extract and return features.
 
         Args:
