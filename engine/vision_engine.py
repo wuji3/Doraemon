@@ -138,7 +138,7 @@ class CenterProcessor:
         self.imgsz = get_imgsz(cfgs['data']['train']['augment'])
 
         # task
-        self.face = self.model_cfg['task'] == 'face'
+        self.task = self.model_cfg['task'] 
 
         # rank
         self.rank: int = rank
@@ -163,7 +163,7 @@ class CenterProcessor:
         # loss
         loss_choice: str = 'ce' if self.hyp_cfg['loss']['ce'] else 'bce'
         self.loss_choice = loss_choice
-        if not self.face:
+        if self.task == 'classification':
             if train:
                 self.lossfn = create_Lossfn(loss_choice)() \
                     if loss_choice == 'bce' \
@@ -190,7 +190,7 @@ class CenterProcessor:
 
         else: self.lossfn = create_Lossfn(loss_choice)(label_smooth = self.hyp_cfg['label_smooth'])
 
-        if train and not self.face:
+        if train and self.task == 'classification':
             # distributions sampler
             self.dist_sampler = self._distributions_sampler()
 

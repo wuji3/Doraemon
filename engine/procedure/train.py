@@ -3,6 +3,7 @@ from tqdm import tqdm
 from torch import Tensor
 from engine.procedure.evaluation import valuate
 from engine.faceX.evaluation import valuate as valuate_face
+from engine.cbir.evaluation import valuate as valuate_cbir
 from typing import Callable
 import math
 from engine.optimizer import SAM
@@ -242,12 +243,23 @@ class Trainer:
                                             self.device)
                     self.writer.add_scalar('Val_mean', mean, global_batch_idx)
                     self.writer.add_scalar('Val_std', std, global_batch_idx)
+
+                    fitness = {'fitness': {'Val_mean': float(mean), 'Val_std': float(std)}}
                 elif self.task == 'cbir':
-                    pass
+                    metrics = valuate_cbir(self.ema.ema.trainingwrapper['backbone'],
+                                           self.data_cfg,
+                                           self.device,
+                                           self.logger)
+                    for k, v in metrics.items():
+                        self.writer.add_scalar(f'Val_{k}', v, global_batch_idx)
+                    fitness = {'fitness': metrics}
+                
+                fitness['checkpoint'] = saved_name
+                    
                 ckpt = {
                     'epoch': cur_epoch,
                     'batch_id': batch_idx,
-                    'fitness': (mean, std),
+                    'fitness': fitness,
                     'state_dict': self.model.state_dict() if self.rank == -1 else self.model.module.state_dict(),
                     'ema': deepcopy(self.ema.ema),
                     'updates': self.ema.updates,
@@ -257,5 +269,5 @@ class Trainer:
                 if self.device != torch.device('cpu'): ckpt['scaler'] = self.scaler.state_dict()
 
                 torch.save(ckpt, os.path.join(self.writer.log_dir, saved_name))
-                self.logger.both('Save checkpoint %s, mean %f.4, std %f.4' % (saved_name, mean, std))
+                self.logger.both(fitness)
             torch.cuda.empty_cache()

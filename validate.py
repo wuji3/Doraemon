@@ -6,6 +6,7 @@ from engine import valuate as valuate_classifier , CenterProcessor, yaml_load
 import torch
 from models.faceX.face_model import FaceModelLoader
 from engine.faceX.evaluation import valuate as valuate_face
+from engine.cbir.evaluation import valuate as valuate_cbir
 from prettytable import PrettyTable
 from utils.logger import SmartLogger
 
@@ -27,8 +28,8 @@ def parse_opt():
 def main(opt):
 
     cfgs = yaml_load(opt.cfgs)
-    face: bool = cfgs['model']['task']
-    if not face:
+    task: str = cfgs['model']['task']
+    if task == 'classification':
         cpu = CenterProcessor(cfgs, LOCAL_RANK, train=False, opt=opt)
 
         # checkpoint loading
@@ -46,7 +47,8 @@ def main(opt):
         conm_path = opj(os.path.dirname(opt.weight), 'conm.png')
         valuate_classifier(model, dataloader, cpu.device, None, False, None, cpu.logger, thresh=cpu.thresh, top_k=opt.eval_topk,
                 conm_path=conm_path)
-    else:
+
+    elif task in ('face', 'cbir'):
         # logger
         logger = SmartLogger(filename=None)
 
@@ -56,11 +58,18 @@ def main(opt):
         model = model_loader.load_weight(model_path=opt.weight, ema=opt.ema)
 
         logger.console('valuating...')
-        mean, std = valuate_face(model, cfgs['data'], torch.device('cuda'))
-        pretty_tabel = PrettyTable(["model_name", "mean accuracy", "standard error"])
-        pretty_tabel.add_row([os.path.basename(opt.weight), mean, std])
+        if task == 'face':
+            mean, std = valuate_face(model, cfgs['data'], torch.device('cuda'))
+            pretty_tabel = PrettyTable(["model_name", "mean accuracy", "standard error"])
+            pretty_tabel.add_row([os.path.basename(opt.weight), mean, std])
 
-        logger.console('\n' + str(pretty_tabel))
+            logger.console('\n' + str(pretty_tabel))
+        else:
+            metrics = valuate_cbir(model, cfgs['data'], torch.device('cuda'), logger)
+            logger.console(metrics)
+
+    else:
+        raise ValueError(f'Unknown task {task}')
 
 if __name__ == '__main__':
     opt = parse_opt()

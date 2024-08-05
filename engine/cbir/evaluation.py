@@ -1,18 +1,15 @@
 from dataset.basedataset import CBIRDatasets
 from dataset.transforms import create_AugTransforms
 from dataset.dataprocessor import SmartDataProcessor
-from engine.vision_engine import yaml_load
 from models.faceX.face_model import FeatureExtractor
+from utils.logger import SmartLogger
 import torch
-import logging
 from torch.utils.data import DataLoader
 import numpy as np
 from tqdm import tqdm
 import faiss
 from typing import Optional
 from sklearn.metrics import roc_auc_score, ndcg_score
-
-logger = logging.getLogger(__name__)
 
 class CBIRMetrics:
     def __init__(self, 
@@ -65,7 +62,7 @@ class CBIRMetrics:
         for pred, label in zip(preds, labels):
             for k, cutoff in enumerate(cutoffs):
                 precision = np.intersect1d(label, pred[:cutoff])
-                precisions[k] += len(precision) / cutoff
+                precisions[k] += len(precision) / min(cutoff, len(label))
         precisions /= len(preds)
         for i, cutoff in enumerate(cutoffs):
             self.metrics[f"Precision@{cutoff}"] = precisions[i]
@@ -109,6 +106,7 @@ class CBIRMetrics:
 def index(extractor: FeatureExtractor, 
         gallery_dataloader: DataLoader, 
         device: torch.device,
+        logger: SmartLogger,
         index_factory: str = "Flat", 
         # need memmap
         memmap_feat_dim: Optional[int] = None,
@@ -135,7 +133,7 @@ def index(extractor: FeatureExtractor,
         dim = gallery_embeddings.shape[-1]
         
         if memmap_save_path is not None:
-            logger.info(f"saving embeddings at {memmap_save_path}...")
+            logger.console(f"saving embeddings at {memmap_save_path}...")
             memmap = np.memmap(
                 memmap_save_path,
                 shape=gallery_embeddings.shape,
@@ -164,7 +162,7 @@ def index(extractor: FeatureExtractor,
         faiss_index = faiss.index_cpu_to_all_gpus(faiss_index, co)
 
     # NOTE: faiss only accepts float32
-    logger.info("Adding embeddings...")
+    logger.console("Adding embeddings...")
     gallery_embeddings = gallery_embeddings.astype(np.float32)
     faiss_index.train(gallery_embeddings)
     faiss_index.add(gallery_embeddings)
@@ -173,8 +171,11 @@ def index(extractor: FeatureExtractor,
 def search(extractor: FeatureExtractor, 
         query_dataloader: DataLoader, 
         faiss_index: faiss.Index, 
+        device: torch.device,
+        logger: SmartLogger,
         k:int = 100, 
-        batch_size: int = 256):
+        batch_size: int = 256,
+        ):
     """
     1. Encode queries into dense embeddings;
     2. Search through faiss index
@@ -185,7 +186,8 @@ def search(extractor: FeatureExtractor,
     all_scores = []
     all_indices = []
     
-    for i in tqdm(range(0, query_size, batch_size), desc="Searching"):
+    logger.console('Searching ...')
+    for i in range(0, query_size, batch_size):
         j = min(i + batch_size, query_size)
         query_embedding = query_embeddings[i: j]
         score, indice = faiss_index.search(query_embedding.astype(np.float32), k=k)
@@ -194,6 +196,7 @@ def search(extractor: FeatureExtractor,
     
     all_scores = np.concatenate(all_scores, axis=0)
     all_indices = np.concatenate(all_indices, axis=0)
+
     return all_scores, all_indices
 
 def compute_metrics(preds, 
@@ -221,8 +224,9 @@ def compute_metrics(preds,
     return metrics_engine.metrics
 
 def valuate(model,
-            data_cfg,
-            device):
+            data_cfg: dict,
+            device: torch.device,
+            logger: SmartLogger):
     
     query_dataset, gallery_dataset = CBIRDatasets.build(root=data_cfg['root'], 
                                                         transforms=create_AugTransforms(data_cfg['val']['augment']))
@@ -239,11 +243,11 @@ def valuate(model,
                                         
     feature_extractor = FeatureExtractor(model)
 
-
     faiss_index = index(
         extractor=feature_extractor, 
         gallery_dataloader=gallery_dataloader,
-        device=device
+        device=device,
+        logger=logger
         )
 
     cutoffs = data_cfg['val']['metrics']['cutoffs']
@@ -251,6 +255,8 @@ def valuate(model,
         extractor=feature_extractor,
         query_dataloader=query_dataloader,
         faiss_index=faiss_index, 
+        device=device,
+        logger=logger,
         k = cutoffs[-1],
         batch_size=data_cfg['val']['bs'],
         )
@@ -271,5 +277,8 @@ def valuate(model,
                               metrics=data_cfg['val']['metrics']['metrics'],
                               cutoffs=cutoffs)
 
+    for k, v in metrics.items():
+        metrics[k] = float(v)
+    
     return metrics
 

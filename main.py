@@ -41,8 +41,7 @@ def main(opt):
 
     # configs
     cfgs = yaml_load(opt.cfgs)
-    assert cfgs['model']['task'] in ('face', 'classification'), 'task should be face or classification'
-    task: str= cfgs['model'].get('task', 'classification')
+    task: str= cfgs['model'].get('task', None)
     # check configs
     if task in ('face', 'cbir'): check_cfgs_face(cfgs)
     elif task == 'classification': check_cfgs_classification(cfgs)

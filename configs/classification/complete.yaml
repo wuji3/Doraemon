@@ -1,4 +1,5 @@
 model:
+  task: classification
   choice: torchvision-swin_t # torchvision- or custom-
   kwargs: {} # kwargs feed into torchvision-style models.__init__
   num_classes: 5
