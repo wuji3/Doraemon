@@ -226,7 +226,12 @@ def compute_metrics(preds,
 def valuate(model,
             data_cfg: dict,
             device: torch.device,
-            logger: SmartLogger):
+            logger: SmartLogger,
+            vis: bool = False):
+    """
+    Arguments:
+        vis(bool): for cbir visualization
+    """
     
     query_dataset, gallery_dataset = CBIRDatasets.build(root=data_cfg['root'], 
                                                         transforms=create_AugTransforms(data_cfg['val']['augment']))
@@ -270,6 +275,9 @@ def valuate(model,
     ground_truths = []
     for pos in query_dataset.data['pos']:
         ground_truths.append(pos)
+
+    # visualization 
+    if vis: return retrieval_results, scores, ground_truths, query_dataset.data['query']
 
     metrics = compute_metrics(retrieval_results, 
                               scores, 
