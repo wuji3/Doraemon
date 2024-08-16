@@ -134,6 +134,7 @@ class PredictImageDatasets(Dataset):
             self.imgs_path = []
         else:
             self.imgs_path = glob.glob(os.path.join(root, f'*.{postfix[0]}')) + glob.glob(os.path.join(root, f'*.{postfix[1]}'))
+            # self.imgs_path = glob.glob(os.path.join(root, f'**/*.{postfix[0]}')) + glob.glob(os.path.join(root, f'**/*.{postfix[1]}'))
             assert len(self.imgs_path) != 0, f'there are no files with postfix as {postfix}'
         self.transforms = transforms
 

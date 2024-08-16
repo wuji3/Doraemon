@@ -303,7 +303,10 @@ class LocalGaussian:
 
             mask = self.generate_seamless_mask(roi)
 
-            merge_image = cv2.seamlessClone(roi, array_image, mask, p=(x + w // 2, y + h // 2), flags=cv2.NORMAL_CLONE)
+            try:
+                merge_image = cv2.seamlessClone(roi, array_image, mask, p=(x + w // 2, y + h // 2), flags=cv2.NORMAL_CLONE)
+            except cv2.error:
+                return image
 
             return Image.fromarray(cv2.cvtColor(merge_image, cv2.COLOR_BGR2RGB))
         else:

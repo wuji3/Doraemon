@@ -25,7 +25,7 @@ def parse_opt():
     parser.add_argument('--distill', action='store_true')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
 
-    # face
+    # face/cbir
     parser.add_argument('--print_freq', type=int, default=50, help='The print frequency for training state')
     parser.add_argument('--save_freq', type=int, default=5, help='The checkpoint frequency for saving state_dict epoch-wise, not contains warm epochs')
     return parser.parse_args()

@@ -1,1 +1,2 @@
-from .evaluation import ConfusedMatrix, predict_images, valuate
+from .evaluation import ConfusedMatrix, valuate
+from .visualizer import Visualizer

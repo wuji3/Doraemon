@@ -4,6 +4,7 @@ from built.class_augmenter import ClassWiseAugmenter
 import torch
 import os
 from torch.utils.data import DataLoader
+from typing import Optional
 
 class SmartDataProcessor:
     def __init__(self, data_cfgs: dict, rank, project):
@@ -13,7 +14,6 @@ class SmartDataProcessor:
         self.label_transforms = None # used in CenterProcessor.__init__
 
         self.train_dataset = self.create_dataset('train')
-        self.val_dataset = self.create_dataset('val')
 
     def create_dataset(self, mode: str):
         assert mode in {'train', 'val'}
@@ -33,10 +33,10 @@ class SmartDataProcessor:
         dataset = getattr(self, f'{mode}_dataset')
         dataset.transforms = sequence
 
-    def auto_aug_weaken(self, epoch: int, milestone: int):
+    def auto_aug_weaken(self, epoch: int, milestone: int, sequence: Optional[torch.nn.Module] = None):
         if epoch == milestone:
             # sequence = create_AugTransforms('random_horizonflip to_tensor normalize')
-            self.set_augment('train', sequence = None)
+            self.set_augment('train', sequence = sequence)
 
     @staticmethod
     def set_dataloader(dataset, bs: int = 256, nw: int = 0, pin_memory: bool = True, shuffle: bool = True, sampler = None, collate_fn= None):

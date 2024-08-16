@@ -69,11 +69,12 @@ def check_cfgs_face(cfgs):
     nc = model_cfg['head'][next(iter(model_cfg['head'].keys()))]['num_class']
     assert nc == len(train_classes), 'num_classes in model should be equal to classes in data folder'
     # pair_txt
-    assert os.path.isfile(data_cfg['val']['pair_txt']), 'make sure pair_txt exists'
-    from engine.faceX.evaluation import Evaluator
-    with open(data_cfg['val']['pair_txt']) as f:
-        pair_list = [line.strip() for line in f.readlines()]
-    Evaluator.check_nps(pair_list)
+    if cfgs['model']['task'] == 'face':
+        assert os.path.isfile(data_cfg['val']['pair_txt']), 'make sure pair_txt exists'
+        from engine.faceX.evaluation import Evaluator
+        with open(data_cfg['val']['pair_txt']) as f:
+            pair_list = [line.strip() for line in f.readlines()]
+        Evaluator.check_nps(pair_list)
 
 def check_cfgs_classification(cfgs):
     model_cfg = cfgs['model']
@@ -159,6 +160,8 @@ class CenterProcessor:
         self.model_processor.model.to(device)
         # data processor
         self.data_processor = SmartDataProcessor(self.data_cfg, rank=rank, project=project)
+        if self.task != 'cbir':
+            self.data_processor.val_dataset = self.data_processor.create_dataset('val')
 
         # loss
         loss_choice: str = 'ce' if self.hyp_cfg['loss']['ce'] else 'bce'
@@ -443,7 +446,7 @@ class CenterProcessor:
             if rank in (-1, 0): logger.both(f'load_from: {self.model_cfg["load_from"]}')
 
         # data
-        train_dataset, val_dataset = data_processor.train_dataset, data_processor.val_dataset
+        train_dataset = data_processor.train_dataset
         data_sampler = None if self.rank == -1 else DistributedSampler(dataset=train_dataset)
         train_dataloader = data_processor.set_dataloader(dataset=train_dataset,
                                                          bs=self.data_cfg['train']['bs'],
@@ -524,7 +527,7 @@ class CenterProcessor:
         for epoch in range(start_epoch, total_epoch):
             # warmup set augment as val
             if epoch == 0:
-                self.data_processor.set_augment('train', sequence=None)
+                self.data_processor.set_augment('train', sequence=create_AugTransforms(self.data_cfg['val']['augment']))
 
             # change optimizer momentum from warm_moment0.8 -> momentum0.937
             if epoch == warm_ep:
@@ -534,7 +537,7 @@ class CenterProcessor:
                                                                             self.data_cfg['train']['class_aug'],
                                                                             self.data_cfg['train']['common_aug']))
             # weaken data augment at milestone
-            self.data_processor.auto_aug_weaken(int(epoch-warm_ep), milestone=aug_epoch)
+            self.data_processor.auto_aug_weaken(int(epoch-warm_ep), milestone=aug_epoch, sequence=create_AugTransforms(self.data_cfg['val']['augment']))
 
             # train for one epoch
             trainer.train_one_epoch_face(self.lossfn, epoch, self.loss_meter)

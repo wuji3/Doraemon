@@ -65,7 +65,11 @@ def main(opt):
 
             logger.console('\n' + str(pretty_tabel))
         else:
-            metrics = valuate_cbir(model, cfgs['data'], torch.device('cuda'), logger)
+            metrics = valuate_cbir(model, 
+                                   cfgs['data'], 
+                                   torch.device('cuda', LOCAL_RANK if LOCAL_RANK > 0 else 0), 
+                                   logger,
+                                   vis=False)
             logger.console(metrics)
 
     else:
