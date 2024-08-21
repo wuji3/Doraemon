@@ -34,6 +34,7 @@ def parse_opt():
 
     # CBIR
     parser.add_argument('--max_rank', default=10, type=int, help='Visualize top k retrieval results')
+    parser.add_argument('--root', default = None, help = 'Prediction root path for cbir dataset (If need change from cfgs)')
 
     # Unless specific needs, it is generally not modified below.
     parser.add_argument('--show_path', default = ROOT / 'visualization')
@@ -94,6 +95,9 @@ if __name__ == '__main__':
         logger.console(f'loading model, ema is {opt.ema}')
         model_loader = FaceModelLoader(model_cfg=cfgs['model'])
         model = model_loader.load_weight(model_path=opt.weight, ema=opt.ema)
+
+        if opt.root is not None:
+            cfgs['data']['root'] = opt.root
 
         cfgs['data']['val']['metrics']['cutoffs'] = [opt.max_rank]
         retrieval_results, scores, ground_truths, queries = valuate_cbir(model, 
