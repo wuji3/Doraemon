@@ -61,7 +61,26 @@ def increment_path(path, exist_ok=False, sep='', mkdir=False):
 
     return path
 
+def check_cfgs_common(cfgs):
+    hyp_cfg = cfgs['hyp']
+
+    # image size
+    assert get_imgsz(cfgs['data']['train']['augment']) == get_imgsz(cfgs['data']['val']['augment']), 'imgsz should be same in training and inference'
+    # loss
+    assert reduce(lambda x, y: int(x) + int(y[0]), list(hyp_cfg['loss'].values())) == 1, 'ce or bce'
+    # optimizer
+    assert hyp_cfg['optimizer'][0] in {'sgd', 'adam', 'sam'}, 'optimizer choose sgd adam sam'
+    # scheduler
+    assert hyp_cfg['scheduler'] in {'linear', 'cosine', 'linear_with_warm', 'cosine_with_warm'}, 'scheduler support linear cosine linear_with_warm and cosine_with_warm'
+    assert hyp_cfg['warm_ep'] >= 0 and isinstance(hyp_cfg['warm_ep'], int) and hyp_cfg['warm_ep'] < hyp_cfg['epochs'], 'warm_ep not be negtive, and should smaller than epochs'
+    if hyp_cfg['warm_ep'] == 0: assert hyp_cfg['scheduler'] in {'linear', 'cosine'}, 'no warm, linear or cosine supported'
+    if hyp_cfg['warm_ep'] > 0: assert hyp_cfg['scheduler'] in {'linear_with_warm', 'cosine_with_warm'}, 'with warm, linear_with_warm or cosine_with_warm supported'
+
+
+
 def check_cfgs_face(cfgs):
+    check_cfgs_common(cfgs=cfgs)
+
     model_cfg = cfgs['model']
     data_cfg = cfgs['data']
     # num_classes
@@ -75,8 +94,16 @@ def check_cfgs_face(cfgs):
         with open(data_cfg['val']['pair_txt']) as f:
             pair_list = [line.strip() for line in f.readlines()]
         Evaluator.check_nps(pair_list)
-
+    if cfgs['model']['task'] == 'cbir':
+        for backbone in cfgs['model']['backbone']:
+            image_size_backbone = int(cfgs['model']['backbone'][backbone]['image_size'])
+            train_image_size = get_imgsz(cfgs['data']['train']['augment'])[0]
+            assert image_size_backbone == train_image_size, f'image_size {image_size_backbone} in backbone should be equal to image_size {train_image_size} in data augment'
+        
 def check_cfgs_classification(cfgs):
+
+    check_cfgs_common(cfgs=cfgs)
+
     model_cfg = cfgs['model']
     data_cfg = cfgs['data']
     hyp_cfg = cfgs['hyp']
@@ -91,15 +118,6 @@ def check_cfgs_classification(cfgs):
     assert (model_cfg['pretrained'] and ('normalize' in data_cfg['train']['augment']) and ('normalize' in data_cfg['val']['augment'])) or \
            (not model_cfg['pretrained']) and ('normalize' not in data_cfg['train']['augment']) and ('normalize' not in data_cfg['val']['augment']),\
            'if not pretrained, normalize is not necessary, or normalize is necessary'
-    # loss
-    assert reduce(lambda x, y: int(x) + int(y[0]), list(hyp_cfg['loss'].values())) == 1, 'ce or bce'
-    # optimizer
-    assert hyp_cfg['optimizer'][0] in {'sgd', 'adam', 'sam'}, 'optimizer choose sgd adam sam'
-    # scheduler
-    assert hyp_cfg['scheduler'] in {'linear', 'cosine', 'linear_with_warm', 'cosine_with_warm'}, 'scheduler support linear cosine linear_with_warm and cosine_with_warm'
-    assert hyp_cfg['warm_ep'] >= 0 and isinstance(hyp_cfg['warm_ep'], int) and hyp_cfg['warm_ep'] < hyp_cfg['epochs'], 'warm_ep not be negtive, and should smaller than epochs'
-    if hyp_cfg['warm_ep'] == 0: assert hyp_cfg['scheduler'] in {'linear', 'cosine'}, 'no warm, linear or cosine supported'
-    if hyp_cfg['warm_ep'] > 0: assert hyp_cfg['scheduler'] in {'linear_with_warm', 'cosine_with_warm'}, 'with warm, linear_with_warm or cosine_with_warm supported'
     # strategy
     # focalloss
     if hyp_cfg['strategy']['focal'][0]: assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
@@ -113,8 +131,6 @@ def check_cfgs_classification(cfgs):
     hyp_cfg['strategy']['mixup'] = [mixup, mixup_milestone]
     # progressive learning
     if hyp_cfg['strategy']['prog_learn']: assert mixup > 0 and data_cfg['train']['aug_epoch'] >= mix1, 'if progressive learning, make sure mixup > 0, and aug_epoch >= mix_end'
-    # imgsz
-    assert get_imgsz(cfgs['data']['train']['augment']) == get_imgsz(cfgs['data']['val']['augment']), 'imgsz should be same in training and inference'
 
 def get_imgsz(augment: dict):
     augments = create_AugTransforms(augment)

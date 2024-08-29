@@ -2,8 +2,6 @@
 # https://github.com/TreB1eN/InsightFace_Pytorch/blob/master/model.py
 
 from torch.nn import Linear, Conv2d, BatchNorm1d, BatchNorm2d, PReLU, ReLU, Sigmoid, Dropout2d, Dropout, AvgPool2d, MaxPool2d, AdaptiveAvgPool2d, Sequential, Module, Parameter
-import torch.nn.functional as F
-import torch
 from collections import namedtuple
 
 
@@ -102,8 +100,10 @@ def get_blocks(num_layers):
     return blocks
 
 #class Backbone(Module):
+# first stem 7x7 conv stride 2 has been removed, so total downsample ratio is 16. 
+# Input image size is 112x112
 class Resnet(Module):
-    def __init__(self, num_layers, drop_ratio, mode='ir', feat_dim=512, out_h=7, out_w=7):
+    def __init__(self, image_size, num_layers, drop_ratio, mode='ir', feat_dim=512):
         super(Resnet, self).__init__()
         assert num_layers in [50, 100, 152], 'num_layers should be 50,100, or 152'
         assert mode in ['ir', 'ir_se'], 'mode should be ir or ir_se'
@@ -118,7 +118,7 @@ class Resnet(Module):
         self.output_layer = Sequential(BatchNorm2d(512), 
                                        Dropout(drop_ratio),
                                        Flatten(),
-                                       Linear(512 * out_h * out_w, feat_dim), # for eye
+                                       Linear(512 * int(image_size//16) ** 2, feat_dim), # for eye
                                        BatchNorm1d(feat_dim))
         modules = []
         for block in blocks:

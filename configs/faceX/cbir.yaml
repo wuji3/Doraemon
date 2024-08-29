@@ -1,16 +1,13 @@
 model:
   task: cbir
   backbone:
-    resnet:
-        # only {50, 100, 152} is supported
-        depth: 50
-        drop_ratio: 0.4
-        # only {ir, ir_se} is supported
-        net_mode: ir_se
-        feat_dim: 512
-        # [out_h, out_w] decide the last linear layer, see 127-Line in backbone/ResNets.py
-        out_h: 7
-        out_w: 7
+    efficientnet: # about [width, depth, image_size, drop_ratio] see 473-Line in backbone/EfficientNets.py
+      image_size: 224
+      width: 1.0
+      depth: 1.0
+      drop_ratio: 0.2
+      # feat_dim decide the embedding dim
+      feat_dim: 512
   head:
     arcface:
       feat_dim: 512
@@ -48,7 +45,7 @@ data:
           p: 0.5
       pad2square: no_params
       resize:
-        size: 112
+        size: 224
       to_tensor: no_params
       normalize: # default use ImageNet1K mean & var, if not pretrained, del normalize 
         mean: [0.485, 0.456, 0.406]
@@ -62,7 +59,7 @@ data:
     augment:
         pad2square: no_params
         resize:
-          size: 112
+          size: 224
         to_tensor: no_params
         normalize: # default use ImageNet1K mean & var, if not pretrained, del normalize
           mean: [0.485, 0.456, 0.406]

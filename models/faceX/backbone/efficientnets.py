@@ -765,7 +765,7 @@ class EfficientNet(nn.Module):
         >>> outputs = model(inputs)
     """
 
-    def __init__(self, out_h, out_w, feat_dim, blocks_args=None, global_params=None):
+    def __init__(self, orj_image_size, feat_dim, blocks_args=None, global_params=None):
         super().__init__()
         assert isinstance(blocks_args, list), 'blocks_args should be a list'
         assert len(blocks_args) > 0, 'block args must be greater than 0'
@@ -826,7 +826,7 @@ class EfficientNet(nn.Module):
             #BatchNorm2d(512),
             Dropout(self._global_params.dropout_rate),
             Flatten(),
-            Linear(1280 * out_h * out_w, feat_dim), 
+            Linear(1280 * int(orj_image_size//16) ** 2, feat_dim), 
             #Linear(512 * out_h * out_w, feat_dim), 
             BatchNorm1d(feat_dim))
 

@@ -1,21 +1,17 @@
 # resnet-152
-resnet:
-    # only {50, 100, 152} is supported
+resnet: # 50 100 152
     depth: 152
+    image_size: 112 
     drop_ratio: 0.4
-    # only {ir, ir_se} is supported
-    net_mode: ir_se
+    net_mode: ir_se # ir ir_se
     feat_dim: 512
-    # [out_h, out_w] decide the last linear layer, see 127-Line in backbone/ResNets.py
-    out_h: 7
-    out_w: 7
 
 # efficientnet-b0
 efficientnet:
+    image_size: 112 
     # about [width, depth, image_size, drop_ratio] see 473-Line in backbone/EfficientNets.py
     width: 1.0
     depth: 1.0
-    image_size: 112
     drop_ratio: 0.2
     # [out_h, out_w] decide the last linear layer, see 835-Line in backbone/EfficientNets.py
     out_h: 7
@@ -23,25 +19,12 @@ efficientnet:
     # feat_dim decide the embedding dim
     feat_dim: 512
 
-# swin-s
-# Note: Imgsz, Projection and embedding dim is hard-coded
-#       respectively 224, 49x768, 512, see 544-Line in backbone/Swin_Transformer.py
-swintransformer:
-    img_size: 224
-    patch_size: 4
+swintransformer: # tiny small base
+    image_size: 224
     in_chans: 3
-    embed_dim: 96
-    depths:
-    - 2
-    - 2
-    - 18
-    - 2
-    num_heads:
-    - 3
-    - 6
-    - 12
-    - 24
-    window_size: 7
-    mlp_ratio: 4.0
-    drop_rate: 0.0
-    drop_path_rate: 0.3
+    feat_dim: 512
+
+convnext: # tiny small base large
+    model_size: tiny
+    feat_dim: 512
+    image_size: 224
