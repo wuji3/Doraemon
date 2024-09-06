@@ -1,4 +1,3 @@
-# resnet-152
 resnet: # 50 100 152
     depth: 152
     image_size: 112 
@@ -6,7 +5,6 @@ resnet: # 50 100 152
     net_mode: ir_se # ir ir_se
     feat_dim: 512
 
-# efficientnet-b0
 efficientnet:
     image_size: 112 
     # about [width, depth, image_size, drop_ratio] see 473-Line in backbone/EfficientNets.py
@@ -20,6 +18,7 @@ efficientnet:
     feat_dim: 512
 
 swintransformer: # tiny small base
+    model_size: base
     image_size: 224
     in_chans: 3
     feat_dim: 512

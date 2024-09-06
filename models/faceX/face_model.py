@@ -79,16 +79,9 @@ class FaceModelLoader:
         Returns:
             model: initialized model.
         """
-        model_dict = self.model.state_dict()
+        pretrained_dict = torch.load(model_path, weights_only=False)['ema'] if ema else torch.load(model_path, weights_only=False)['state_dict']
 
-        pretrained_dict = torch.load(model_path, weights_only=False)['ema'].float().state_dict() if ema else torch.load(model_path, weights_only=False)['state_dict']
-
-        new_pretrained_dict = {}
-        for k in model_dict:
-            new_pretrained_dict[k] = pretrained_dict['trainingwrapper.backbone.' + k]  # tradition training
-
-        model_dict.update(new_pretrained_dict)
-        self.model.load_state_dict(model_dict)
+        self.model.load_state_dict(pretrained_dict, strict=True)
 
         return self.model
 
