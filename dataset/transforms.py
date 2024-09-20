@@ -1,5 +1,5 @@
 import copy
-from PIL import Image
+from PIL import Image, ImageOps
 from typing import Optional, List, Tuple, Callable, Union, Dict, Sequence
 import numpy as np
 import random
@@ -21,7 +21,8 @@ __all__ = ['color_jitter', # 颜色抖动
            'random_crop', # [随机]抠图
            'random_augment', # RandAug
            'center_crop', # 中心抠图
-           'resize', # 缩放
+           'resize', # 按最小边缩放
+           'resize_and_padding', # 按最大边缩放+填充
            'centercrop_resize', # 中心抠图+缩放
            'random_cutout', # 随机CutOut
            'random_localgaussian', # 随机局部高斯
@@ -39,7 +40,7 @@ __all__ = ['color_jitter', # 颜色抖动
            'random_augmix', # 随机样本自混合
            'random_grayscale', # 随机灰度 input几通道 forward也是几通道
            'random_crop_and_resize', # 随机crop再resize
-           'pad2square', # 按最大边填充正方向
+           'pad2square', # 按最大边填充正方形
            'create_AugTransforms',
            'list_augments']
 
@@ -321,6 +322,41 @@ class RandomDoubleFlip:
     def __call__(self, image):
         return random.choices(self.choices, weights=self.prob, k=1)[0](image)
 
+class ResizeAndPadding2Square:
+
+    """
+    size is an int, longger edge of the image will be matched to this number.
+    This function is resize as the longger edge and padding 0, put the image as center.
+    """
+
+    def __init__(self, size: int = 224) -> None:
+        self.size = size
+
+    def __call__(self, image):
+        resample = Image.BILINEAR if random.random() < 0.5 else Image.NEAREST
+    
+        # Get original image dimensions
+        width, height = image.size
+        max_side = max(width, height)
+
+        # Scale image based on the larger side
+        scale_factor = self.size / max_side
+        new_width = int(width * scale_factor)
+        new_height = int(height * scale_factor)
+
+        # Resize the image while maintaining aspect ratio
+        image = image.resize((new_width, new_height), resample)
+        
+        # Calculate padding to make the image square and centered
+        pad_width = (self.size - new_width) // 2
+        pad_height = (self.size - new_height) // 2
+        
+        # Apply padding to center the image
+        padding = (pad_width, pad_height, self.size - new_width - pad_width, self.size - new_height - pad_height)
+        padded_image = ImageOps.expand(image, padding, fill=(0, 0, 0))  # You can change fill color if needed
+
+        return padded_image
+        
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5, color: tuple[int, int] = (0, 0)):
@@ -416,6 +452,10 @@ def resize(size = 224):
     # edge of the image will be matched to this number. i.e,
     # if height > width, then image will be rescaled to (size * height / width, size).
     return T.Resize(size = size, interpolation=InterpolationMode.BILINEAR)
+
+@register_method
+def resize_and_padding(size: int = 224):
+    return ResizeAndPadding2Square(size=size)
 
 @register_method
 def centercrop_resize(center_size: tuple, re_size: tuple):

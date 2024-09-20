@@ -8,6 +8,8 @@ from typing import Callable
 import math
 from engine.optimizer import SAM
 from torch.utils.tensorboard import SummaryWriter
+import os
+from copy import deepcopy
 
 __all__ = ['Trainer']
 
@@ -207,9 +209,6 @@ class Trainer:
     def train_one_epoch_face(self, criterion, cur_epoch, loss_meter):
         """Tain one epoch by traditional training.
         """
-
-        import os
-        from copy import deepcopy
 
         iters_per_epoch = len(self.train_dataloader)
 
