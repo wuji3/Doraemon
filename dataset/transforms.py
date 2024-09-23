@@ -517,8 +517,8 @@ def create_AugTransforms(augments: list):
                     choice_key, choice_param = tuple(*choice.items())
                     addAugToSequence(choice_key, choice_param, choice_aug_list)
                 # 把random_choice作为单独的aug加进去
-                params["transforms"] = choice_aug_list
-                augs.append(AUG_METHODS[key](**params))
+                kwargs = {"transforms": choice_aug_list, "p": params.get("p", None)}
+                augs.append(AUG_METHODS[key](**kwargs))
             else:
                 addAugToSequence(key, params, augs)
 

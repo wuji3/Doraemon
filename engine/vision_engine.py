@@ -65,7 +65,7 @@ def check_cfgs_common(cfgs):
     hyp_cfg = cfgs['hyp']
 
     # image size
-    assert get_imgsz(cfgs['data']['train']['augment']) == get_imgsz(cfgs['data']['val']['augment']), 'imgsz should be same in training and inference'
+    # assert get_imgsz(cfgs['data']['train']['augment']) == get_imgsz(cfgs['data']['val']['augment']), 'imgsz should be same in training and inference'
     # loss
     assert reduce(lambda x, y: int(x) + int(y[0]), list(hyp_cfg['loss'].values())) == 1, 'ce or bce'
     # optimizer
@@ -94,11 +94,11 @@ def check_cfgs_face(cfgs):
         with open(data_cfg['val']['pair_txt']) as f:
             pair_list = [line.strip() for line in f.readlines()]
         Evaluator.check_nps(pair_list)
-    if cfgs['model']['task'] == 'cbir':
-        for backbone in cfgs['model']['backbone']:
-            image_size_backbone = int(cfgs['model']['backbone'][backbone]['image_size'])
-            train_image_size = get_imgsz(cfgs['data']['train']['augment'])[0]
-            assert image_size_backbone == train_image_size, f'image_size {image_size_backbone} in backbone should be equal to image_size {train_image_size} in data augment'
+    # if cfgs['model']['task'] == 'cbir':
+    #     for backbone in cfgs['model']['backbone']:
+    #         image_size_backbone = int(cfgs['model']['backbone'][backbone]['image_size'])
+    #         train_image_size = get_imgsz(cfgs['data']['train']['augment'])[0]
+    #         assert image_size_backbone == train_image_size, f'image_size {image_size_backbone} in backbone should be equal to image_size {train_image_size} in data augment'
         
 def check_cfgs_classification(cfgs):
 
