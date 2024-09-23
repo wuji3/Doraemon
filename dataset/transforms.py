@@ -357,6 +357,18 @@ class ResizeAndPadding2Square:
 
         return padded_image
         
+class RandomResizedCrop(T.RandomResizedCrop):
+    def __init__(self, size, scale=(0.08, 1.0), ratio=(3./4., 4./3.), interpolation=InterpolationMode.BILINEAR, antialias: Optional[bool] = True):
+        super().__init__(size, scale, ratio, interpolation, antialias)
+        self.resize_and_padding = ResizeAndPadding2Square(size=size)
+    
+    def forward(self, img):
+        w, h = img.size
+        ratio = max(h/w, w/h)
+        if ratio > 2:
+            return self.resize_and_padding(img)
+        else: return super().forward(img)
+
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5, color: tuple[int, int] = (0, 0)):
@@ -475,15 +487,15 @@ def random_grayscale(p: float = 0.5): # 图是几通道 灰度输出也是几通
 
 @register_method
 def random_crop_and_resize(size, *args, **kwargs):
-    return T.RandomResizedCrop(size = size, *args, **kwargs)
+    return RandomResizedCrop(size = size, *args, **kwargs)
 
 @register_method
 def pad2square(pad_value: Union[int, Sequence] = 0, mode: str = 'average'):
     return PadIfNeed(pad_value, mode)
 
 @register_method
-def random_choice(transforms: list):
-    return T.RandomChoice(transforms=transforms)
+def random_choice(transforms: list, p: Optional[Union[Sequence, float]] = None):
+    return T.RandomChoice(transforms=transforms, p = p)
 
 def create_AugTransforms(augments: list):
 
@@ -498,14 +510,15 @@ def create_AugTransforms(augments: list):
     for aug in augments:
         for key, params in aug.items():
             if key == 'random_choice':
-                assert isinstance(params, list) or isinstance(params, tuple), 'random_choice params must be passed list or tuple'
+                assert "transforms" in params and isinstance(params["transforms"], list), 'random_choice should have "transforms" keys'
                 choice_aug_list = []
-                for choice in params:
+                for choice in params["transforms"]:
                     assert isinstance(choice, dict) and len(choice)==1, f'every augment methord must be dict in random_choice, {len(params)}augments need to be {len(params)} dicts'
                     choice_key, choice_param = tuple(*choice.items())
                     addAugToSequence(choice_key, choice_param, choice_aug_list)
                 # 把random_choice作为单独的aug加进去
-                augs.append(AUG_METHODS[key](choice_aug_list))
+                params["transforms"] = choice_aug_list
+                augs.append(AUG_METHODS[key](**params))
             else:
                 addAugToSequence(key, params, augs)
 
