@@ -517,4 +517,4 @@ def list_augments():
     return sorted(augments)
 
 # transforms about image size
-SPATIAL_TRANSFORMS = set([T.CenterCrop, T.Resize, CenterCropAndResize, T.RandomCrop, T.RandomResizedCrop, PadIfNeed])
+SPATIAL_TRANSFORMS = set([T.CenterCrop, T.Resize, CenterCropAndResize, T.RandomCrop, T.RandomResizedCrop, PadIfNeed, ResizeAndPadding2Square])
