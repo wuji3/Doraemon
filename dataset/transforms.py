@@ -485,7 +485,7 @@ def pad2square(pad_value: Union[int, Sequence] = 0, mode: str = 'average'):
 def random_choice(transforms: list):
     return T.RandomChoice(transforms=transforms)
 
-def create_AugTransforms(augments: dict):
+def create_AugTransforms(augments: list):
 
     def addAugToSequence(aug_name: str, params: Union[dict, str], aug_list: list) -> None:
         if params == 'no_params':
@@ -495,18 +495,19 @@ def create_AugTransforms(augments: dict):
             aug_list.append(AUG_METHODS[aug_name](**params))
 
     augs = []
-    for key, params in augments.items():
-        if key == 'random_choice':
-            assert isinstance(params, list) or isinstance(params, tuple), 'random_choice params must be passed list or tuple'
-            choice_aug_list = []
-            for choice in augments[key]:
-                assert isinstance(choice, dict) and len(choice)==1, f'every augment methord must be dict in random_choice, {len(params)}augments need to be {len(params)} dicts'
-                choice_key, choice_param = tuple(*choice.items())
-                addAugToSequence(choice_key, choice_param, choice_aug_list)
-            # 把random_choice作为单独的aug加进去
-            augs.append(AUG_METHODS[key](choice_aug_list))
-        else:
-            addAugToSequence(key, params, augs)
+    for aug in augments:
+        for key, params in aug.items():
+            if key == 'random_choice':
+                assert isinstance(params, list) or isinstance(params, tuple), 'random_choice params must be passed list or tuple'
+                choice_aug_list = []
+                for choice in params:
+                    assert isinstance(choice, dict) and len(choice)==1, f'every augment methord must be dict in random_choice, {len(params)}augments need to be {len(params)} dicts'
+                    choice_key, choice_param = tuple(*choice.items())
+                    addAugToSequence(choice_key, choice_param, choice_aug_list)
+                # 把random_choice作为单独的aug加进去
+                augs.append(AUG_METHODS[key](choice_aug_list))
+            else:
+                addAugToSequence(key, params, augs)
 
     return T.Compose(augs)
     # augments = augments.strip().split()
