@@ -230,7 +230,8 @@ class CenterProcessor:
         self.loss_meter = AverageMeter()
 
     def set_optimizer_momentum(self, momentum) -> None:
-        self.optimizer.param_groups[0]['momentum'] = momentum
+        for g in self.optimizer.param_groups:
+            g['momentum'] = momentum
 
     def _distributions_sampler(self):
         d = {}
@@ -458,8 +459,11 @@ class CenterProcessor:
 
         # load for fine-tune
         if 'load_from' in self.model_cfg:
-            model.load_state_dict(torch.load(self.model_cfg['load_from'], map_location='cpu')['state_dict'], strict=True)
-            if rank in (-1, 0): logger.both(f'load_from: {self.model_cfg["load_from"]}')
+            missing_keys, unexpected_keys = model.trainingwrapper['backbone'].load_state_dict(torch.load(self.model_cfg['load_from'], weights_only=False)['ema'])
+            if rank in (-1, 0): 
+                logger.both(f'load_from: {self.model_cfg["load_from"]}')
+                logger.both(f"Missing keys: {missing_keys}")
+                logger.both(f"Unexpected keys: {unexpected_keys}")
 
         # data
         train_dataset = data_processor.train_dataset

@@ -10,6 +10,7 @@ from collections import defaultdict
 from built.class_augmenter import ClassWiseAugmenter
 from prettytable import PrettyTable
 import datasets
+import numpy as np
 
 class ImageDatasets(Dataset):
     def __init__(self, root, mode, transforms = None, label_transforms = None, project = None, rank = None):
@@ -205,3 +206,54 @@ class CBIRDatasets(Dataset):
     
     def __len__(self):
         return self.data.num_rows if self.mode == 'query' else self.gallery.num_rows
+
+class EmbeddingDistillDataset(Dataset):
+    def __init__(self, 
+                 image_dir: str,
+                 feat_dir: str,
+                 transform = None) -> None:
+        super().__init__()
+        self.image_dir = image_dir
+        self.feat_dir = feat_dir
+        self.transform = transform
+        self.images, self.labels = [], []
+        
+        # Collect all valid images and corresponding .npy files
+        for img_path in EmbeddingDistillDataset.generator(image_dir, 'jpg'):
+            basename = os.path.splitext(os.path.basename(img_path))[0]
+            feat_path = os.path.join(feat_dir, f'{basename}.npy')
+            
+            if os.path.isfile(feat_path):
+                self.images.append(img_path)
+                self.labels.append(feat_path)
+
+    def __len__(self):
+        return len(self.images)
+    
+    def __getitem__(self, idx):
+        # Load image
+        img_path = self.images[idx]
+        image = ImageDatasets.read_image(img_path)
+        
+        # Apply transforms to the image if any
+        if self.transform is not None:
+            image = self.transform(image)
+        
+        # Load corresponding feature from .npy file
+        feat_path = self.labels[idx]
+        feature = np.load(feat_path)
+        
+        return image, feature
+
+    @staticmethod
+    def generator(image_dir, post_fix = 'jpg'):
+        with os.scandir(image_dir) as it:
+            for entry in it:
+                if entry.is_file() and entry.name.endswith(f".{post_fix}"):
+                    yield entry.path
+    
+    @staticmethod
+    def collate_fn(batch):
+        images, labels = tuple(zip(*batch))
+
+        return torch.stack(images, dim=0), torch.from_numpy(np.stack(labels, axis=0))

@@ -210,6 +210,7 @@ class Trainer:
         """Tain one epoch by traditional training.
         """
 
+        self.model.train()
         iters_per_epoch = len(self.train_dataloader)
 
         for batch_idx, (images, labels) in enumerate(self.train_dataloader):
