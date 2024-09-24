@@ -11,3 +11,4 @@ timm==0.9.16
 tensorboard==2.16.2
 prettytable==3.10.0
 datasets==2.20.0
+imagehash==4.3.1

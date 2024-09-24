@@ -1,20 +1,21 @@
 import numpy as np
 import glob
 import matplotlib.pyplot as plt
-from sklearn.cluster import DBSCAN
+from sklearn.cluster import DBSCAN, HDBSCAN
 from sklearn.manifold import TSNE
 from PIL import Image
 import os
 import shutil
-
+import time
+from tqdm import tqdm
 
 # Load image paths and embeddings
 embeddings_path = []
 X = []
 
-for npy in glob.glob("/home/duke/data/favie/v2-cluster/features/*.npy"):
+for npy in tqdm(glob.glob("/home/duke/data/favie/v4-embedding/features/*.npy")):
     basename = os.path.basename(npy).replace('.npy', '.jpg')
-    if os.path.isfile(f"/home/duke/data/favie/v2-cluster/images_cluster_v1/{basename}"):
+    if os.path.isfile(f"/home/duke/data/favie/v4-embedding/images/{basename}"):
         x = np.load(npy)
         X.append(x)
         embeddings_path.append(npy)
@@ -22,7 +23,15 @@ X = np.stack(X)
 embeddings_path = np.array(embeddings_path)
 
 # Perform DBSCAN clustering
-db = DBSCAN(eps=0.35, min_samples=5, metric="cosine").fit(X)
+# db = DBSCAN(eps=0.35, 
+#             min_samples=3, 
+#             metric="cosine",
+#             n_jobs=16).fit(X)
+db = HDBSCAN(min_cluster_size = 10,
+             min_samples = 5,
+             cluster_selection_epsilon = 0.2,
+             metric = "cosine",
+             n_jobs = 16).fix(X)
 labels = db.labels_
 
 # Number of clusters in labels, ignoring noise (-1 is noise)
@@ -32,8 +41,8 @@ n_noise_ = list(labels).count(-1)
 print("Estimated number of clusters: %d" % n_clusters_)
 print("Estimated number of noise points: %d" % n_noise_)
 
-image_src = "/home/duke/data/favie/v2-cluster/images_cluster_v1"
-cluster = "/home/duke/data/favie/v2-cluster/cluster_v2"
+image_src = "/home/duke/data/favie/v4-embedding/images"
+cluster = "/home/duke/data/favie/v4-embedding/cluster"
 os.makedirs(cluster, exist_ok=True)
 for vis_label in range(n_clusters_):
     vis_idx = np.where(labels == vis_label)[0]
