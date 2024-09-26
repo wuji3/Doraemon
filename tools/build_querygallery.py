@@ -18,14 +18,16 @@ def main(opt):
     frac = opt.frac
     drop = opt.drop
 
+    src = os.path.realpath(src)
     root = os.path.dirname(src)
+    basename = os.path.basename(src)
 
     all_classes = [x for x in os.listdir(src) if not x.startswith('.')]
     all_classes.sort()
 
     for c in all_classes:
-        os.makedirs(opj(root, f'{src}-query', c), exist_ok=True)
-        os.makedirs(opj(root, f'{src}-gallery', c), exist_ok=True)
+        os.makedirs(opj(root, f'{basename}-query', c), exist_ok=True)
+        os.makedirs(opj(root, f'{basename}-gallery', c), exist_ok=True)
 
         all_files = glob.glob(opj(src, c, '*'))
         all_files.sort()
