@@ -183,6 +183,13 @@ class ConvNeXt(nn.Module):
             nn.Linear(int(image_size//32)**2*lastconv_output_channels, feat_dim),
             nn.BatchNorm1d(feat_dim))
 
+        # self.output_layer = nn.Sequential(
+        #     norm_layer(lastconv_output_channels),
+        #     nn.AdaptiveAvgPool2d(1),
+        #     nn.Flatten(1),
+        #     nn.Linear(lastconv_output_channels, feat_dim),
+        #     nn.BatchNorm1d(feat_dim))
+
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.trunc_normal_(m.weight, std=0.02)

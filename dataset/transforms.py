@@ -365,7 +365,7 @@ class RandomResizedCrop(T.RandomResizedCrop):
     def forward(self, img):
         w, h = img.size
         ratio = max(h/w, w/h)
-        if ratio > 2:
+        if ratio > 1.5:
             return self.resize_and_padding(img)
         else: return super().forward(img)
 

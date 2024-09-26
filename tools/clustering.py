@@ -13,7 +13,7 @@ from tqdm import tqdm
 embeddings_path = []
 X = []
 
-for npy in tqdm(glob.glob("/home/duke/data/favie/v4-embedding/features/*.npy")):
+for npy in tqdm(glob.glob("/home/duke/data/favie/v4-embedding/features/*.npy")[:1000]):
     basename = os.path.basename(npy).replace('.npy', '.jpg')
     if os.path.isfile(f"/home/duke/data/favie/v4-embedding/images/{basename}"):
         x = np.load(npy)
@@ -23,15 +23,15 @@ X = np.stack(X)
 embeddings_path = np.array(embeddings_path)
 
 # Perform DBSCAN clustering
-# db = DBSCAN(eps=0.35, 
-#             min_samples=3, 
-#             metric="cosine",
-#             n_jobs=16).fit(X)
-db = HDBSCAN(min_cluster_size = 10,
-             min_samples = 5,
-             cluster_selection_epsilon = 0.2,
-             metric = "cosine",
-             n_jobs = 16).fix(X)
+db = DBSCAN(eps=0.4, 
+            min_samples=5, 
+            metric="cosine",
+            n_jobs=16).fit(X)
+# db = HDBSCAN(min_cluster_size = 10,
+#              min_samples = 5,
+#              cluster_selection_epsilon = 0.2,
+#              metric = "cosine",
+#              n_jobs = 16).fit(X)
 labels = db.labels_
 
 # Number of clusters in labels, ignoring noise (-1 is noise)
