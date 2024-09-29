@@ -6,14 +6,20 @@ model:
     #   image_size: 224
     #   in_chans: 3
     #   feat_dim: 128
-    convnext: # tiny small base large
-      model_size: base
+    # convnext: # tiny small base large
+    #   model_size: large
+    #   feat_dim: 128
+    #   image_size: 224
+    resnet: # 50 100 152
+      depth: 152
+      image_size: 224 
+      drop_ratio: 0.4
+      net_mode: ir_se # ir ir_se
       feat_dim: 128
-      image_size: 224
   head:
     arcface:
       feat_dim: 128
-      num_class: 4820
+      num_class: 30359
       margin_arc: 0.35
       margin_am: 0.0
       scale: 32
@@ -21,7 +27,7 @@ data:
   root: /home/duke/visiondk/data/favie/v3-embedding  # -train -val
   nw: 64 # if not multi-nw, set to 0
   train:
-    bs: 160 # one gpus if DDP
+    bs: 80 # one gpus if DDP
     common_aug: null 
     class_aug: null
       #S: 0 1 2 4 5 6
@@ -42,13 +48,13 @@ data:
             - random_gaussianblur:
                 kernel_size: 5
             - random_rotate:
-                degrees: 20
-            - random_autocontrast:
-                p: 0.5
+                degrees: 10
+            # - random_autocontrast:
+            #     p: 0.5
             - random_adjustsharpness:
                 p: 0.5
-            - random_augmix: 
-                severity: 3
+            # - random_augmix: 
+            #     severity: 3
        - random_horizonflip: 
            p: 0.5
        - random_choice:
@@ -58,8 +64,12 @@ data:
             - random_crop_and_resize:
                 size: 224
                 scale: [0.7, 1]
+          p: [0.9, 0.1]
        - to_tensor: no_params
-    aug_epoch: 90 # augment for epochs, on which epoch to weaken, except warm_epoch
+       - normalize: 
+            mean: [0.485, 0.456, 0.406]
+            std: [0.229, 0.224, 0.225]
+    aug_epoch: 35 # augment for epochs, on which epoch to weaken, except warm_epoch
   val:
     bs: 128
     metrics:
@@ -69,9 +79,12 @@ data:
         - resize_and_padding:
             size: 224
         - to_tensor: no_params
+        - normalize: 
+            mean: [0.485, 0.456, 0.406]
+            std: [0.229, 0.224, 0.225]
 hyp:
-  epochs: 100
-  lr0: 0.01 # sgd=1e-2, adam=1e-3
+  epochs: 60
+  lr0: 0.06 # sgd=1e-2, adam=1e-3
   lrf_ratio: null # decay to lrf_ratio * lr0, if None, 0.1
   momentum: 0.937
   weight_decay: 0.0005

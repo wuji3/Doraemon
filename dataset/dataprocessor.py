@@ -39,8 +39,8 @@ class SmartDataProcessor:
             self.set_augment('train', sequence = sequence)
 
     @staticmethod
-    def set_dataloader(dataset, bs: int = 256, nw: int = 0, pin_memory: bool = True, shuffle: bool = True, sampler = None, collate_fn= None):
+    def set_dataloader(dataset, bs: int = 256, nw: int = 0, pin_memory: bool = True, shuffle: bool = True, sampler = None, collate_fn= None, *args, **kwargs):
         assert not (shuffle and sampler is not None)
         nd = torch.cuda.device_count()
         nw = min([os.cpu_count() // max(nd, 1), nw])
-        return DataLoader(dataset=dataset, batch_size=bs, num_workers=nw, pin_memory=pin_memory, sampler=sampler, shuffle=shuffle, collate_fn=collate_fn)
+        return DataLoader(dataset=dataset, batch_size=bs, num_workers=nw, pin_memory=pin_memory, sampler=sampler, shuffle=shuffle, collate_fn=collate_fn, *args, **kwargs)

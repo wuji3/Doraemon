@@ -320,7 +320,8 @@ class CenterProcessor:
                                                          pin_memory=True,
                                                          sampler=data_sampler,
                                                          shuffle=data_sampler is None,
-                                                         collate_fn=train_dataset.collate_fn)
+                                                         collate_fn=train_dataset.collate_fn,
+                                                         drop_last = True)
 
         if self.rank in {-1, 0}:
             val_dataloader = data_processor.set_dataloader(dataset=val_dataset,
@@ -481,7 +482,8 @@ class CenterProcessor:
                                                          pin_memory=True,
                                                          sampler=data_sampler,
                                                          shuffle=data_sampler is None,
-                                                         collate_fn=train_dataset.collate_fn)
+                                                         collate_fn=train_dataset.collate_fn,
+                                                         drop_last = True)
         # tell data distribution
         if self.rank in (-1, 0):
             ImageDatasets.tell_data_distribution(self.data_cfg['root'], logger, self.model_cfg['head'][next(iter(self.model_cfg['head'].keys()))]['num_class'])
