@@ -190,6 +190,12 @@ class ConvNeXt(nn.Module):
         #     nn.Linear(lastconv_output_channels, feat_dim),
         #     nn.BatchNorm1d(feat_dim))
 
+        # self.output_layer = nn.Sequential(
+        #     norm_layer(lastconv_output_channels),
+        #     GeM(p_trainable = False),
+        #     nn.Linear(lastconv_output_channels, feat_dim),
+        # )
+
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.trunc_normal_(m.weight, std=0.02)
@@ -205,3 +211,19 @@ class ConvNeXt(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return self._forward_impl(x)
+
+class GeM(nn.Module):
+    def __init__(self, p=3, eps=1e-6, p_trainable=False):
+        super(GeM, self).__init__()
+        if p_trainable:
+            self.p = Parameter(torch.ones(1) * p)
+        else:
+            self.p = p
+        self.eps = eps
+        self.flatten = nn.Flatten(1)
+
+    def forward(self, x):
+        x = F.avg_pool2d(x.clamp(min=self.eps).pow(self.p), (x.size(-2), x.size(-1))).pow(1./self.p)
+        x = self.flatten(x)
+
+        return x

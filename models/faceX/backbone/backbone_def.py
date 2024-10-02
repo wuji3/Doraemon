@@ -1,5 +1,6 @@
 from .resnets import Resnet
-from .swin_transformer import SwinTransformer
+# from .swin_transformer import SwinTransformer
+from .swin import SwinTransformer
 from .efficientnets import efficientnet, EfficientNet
 from .convnext import ConvNeXt
 
@@ -50,17 +51,9 @@ class BackboneFactory:
         elif self.backbone_type == 'swintransformer':
             model_size = self.backbone_param['model_size']
             img_size = self.backbone_param['image_size']
-            in_chans = self.backbone_param['in_chans']
             feat_dim = self.backbone_param['feat_dim'] # dimension of the output features, e.g. 512.
 
-            backbone = SwinTransformer(img_size=img_size,model_size=model_size,
-                                       in_chans=in_chans,
-                                       qkv_bias=True,
-                                       qk_scale=None,
-                                       ape=False,
-                                       patch_norm=True,
-                                       use_checkpoint=False,
-                                       feat_dim=feat_dim)
+            backbone = SwinTransformer(img_size = img_size, model_size = model_size, feat_dim = feat_dim)
 
         elif self.backbone_type == 'convnext':
             model_size = self.backbone_param['model_size']

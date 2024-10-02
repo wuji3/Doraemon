@@ -11,8 +11,8 @@ conda create -n vision python=3.10
 conda activate vision
 
 # torch==2.0.1(lower is also ok) -> https://pytorch.org/get-started/locally/
-conda install pytorch torchvision torchaudio cpuonly -c pytorch # cpu-version
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia  # cuda-version
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y # cuda-version
+conda install pytorch torchvision torchaudio cpuonly -c pytorch -y # cpu-version
 
 pip install -r requirements.txt
 

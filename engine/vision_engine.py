@@ -464,7 +464,7 @@ class CenterProcessor:
             if load_from.startswith("torchvision") and load_from in PreTrainedModels:
                 modelname = load_from.split('-')[1]
                 from torchvision.models import get_model as torchvision_get_model
-                state_dict = torchvision_get_model(modelname, weight = PreTrainedModels[load_from]).state_dict()
+                state_dict = torchvision_get_model(modelname, weights = PreTrainedModels[load_from]).state_dict()
             else:
                 state_dict = torch.load(load_from, weights_only=False)['ema']
             missing_keys, unexpected_keys = model.trainingwrapper['backbone'].load_state_dict(state_dict=state_dict, strict=False)
