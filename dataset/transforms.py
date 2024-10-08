@@ -329,11 +329,15 @@ class ResizeAndPadding2Square:
     This function is resize as the longger edge and padding 0, put the image as center.
     """
 
-    def __init__(self, size: int = 224) -> None:
+    def __init__(self, size: int = 224, training: bool = False) -> None:
         self.size = size
+        self.training = training
 
     def __call__(self, image):
-        resample = Image.BILINEAR if random.random() < 0.5 else Image.NEAREST
+        if self.training:
+            resample = Image.BILINEAR if random.random() < 0.5 else Image.NEAREST
+        else: 
+            resample = Image.BILINEAR
     
         # Get original image dimensions
         width, height = image.size
@@ -360,7 +364,7 @@ class ResizeAndPadding2Square:
 class RandomResizedCrop(T.RandomResizedCrop):
     def __init__(self, size, scale=(0.08, 1.0), ratio=(3./4., 4./3.), interpolation=InterpolationMode.BILINEAR, antialias: Optional[bool] = True):
         super().__init__(size, scale, ratio, interpolation, antialias)
-        self.resize_and_padding = ResizeAndPadding2Square(size=size)
+        self.resize_and_padding = ResizeAndPadding2Square(size=size, training=True)
     
     def forward(self, img):
         w, h = img.size
@@ -466,8 +470,8 @@ def resize(size = 224):
     return T.Resize(size = size, interpolation=InterpolationMode.BILINEAR)
 
 @register_method
-def resize_and_padding(size: int = 224):
-    return ResizeAndPadding2Square(size=size)
+def resize_and_padding(size: int = 224, training: bool = False):
+    return ResizeAndPadding2Square(size=size, training = training)
 
 @register_method
 def centercrop_resize(center_size: tuple, re_size: tuple):

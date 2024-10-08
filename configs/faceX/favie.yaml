@@ -1,15 +1,14 @@
 model:
   task: cbir
   backbone:
-    # swintransformer: # tiny small base
-    #   model_size: base
-    #   image_size: 224
-    #   in_chans: 3
-    #   feat_dim: 128
-    convnext: # tiny small base large
-      model_size: large
-      feat_dim: 128
+    swintransformer: # tiny small base
+      model_size: base
       image_size: 224
+      feat_dim: 128
+    # convnext: # tiny small base large
+    #   model_size: large
+    #   feat_dim: 128
+    #   image_size: 224
     # resnet: # 50 100 152
     #   depth: 152
     #   image_size: 224 
@@ -24,7 +23,7 @@ model:
       margin_am: 0.0
       scale: 32
 data:
-  root: /home/duke/data/favie/v3-embedding  # -train -val
+  root: /home/duke/visiondk/data/favie/v3-embedding  # -train -val
   nw: 64 # if not multi-nw, set to 0
   train:
     bs: 80 # one gpus if DDP
@@ -61,6 +60,7 @@ data:
           transforms:
             - resize_and_padding: 
                 size: 224
+                training: True
             - random_crop_and_resize:
                 size: 224
                 scale: [0.7, 1]
@@ -78,6 +78,7 @@ data:
     augment:
         - resize_and_padding:
             size: 224
+            training: False
         - to_tensor: no_params
         - normalize: 
             mean: [0.485, 0.456, 0.406]

@@ -466,10 +466,13 @@ class CenterProcessor:
                 from torchvision.models import get_model as torchvision_get_model
                 state_dict = torchvision_get_model(modelname, weights = PreTrainedModels[load_from]).state_dict()
             else:
-                state_dict = torch.load(load_from, weights_only=False)['ema']
+                state_dict = torch.load(load_from, weights_only=False)
+                if 'ema' in state_dict: state_dict = state_dict['ema']
+                else: 
+                    state_dict = state_dict['model_state_dict']
             missing_keys, unexpected_keys = model.trainingwrapper['backbone'].load_state_dict(state_dict=state_dict, strict=False)
             if rank in (-1, 0): 
-                logger.both(f'load_from: {modelname}')
+                logger.both(f'load_from: {load_from}')
                 logger.both(f"Missing keys: {missing_keys}")
                 logger.both(f"Unexpected keys: {unexpected_keys}")
 

@@ -543,6 +543,13 @@ class SwinTransformer(nn.Module):
             nn.Linear(math.ceil(img_size/32)**2*num_features, feat_dim),
             nn.BatchNorm1d(feat_dim))            
 
+        # self.output_layer = nn.Sequential(
+        #     nn.BatchNorm2d(num_features),
+        #     GeM(),
+        #     nn.Linear(num_features, feat_dim),
+        #     nn.BatchNorm1d(feat_dim)
+        # )
+
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.trunc_normal_(m.weight, std=0.02)
@@ -554,6 +561,19 @@ class SwinTransformer(nn.Module):
         x = self.norm(x)
         x = self.permute(x)
         x = self.output_layer(x)
+        return x
+
+class GeM(nn.Module):
+    def __init__(self, p=3, eps=1e-6):
+        super(GeM, self).__init__()
+        self.p = p
+        self.eps = eps
+        self.flatten = nn.Flatten(1)
+
+    def forward(self, x):
+        x = F.avg_pool2d(x.clamp(min=self.eps).pow(self.p), (x.size(-2), x.size(-1))).pow(1./self.p)
+        x = self.flatten(x)
+
         return x
 
 if __name__ == '__main__':
