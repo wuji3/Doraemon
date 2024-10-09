@@ -18,39 +18,55 @@ data:
     bs: 16 # one gpu if DDP
     common_aug: null
     class_aug: null
-    augment: # refer to utils/transforms.py
-      random_choice:
-      - random_color_jitter:
-          prob: 0.5
-          brightness: 0.1
-          contrast: 0.1
-          saturation: 0.1
-          hue: 0.1
-      - random_cutout:
-          n_holes: 4
-          length: 80
-          ratio: 0.2
-          prob: 0.5
-      random_crop_and_resize:
-        size:
-          - 480
-          - 480
-      to_tensor: no_params
-      normalize:
-        mean: [0.485, 0.456, 0.406]
-        std: [0.229, 0.224, 0.225]
+    augment: # refer to utils/augment.py
+       - random_choice:
+          transforms: 
+            - random_color_jitter:
+                brightness: 0.1
+                contrast: 0.1
+                saturation: 0.1
+                hue: 0.1
+            - random_cutout:
+                n_holes: 3
+                length: 12
+                prob: 0.1
+                color: [0, 255]
+            - random_gaussianblur:
+                kernel_size: 5
+            - random_rotate:
+                degrees: 10
+            - random_autocontrast:
+                p: 0.5
+            - random_adjustsharpness:
+                p: 0.5
+            - random_augmix: 
+                severity: 3
+       - random_horizonflip: 
+           p: 0.5
+       - random_choice:
+          transforms:
+            - resize_and_padding: 
+                size: 224
+                training: True
+            - random_crop_and_resize:
+                size: 224
+                scale: [0.7, 1]
+          p: [0.9, 0.1]
+       - to_tensor: no_params
+       - normalize: 
+            mean: [0.485, 0.456, 0.406]
+            std: [0.229, 0.224, 0.225]
     aug_epoch: 80
   val:
     bs: 1
     augment:
-      resize:
-        size:
-          - 480
-          - 480
-      to_tensor: no_params
-      normalize:
-        mean: [0.485, 0.456, 0.406]
-        std: [0.229, 0.224, 0.225]
+        - resize_and_padding:
+            size: 224
+            training: False
+        - to_tensor: no_params
+        - normalize: 
+            mean: [0.485, 0.456, 0.406]
+            std: [0.229, 0.224, 0.225]
 hyp:
   epochs: 100
   lr0: 0.001 # sgd=1e-2, adam=1e-3

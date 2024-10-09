@@ -56,6 +56,7 @@ data:
           transforms:
             - resize_and_padding: 
                 size: 224
+                training: True
             # - random_crop_and_resize:
             #     size: 224
             #     scale: [0.7, 1]
@@ -70,6 +71,7 @@ data:
     augment:
         - resize_and_padding:
             size: 224
+            training: False
         - to_tensor: no_params
         - normalize: 
             mean: [0.485, 0.456, 0.406]

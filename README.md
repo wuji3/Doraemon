@@ -43,6 +43,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/
 
 
 ## What's New
+- [Oct. 2024]  [Content-Based Image Retrieval(CBIR)](models/faceX/README.md) has been supported 🚀️️! We provide Convnext as backbone, and give useful tools to evaluate. 
 - [Apr. 2024]  [Face Recognition Task(FRT)](models/faceX/README.md) is supported now 🚀️️! We provide ResNet, EfficientNet, and Swin Transformer as backbone; As for head, ArcFace, CircleLoss, MegFace and MV Softmax could be used for training. **Note**: partial implementation refers to [JD-FaceX](https://github.com/JDAI-CV/FaceX-Zoo)
 - [Jun. 2023]  [Image Classification Task(ICT)](models/classifier/README.md) has launched 🚀️️! Supporting many powerful strategies, such as progressive learning, online enhancement, beautiful training interface, exponential moving average, etc. The models are fully integrated into torchvision.
 - [May. 2023]  The first initialization version of Vision.
@@ -90,10 +91,18 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/
 ```shell
 python tools/data_prepare.py --postfix <jpg or png> --root <input your data realpath> --frac <train segment ratio, eg: 0.9 0.6 0.3 0.9 0.9>
 ```
-2. Data augmented visualization 
+2. Prepare the data into query and gallery set
+```shell
+python tools/build_querygallery.py --src <realpath of src> --frac <frac of query>
+```
+3. Data augmented visualization 
 ```shell
 cd visiondk
 python -m tools.test_augment
+```
+4. Data deduplicating
+```shell
+python tools/deduplicate.py (note: scipt should be updated)
 ```
 
 ![](misc/augments.jpg)
