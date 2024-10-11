@@ -1,4 +1,4 @@
-## <div align="center">VisionDK: ToolBox Of Image Classification & Face Recognition </div>
+## <div align="center">VisionDK: ToolBox Of Image Classification & Representation Learning </div>
 
 ## Tutorials
 
