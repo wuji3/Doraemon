@@ -1,6 +1,7 @@
 model:
   task: classification
   name: torchvision-swin_t
+  image_size: &resize_size 224
   kwargs: {} # kwargs feed into torchvision-style models.__init__ 'attention_dropout': 0.1,
   num_classes: 35
   pretrained: True
@@ -45,10 +46,10 @@ data:
        - random_choice:
           transforms:
             - resize_and_padding: 
-                size: 224
+                size: *resize_size
                 training: True
             - random_crop_and_resize:
-                size: 224
+                size: *resize_size
                 scale: [0.7, 1]
           p: [0.9, 0.1]
        - to_tensor: no_params
@@ -60,7 +61,7 @@ data:
     bs: 32
     augment:
         - resize_and_padding:
-            size: 224
+            size: *resize_size
             training: False
         - to_tensor: no_params
         - normalize: 
@@ -73,7 +74,7 @@ hyp:
   momentum: 0.937
   weight_decay: 0.0005
   warmup_momentum: 0.8
-  warm_ep: 1
+  warm_ep: 0
   loss:
     ce: True
     bce:
@@ -82,7 +83,7 @@ hyp:
       - True # multi-label
   label_smooth: 0.1
   strategy:
-    prog_learn: False
+    prog_learn: True
     mixup:
       - 0.1 
       - [0, 20]
@@ -98,4 +99,4 @@ hyp:
   optimizer: 
     - sgd # sgd, adam or sam
     - False # True or False
-  scheduler: cosine_with_warm # linear or cosine
+  scheduler: cosine # linear or cosine

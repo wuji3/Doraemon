@@ -16,7 +16,7 @@ WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfgs', default = ROOT / 'configs/classification/complete.yaml', help='configs for models, data, hyps')
+    parser.add_argument('--cfgs', default = ROOT / 'configs/faceX/favie.yaml', help='configs for models, data, hyps')
     parser.add_argument('--resume', default = '', help='if no resume, not write')
     parser.add_argument('--load_from', default = '', help='load weight for finetune')
     parser.add_argument('--sync_bn', action='store_true', help='turn on syncBN, if on, speed will be slower')
@@ -42,13 +42,14 @@ def main(opt):
     # configs
     cfgs = yaml_load(opt.cfgs)
     task: str= cfgs['model'].get('task', None)
+
+    # add load_from if need
+    if opt.load_from:  cfgs['model']['load_from'] = opt.load_from
+
     # check configs
     if task in ('face', 'cbir'): check_cfgs_face(cfgs)
     elif task == 'classification': check_cfgs_classification(cfgs)
     else: raise ValueError(f'{task} is not supported')
-
-    # add load_from if need
-    if opt.load_from:  cfgs['model']['load_from'] = opt.load_from
 
     # init cpu
     cpu = CenterProcessor(cfgs, LOCAL_RANK, project=save_dir, opt=opt) \

@@ -1,10 +1,11 @@
 model:
   task: cbir
+  image_size: &imgsz 224
   backbone:
     swintransformer: # tiny small base
       model_size: base
-      image_size: 224
-      feat_dim: 128
+      image_size: *imgsz
+      feat_dim: &featd 128
     # convnext: # tiny small base large
     #   model_size: large
     #   feat_dim: 128
@@ -17,13 +18,18 @@ model:
     #   feat_dim: 128
   head:
     arcface:
-      feat_dim: 128
-      num_class: 30359
+      feat_dim: *featd
+      num_class: 58671
       margin_arc: 0.35
       margin_am: 0.0
       scale: 32
+    # circleloss:
+    #   feat_dim: 128
+    #   num_class: 30359
+    #   margin: 0.25
+    #   gamma: 256
 data:
-  root: /home/duke/visiondk/data/favie/v3-embedding  # -train -val
+  root: /home/duke/visiondk/data/favie/v6-embedding  # -train -val
   nw: 64 # if not multi-nw, set to 0
   train:
     bs: 80 # one gpus if DDP
@@ -59,17 +65,17 @@ data:
        - random_choice:
           transforms:
             - resize_and_padding: 
-                size: 224
+                size: *imgsz
                 training: True
             - random_crop_and_resize:
-                size: 224
+                size: *imgsz
                 scale: [0.7, 1]
           p: [0.9, 0.1]
        - to_tensor: no_params
        - normalize: 
             mean: [0.485, 0.456, 0.406]
             std: [0.229, 0.224, 0.225]
-    aug_epoch: 39 # augment for epochs, on which epoch to weaken, except warm_epoch
+    aug_epoch: 24 # augment for epochs, on which epoch to weaken, except warm_epoch
   val:
     bs: 128
     metrics:
@@ -77,14 +83,14 @@ data:
       cutoffs: [1, 3, 5] 
     augment:
         - resize_and_padding:
-            size: 224
+            size: *imgsz
             training: False
         - to_tensor: no_params
         - normalize: 
             mean: [0.485, 0.456, 0.406]
             std: [0.229, 0.224, 0.225]
 hyp:
-  epochs: 40
+  epochs: 25
   lr0: 0.006 # sgd=1e-2, adam=1e-3
   lrf_ratio: null # decay to lrf_ratio * lr0, if None, 0.1
   momentum: 0.937

@@ -1,5 +1,6 @@
 import torch
-from torchvision.transforms import CenterCrop, Resize, RandomResizedCrop, Compose
+from torchvision.transforms import CenterCrop, Resize, RandomResizedCrop, Compose, RandomChoice
+from dataset.transforms import ResizeAndPadding2Square
 import torch.nn as nn
 from torch.cuda.amp import GradScaler
 from dataset.basedataset import ImageDatasets
@@ -13,6 +14,7 @@ from engine.procedure.train import Trainer
 from functools import reduce, partial
 from pathlib import Path
 from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.distributed as dist
 from utils.plots import colorstr
 from structure.sampler import OHEMImageSampler
 from built.layer_optimizer import SeperateLayerParams
@@ -62,7 +64,15 @@ def increment_path(path, exist_ok=False, sep='', mkdir=False):
     return path
 
 def check_cfgs_common(cfgs):
+    def find_normalize(augment_list):
+        for augment in augment_list:
+            if 'normalize' in augment:
+                return augment['normalize']
+        return None
+
     hyp_cfg = cfgs['hyp']
+    data_cfg = cfgs['data']
+    model_cfg = cfgs['model']
 
     # image size
     # assert get_imgsz(cfgs['data']['train']['augment']) == get_imgsz(cfgs['data']['val']['augment']), 'imgsz should be same in training and inference'
@@ -76,7 +86,23 @@ def check_cfgs_common(cfgs):
     if hyp_cfg['warm_ep'] == 0: assert hyp_cfg['scheduler'] in {'linear', 'cosine'}, 'no warm, linear or cosine supported'
     if hyp_cfg['warm_ep'] > 0: assert hyp_cfg['scheduler'] in {'linear_with_warm', 'cosine_with_warm'}, 'with warm, linear_with_warm or cosine_with_warm supported'
 
+    # normalize
+    train_normalize = find_normalize(data_cfg['train']['augment'])
+    val_normalize = find_normalize(data_cfg['val']['augment'])
 
+    # Conditions for pretrained and non-pretrained models
+    if model_cfg.get('pretrained', False) or model_cfg.get('load_from', 'False').startswith('torchvision'):
+        # If pretrained, normalize must exist in both train and val, and their mean and std should be the same
+        assert train_normalize is not None and val_normalize is not None, \
+            'If pretrained, normalize must be present in both train and val'
+        assert train_normalize['mean'] == val_normalize['mean'] and train_normalize['std'] == val_normalize['std'], \
+            'Train and Val normalization parameters (mean, std) must be the same'
+    elif 'load_from' in model_cfg and os.path.isfile(model_cfg['load_from']):
+        pass
+    else:
+        # If not pretrained, normalize must not exist in either train or val
+        assert train_normalize is None and val_normalize is None, \
+            'If not pretrained, normalize should not be present in train or val'
 
 def check_cfgs_face(cfgs):
     check_cfgs_common(cfgs=cfgs)
@@ -115,9 +141,6 @@ def check_cfgs_classification(cfgs):
     if model_cfg['kwargs'] and model_cfg['pretrained']:
         for k in model_cfg['kwargs'].keys():
             if k not in {'dropout','attention_dropout', 'stochastic_depth_prob'}: raise KeyError('set kwargs except dropout, pretrained must be False')
-    assert (model_cfg['pretrained'] and ('normalize' in data_cfg['train']['augment']) and ('normalize' in data_cfg['val']['augment'])) or \
-           (not model_cfg['pretrained']) and ('normalize' not in data_cfg['train']['augment']) and ('normalize' not in data_cfg['val']['augment']),\
-           'if not pretrained, normalize is not necessary, or normalize is necessary'
     # strategy
     # focalloss
     if hyp_cfg['strategy']['focal'][0]: assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
@@ -152,7 +175,7 @@ class CenterProcessor:
         self.data_cfg = cfgs['data']
         self.hyp_cfg = cfgs['hyp']
         self.opt = opt
-        self.imgsz = get_imgsz(cfgs['data']['train']['augment'])
+        self.imgsz = (cfgs['model']['image_size'], )
 
         # task
         self.task = self.model_cfg['task'] 
@@ -216,7 +239,7 @@ class CenterProcessor:
             # progressive learning
             self.prog_learn = self.hyp_cfg['strategy']['prog_learn']
             # mixup change node
-            if self.prog_learn: self.mixup_chnodes = torch.linspace(*self.hyp_cfg['strategy']['mixup'][-1], 3,dtype=torch.int32).round_().tolist()
+            if self.prog_learn: self.resize_chnodes = torch.linspace(*self.hyp_cfg['strategy']['mixup'][-1], 3,dtype=torch.int32).round_().tolist()
 
             # focalloss hard
             if loss_choice == 'bce' and self.hyp_cfg['strategy']['focal'][0]:
@@ -253,7 +276,13 @@ class CenterProcessor:
         def create_AugSequence(train_augs : list, size):
             sequence = []
             for i, m in enumerate(train_augs):
-                if isinstance(m, CenterCrop):
+                if isinstance(m, RandomChoice):
+                    m.transforms = create_AugSequence(m.transforms, size)
+                    sequence.append(m)
+                elif isinstance(m, ResizeAndPadding2Square):
+                    m.size = size
+                    sequence.append(m)
+                elif isinstance(m, CenterCrop):
                     if i + 1 < len(train_augs) and (not isinstance(train_augs[i + 1], Resize) or not isinstance(train_augs[i + 1], RandomResizedCrop)):
                         sequence.extend([m, Resize(size)])
                     else:
@@ -270,12 +299,15 @@ class CenterProcessor:
                     sequence.append(m)
 
             return sequence
-        chnodes = self.mixup_chnodes
+
+        chnodes = self.resize_chnodes
+
         # mixup, divide mixup_milestone into 2 parts in default, alpha from 0.1 to 0.2
-        if epoch in chnodes:
-            alpha = self.mixup_chnodes.index(epoch) * 0.1
-            if alpha != 0:
-                self.dist_sampler['beta'] = torch.distributions.beta.Beta(alpha, alpha)
+        # if epoch in chnodes:
+        #     alpha = self.mixup_chnodes.index(epoch) * 0.1
+        #     if alpha != 0:
+        #         self.dist_sampler['beta'] = torch.distributions.beta.Beta(alpha, alpha)
+
         # image resize, based on mixup_milestone
         min_imgsz = min(self.imgsz)
         imgsz_milestone = torch.linspace(int(min_imgsz * 0.5), int(min_imgsz), 3, dtype=torch.int32).tolist()
@@ -385,7 +417,7 @@ class CenterProcessor:
             time.sleep(0.2)
 
         # total epochs
-        total_epoch = epochs+warm_ep
+        total_epoch = epochs
 
         # trainer
         trainer = Trainer(model, train_dataloader, val_dataloader, optimizer,
@@ -404,19 +436,19 @@ class CenterProcessor:
                 self.data_processor.set_augment('train', sequence=ClassWiseAugmenter(self.data_cfg['train']['augment'], self.data_cfg['train']['class_aug'], self.data_cfg['train']['common_aug']))
 
             # change lossfn bce -> focal
-            if int(epoch-warm_ep) == 0 and self.focal is not None:
+            if epoch == warm_ep and self.focal is not None:
                 self.lossfn = self.focal
 
             # weaken data augment at milestone
-            self.data_processor.auto_aug_weaken(int(epoch-warm_ep), milestone=aug_epoch)
-            if int(epoch-warm_ep) == aug_epoch: self.dist_sampler['beta'] = None # weaken mixup
+            self.data_processor.auto_aug_weaken(int(epoch), milestone=aug_epoch)
+            if epoch == aug_epoch: self.dist_sampler['beta'] = None # weaken mixup
 
             # progressive learning: effect on imagesz & mixup
             if self.prog_learn:
-                self.auto_prog(epoch=int(epoch-warm_ep))
+                self.auto_prog(epoch=epoch)
 
             # mixup epoch-wise
-            lam = self.auto_mixup(mixup=mixup, epoch=int(epoch-warm_ep), milestone=mixup_milestone)
+            lam = self.auto_mixup(mixup=mixup, epoch=epoch, milestone=mixup_milestone)
 
             # train for one epoch
             fitness = trainer.train_one_epoch(epoch, lam, self.lossfn)
@@ -464,6 +496,10 @@ class CenterProcessor:
             if load_from.startswith("torchvision") and load_from in PreTrainedModels:
                 modelname = load_from.split('-')[1]
                 from torchvision.models import get_model as torchvision_get_model
+                if rank in (-1, 0): # make sure rank 0 download once
+                    torchvision_get_model(modelname, weights = PreTrainedModels[load_from])
+                if rank >= 0: 
+                    dist.barrier()
                 state_dict = torchvision_get_model(modelname, weights = PreTrainedModels[load_from]).state_dict()
             else:
                 state_dict = torch.load(load_from, weights_only=False)

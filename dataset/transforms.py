@@ -360,6 +360,9 @@ class ResizeAndPadding2Square:
         padded_image = ImageOps.expand(image, padding, fill=(0, 0, 0))  # You can change fill color if needed
 
         return padded_image
+    
+    def __repr__(self) -> str:
+        return f"{super().__repr__()}(size={self.size})"
         
 class RandomResizedCrop(T.RandomResizedCrop):
     def __init__(self, size, scale=(0.08, 1.0), ratio=(3./4., 4./3.), interpolation=InterpolationMode.BILINEAR, antialias: Optional[bool] = True):
@@ -372,7 +375,7 @@ class RandomResizedCrop(T.RandomResizedCrop):
         if ratio > 1.5:
             return self.resize_and_padding(img)
         else: return super().forward(img)
-
+    
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5, color: tuple[int, int] = (0, 0)):
