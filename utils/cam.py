@@ -7,7 +7,7 @@ from PIL.JpegImagePlugin import JpegImageFile
 from PIL.Image import Image as ImageType
 from torchvision.transforms import Compose
 from dataset.transforms import SPATIAL_TRANSFORMS
-from dataset.transforms import PadIfNeed, Reverse_PadIfNeed
+from dataset.transforms import PadIfNeed, Reverse_PadIfNeed, ResizeAndPadding2Square, ReverseResizeAndPadding2Square
 import cv2
 
 from pytorch_grad_cam import GradCAM, \
@@ -23,7 +23,7 @@ from pytorch_grad_cam import GradCAM, \
 from pytorch_grad_cam.utils.image import show_cam_on_image
 from pytorch_grad_cam.ablation_layer import AblationLayerVit
 
-# -----------------ClassifierOutputTarget用于指定targets 具体的类 模型在看什么---------------------- #
+# -----------------ClassifierOutputTarget is used to specify the targets, specifically which class the model is looking at---------------------- #
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 # ---------------------------------------------------------------------------------------------- #
 
@@ -52,19 +52,17 @@ class ClassActivationMaper:
         if method == "ablationcam":
             self.cam = ClassActivationMaper.METHODS[method](model=model,
                                        target_layers=target_layers,
-                                       use_cuda=device != torch.device('cpu'),
                                        reshape_transform=reshape_transform,
                                        ablation_layer=AblationLayerVit())
         else:
             self.cam = ClassActivationMaper.METHODS[method](model=model,
                                        target_layers=target_layers,
-                                       use_cuda=device != torch.device('cpu'),
                                        reshape_transform=reshape_transform)
 
-        self.spatial_transforms, pad2square_mode = ClassActivationMaper.pickup_spatial_transforms(transforms)
+        self.spatial_transforms, reversed_fun = ClassActivationMaper.pickup_spatial_transforms(transforms)
 
-        if pad2square_mode is not None:
-            self.reverse_pad2square = Reverse_PadIfNeed(mode = pad2square_mode)
+        if reversed_fun is not None:
+            self.reverse_pad2square = reversed_fun
     def __call__(self,
                  image,
                  input_tensor: torch.Tensor,
@@ -77,18 +75,21 @@ class ClassActivationMaper:
 
         grayscale_cam = grayscale_cam[0, :]
 
-        if type(image) not in (JpegImageFile, ImageType): raise ValueError("只能输入PIL.Image读取的图")
+        if type(image) not in (JpegImageFile, ImageType): raise ValueError("Only images read by PIL.Image are allowed")
 
         image = self.spatial_transforms(image)
         image = np.array(image, dtype=np.float32)
 
         cam_image = show_cam_on_image(image / 255, grayscale_cam)
 
-        # 若训练的transforms是 pad2square -> resize
-        # 则输出注意力图是 resize -> pad2square 保证注意力图和原图一样
         if hasattr(self, 'reverse_pad2square'):
             if max(dsize) != max(cam_image.shape):
-                cam_image = cv2.resize(cam_image, (max(dsize), max(dsize)), cv2.INTER_LINEAR)
+                if isinstance(self.reverse_pad2square, Reverse_PadIfNeed):
+                    cam_image = cv2.resize(cam_image, (max(dsize), max(dsize)), cv2.INTER_LINEAR)
+                elif isinstance(self.reverse_pad2square, ReverseResizeAndPadding2Square):
+                    pass
+                else:
+                    raise ValueError(f"{type(self.reverse_pad2square)} not support reverse function")
                 cam_image = self.reverse_pad2square(cam_image, dsize)
         return cam_image
 
@@ -101,17 +102,19 @@ class ClassActivationMaper:
             return [model.features[-1]], None
         elif type(model) is ShuffleNetV2:
             return [model.conv5], None
-        else: # CNN暂未实现
-            raise KeyError(f'{type(model)} 还没在仓库里支持')
+        else: 
+            raise KeyError(f'{type(model)} not support yet')
 
     @staticmethod
     def pickup_spatial_transforms(transforms: Compose):
         sequence = []
-        pad2square_mode = None
+        reversed_fun = None
         for t in transforms.transforms:
             if type(t) in SPATIAL_TRANSFORMS:
                 sequence.append(t)
             if type(t) is PadIfNeed:
-                pad2square_mode = t.mode
+                reversed_fun = Reverse_PadIfNeed(mode=t.mode)
+            elif type(t) is ResizeAndPadding2Square:
+                reversed_fun = ReverseResizeAndPadding2Square(size=t.size)
 
-        return Compose(sequence), pad2square_mode
+        return Compose(sequence), reversed_fun

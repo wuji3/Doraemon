@@ -209,9 +209,9 @@ class PadIfNeed:
         if isinstance(pad_value, int):
             pad_value = (pad_value, pad_value, pad_value)
         else:
-            assert len(pad_value) == 3, 'pad_value 只能是三维向量或int'
+            assert len(pad_value) == 3, 'pad_value can only be a three-dimensional vector or an int'
 
-        assert mode in ('edge', 'average'), 'mode 只能edge[填一端]和average[填两端]'
+        assert mode in ('edge', 'average'), "mode can only be 'edge' [fill one side] and 'average' [fill both sides]"
 
         self.pad_value = pad_value
         self.mode = mode
@@ -363,7 +363,30 @@ class ResizeAndPadding2Square:
     
     def __repr__(self) -> str:
         return f"{super().__repr__()}(size={self.size})"
-        
+
+class ReverseResizeAndPadding2Square:
+    def __init__(self, size: int = 224) -> None:
+        self.size = size
+
+    def __call__(self, image: np.ndarray, dsize: Tuple[int, int]) -> np.ndarray:
+        # Get original image dimensions
+        width, height = dsize
+        max_side = max(width, height)
+
+        # Scale image based on the larger side
+        scale_factor = self.size / max_side
+        new_width = int(width * scale_factor)
+        new_height = int(height * scale_factor)
+
+        pad_width = (self.size - new_width) // 2
+        pad_height = (self.size - new_height) // 2
+
+        image = image[pad_height: pad_height + new_height, pad_width: pad_width + new_width]
+
+        image = cv2.resize(image, dsize, cv2.INTER_LINEAR)
+
+        return image
+
 class RandomResizedCrop(T.RandomResizedCrop):
     def __init__(self, size, scale=(0.08, 1.0), ratio=(3./4., 4./3.), interpolation=InterpolationMode.BILINEAR, antialias: Optional[bool] = True):
         super().__init__(size, scale, ratio, interpolation, antialias)

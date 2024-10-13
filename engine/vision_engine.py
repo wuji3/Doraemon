@@ -1,6 +1,6 @@
 import torch
-from torchvision.transforms import CenterCrop, Resize, RandomResizedCrop, Compose, RandomChoice
-from dataset.transforms import ResizeAndPadding2Square
+from torchvision.transforms import CenterCrop, Resize, Compose, RandomChoice
+from dataset.transforms import ResizeAndPadding2Square, RandomResizedCrop
 import torch.nn as nn
 from torch.cuda.amp import GradScaler
 from dataset.basedataset import ImageDatasets
@@ -239,7 +239,20 @@ class CenterProcessor:
             # progressive learning
             self.prog_learn = self.hyp_cfg['strategy']['prog_learn']
             # mixup change node
-            if self.prog_learn: self.resize_chnodes = torch.linspace(*self.hyp_cfg['strategy']['mixup'][-1], 3,dtype=torch.int32).round_().tolist()
+            if self.prog_learn: 
+                warmup_epochs = self.hyp_cfg['warm_ep']
+                remaining_epochs = self.hyp_cfg['epochs'] - warmup_epochs
+                stage1_epochs = remaining_epochs // 4
+                stage2_epochs = remaining_epochs // 4
+                resize_chnodes = [
+                    warmup_epochs, 
+                    warmup_epochs + stage1_epochs,  
+                    warmup_epochs + stage1_epochs + stage2_epochs
+                ]
+                self.resize_chnodes = resize_chnodes
+
+                min_imgsz = min(self.imgsz)
+                self.imgsz_milestone = torch.linspace(int(min_imgsz * 0.5), int(min_imgsz), 3, dtype=torch.int32).tolist()
 
             # focalloss hard
             if loss_choice == 'bce' and self.hyp_cfg['strategy']['focal'][0]:
@@ -294,6 +307,7 @@ class CenterProcessor:
                     sequence.append(m)
                 elif isinstance(m, RandomResizedCrop):
                     m.size = (size, size)
+                    m.resize_and_padding.size = size
                     sequence.append(m)
                 else:
                     sequence.append(m)
@@ -302,25 +316,11 @@ class CenterProcessor:
 
         chnodes = self.resize_chnodes
 
-        # mixup, divide mixup_milestone into 2 parts in default, alpha from 0.1 to 0.2
-        # if epoch in chnodes:
-        #     alpha = self.mixup_chnodes.index(epoch) * 0.1
-        #     if alpha != 0:
-        #         self.dist_sampler['beta'] = torch.distributions.beta.Beta(alpha, alpha)
-
-        # image resize, based on mixup_milestone
-        min_imgsz = min(self.imgsz)
-        imgsz_milestone = torch.linspace(int(min_imgsz * 0.5), int(min_imgsz), 3, dtype=torch.int32).tolist()
-
-        if epoch == chnodes[0]: size = imgsz_milestone[0]
-        elif epoch == chnodes[1]: size = imgsz_milestone[1]
-        elif epoch == chnodes[2]: size = imgsz_milestone[2]
+        if epoch == chnodes[0]: size = self.imgsz_milestone[0]
+        elif epoch == chnodes[1]: size = self.imgsz_milestone[1]
+        elif epoch == chnodes[2]: size = self.imgsz_milestone[2]
         else: return
 
-        # if hasattr(self.data_processor.train_dataset.transforms, 'transforms'):
-        #     train_augs = self.data_processor.train_dataset.transforms.transforms
-        #     self.data_processor.set_augment('train', sequence=create_AugSequence(train_augs, size))
-        # else:
         if hasattr(self.data_processor.train_dataset.transforms, 'base_transforms'):
             transforms = self.data_processor.train_dataset.transforms.base_transforms.transforms
             self.data_processor.train_dataset.transforms.base_transforms = Compose(create_AugSequence(transforms, size))

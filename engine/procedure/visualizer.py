@@ -75,12 +75,12 @@ class Visualizer:
             else: img.save(os.path.join(visual_path, os.path.basename(img_path)))
 
         if badcase:
-            cls = root.split('/')[-1] if target_class is None else target_class
-            assert cls in class_indices.values(), 'Either specify the correct category through target_class or the category of the folder name itself'
+            c = os.path.basename(root) if target_class is None else target_class
+            assert c in class_indices.values(), 'Either specify the correct category through target_class or the category of the folder name itself'
             os.makedirs(os.path.join(visual_path, 'bad_case'), exist_ok=True)
             for txt in glob.glob(os.path.join(visual_path, 'labels', '*.txt')):
                 with open(txt, 'r') as f:
-                    if f.readlines()[0].split()[1] != cls:
+                    if f.readlines()[0].split()[1] != c:
                         try:
                             shutil.move(os.path.join(visual_path, os.path.basename(txt).replace('.txt', image_postfix_table[os.path.basename(txt)])), os.path.dirname(txt).replace('labels','bad_case'))
                         except FileNotFoundError:
