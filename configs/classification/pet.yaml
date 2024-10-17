@@ -10,10 +10,10 @@ model:
   bn_freeze_affine: False
   attention_pool: False
 data:
-  root: oxford-iiit-pet/pet  # -train -val
+  root: data/pet  # -train -val
   nw: 4 # if not multi-nw, set to 0
   train:
-    bs: 32 # one gpus if DDP
+    bs: 320 # one gpus if DDP
     common_aug: null 
     class_aug: null 
       #S: 0 1 2 4 5 6
@@ -56,9 +56,9 @@ data:
        - normalize: 
             mean: [0.485, 0.456, 0.406]
             std: [0.229, 0.224, 0.225]
-    aug_epoch: 20 # augment for epochs, on which epoch to weaken, except warm_epoch
+    aug_epoch: 18 # augment for epochs, on which epoch to weaken, except warm_epoch
   val:
-    bs: 32
+    bs: 320
     augment:
         - resize_and_padding:
             size: *resize_size
@@ -68,25 +68,25 @@ data:
             mean: [0.485, 0.456, 0.406]
             std: [0.229, 0.224, 0.225]
 hyp:
-  epochs: 32
-  lr0: 0.008 # sgd=1e-2, adam=1e-3
+  epochs: 20
+  lr0: 0.00006 # sgd=1e-2, adam=1e-3
   lrf_ratio: null # decay to lrf_ratio * lr0, if None, 0.1
   momentum: 0.937
   weight_decay: 0.0005
   warmup_momentum: 0.8
-  warm_ep: 0
+  warm_ep: 1
   loss:
-    ce: True
+    ce: False
     bce:
-      - False
+      - True
       - 0.5
       - True # multi-label
   label_smooth: 0.1
   strategy:
-    prog_learn: True
+    prog_learn: False
     mixup:
-      - 0.1 
-      - [0, 20]
+      ratio: 0.1 
+      duration: 0
     focal: 
       - False
       - 0.25
@@ -99,4 +99,4 @@ hyp:
   optimizer: 
     - sgd # sgd, adam or sam
     - False # True or False
-  scheduler: cosine # linear or cosine
+  scheduler: cosine_with_warm # linear or cosine

@@ -75,7 +75,7 @@ class Visualizer:
             else: img.save(os.path.join(visual_path, os.path.basename(img_path)))
 
         if badcase:
-            c = os.path.basename(root) if target_class is None else target_class
+            c = os.path.basename(os.path.normpath(root)) if target_class is None else target_class
             assert c in class_indices.values(), 'Either specify the correct category through target_class or the category of the folder name itself'
             os.makedirs(os.path.join(visual_path, 'bad_case'), exist_ok=True)
             for txt in glob.glob(os.path.join(visual_path, 'labels', '*.txt')):

@@ -51,7 +51,7 @@ class ConfusedMatrix:
 
 def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_training: bool = False, lossfn: Optional[Callable] = None, logger = None, thresh: float = 0, top_k: int = 5, conm_path: str = None):
 
-    assert thresh == 0 or thresh > 0 and thresh < 1, 'softmax时thresh为0 bce时0 < thresh < 1'
+    assert thresh == 0 or thresh > 0 and thresh < 1, 'When softmax, thresh == 0; when bce, 0 < thresh < 1'
     # eval mode
     model.eval()
 

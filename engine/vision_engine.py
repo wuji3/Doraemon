@@ -147,13 +147,9 @@ def check_cfgs_classification(cfgs):
     # ohem
     if hyp_cfg['strategy']['ohem'][0]: assert not hyp_cfg['loss']['bce'][0], 'ohem not support bceloss'
     # mixup
-    mixup, mixup_milestone = hyp_cfg['strategy']['mixup']
-    assert mixup >= 0 and mixup <= 1 and isinstance(mixup_milestone, list), 'mixup_ratio[0,1], mixup_milestone be list'
-    mix0, mix1 = mixup_milestone
-    assert isinstance(mix0, int) and isinstance(mix1, int) and mix0 < mix1, 'mixup must List[int], start < end'
-    hyp_cfg['strategy']['mixup'] = [mixup, mixup_milestone]
-    # progressive learning
-    if hyp_cfg['strategy']['prog_learn']: assert mixup > 0 and data_cfg['train']['aug_epoch'] >= mix1, 'if progressive learning, make sure mixup > 0, and aug_epoch >= mix_end'
+    mix_ratio, mix_duration = hyp_cfg['strategy']['mixup']["ratio"], hyp_cfg['strategy']['mixup']["duration"]
+    assert mix_ratio >= 0 and mix_ratio <= 1 and mix_duration >= 0 and mix_duration <= hyp_cfg['epochs'], f'{mix_ratio} should in [0,1], mix_duration should in [0, {hyp_cfg["epochs"]}]'
+    hyp_cfg['strategy']['mixup'] = [mix_ratio, mix_duration]
 
 def get_imgsz(augment: dict):
     augments = create_AugTransforms(augment)
@@ -233,12 +229,14 @@ class CenterProcessor:
         else: self.lossfn = create_Lossfn(loss_choice)(label_smooth = self.hyp_cfg['label_smooth'])
 
         if train and self.task == 'classification':
-            # distributions sampler
-            self.dist_sampler = self._distributions_sampler()
+            # mixup sampler
+            mixup_ratio, mixup_duration = self.hyp_cfg['strategy']['mixup']
+            self.mixup_duration = mixup_duration
+            self.mixup_ratio = mixup_ratio
 
             # progressive learning
             self.prog_learn = self.hyp_cfg['strategy']['prog_learn']
-            # mixup change node
+
             if self.prog_learn: 
                 warmup_epochs = self.hyp_cfg['warm_ep']
                 remaining_epochs = self.hyp_cfg['epochs'] - warmup_epochs
@@ -268,14 +266,6 @@ class CenterProcessor:
     def set_optimizer_momentum(self, momentum) -> None:
         for g in self.optimizer.param_groups:
             g['momentum'] = momentum
-
-    def _distributions_sampler(self):
-        d = {}
-
-        d['uniform'] = torch.distributions.uniform.Uniform(low=0, high=1)
-        d['beta'] = None
-
-        return d
 
     def auto_mixup(self, mixup: float, epoch:int, milestone: list) -> float:
         if mixup == 0 or epoch < milestone[0] or self.dist_sampler['beta'] is None : return 0
@@ -337,10 +327,10 @@ class CenterProcessor:
     def run_classifier(self, resume = None): # train+val per epoch
         last, best = self.project / 'last.pt', self.project / 'best.pt'
 
-        model, data_processor, scaler, device, epochs, logger, (mixup, mixup_milestone), rank, distributions_sampler, warm_ep, aug_epoch, focal, sampler, thresh = \
+        model, data_processor, scaler, device, epochs, logger, mixup_duration, rank, warm_ep, aug_epoch, focal, sampler, thresh = \
             self.model_processor.model, self.data_processor, \
             GradScaler(enabled = (self.device != torch.device('cpu'))), self.device, self.hyp_cfg['epochs'], \
-            self.logger, self.hyp_cfg['strategy']['mixup'], self.rank, self.dist_sampler, self.hyp_cfg['warm_ep'], \
+            self.logger, self.mixup_duration, self.rank, self.hyp_cfg['warm_ep'], \
             self.data_cfg['train']['aug_epoch'], self.focal, self.sampler, self.thresh
 
         # data
@@ -422,36 +412,46 @@ class CenterProcessor:
         # trainer
         trainer = Trainer(model, train_dataloader, val_dataloader, optimizer,
                           scaler, device, total_epoch, logger, rank, scheduler, self.ema, sampler, thresh,
-                          self.teacher if hasattr(self, 'teacher') else None, cfgs=self.cfgs)
+                          self.teacher if hasattr(self, 'teacher') else None, 
+                          None,
+                          cfgs=self.cfgs)
 
         t0 = time.time()
         for epoch in range(start_epoch, total_epoch):
             # warmup set augment as val
             if epoch == 0:
                 self.data_processor.set_augment('train', sequence=None)
+                trainer.mixup_sampler = None
 
             # change optimizer momentum from warm_moment0.8 -> momentum0.937
             if epoch == warm_ep:
                 self.set_optimizer_momentum(self.hyp_cfg['momentum'])
                 self.data_processor.set_augment('train', sequence=ClassWiseAugmenter(self.data_cfg['train']['augment'], self.data_cfg['train']['class_aug'], self.data_cfg['train']['common_aug']))
+                if self.mixup_ratio == 0 or self.mixup_duration == 0:
+                    trainer.mixup_sampler = None
+                else:
+                    trainer.mixup_sampler = torch.distributions.beta.Beta(self.mixup_ratio, self.mixup_ratio)
+                    if rank in {-1, 0}:
+                        logger.both(f"Mixup start up")
+            
+            if (self.mixup_ratio != 0 and self.mixup_duration != 0) and epoch == warm_ep + mixup_duration:
+                trainer.mixup_sampler = None
+                if rank in {-1, 0}:
+                    logger.both(f"Mixup end")
 
             # change lossfn bce -> focal
             if epoch == warm_ep and self.focal is not None:
                 self.lossfn = self.focal
-
+            
             # weaken data augment at milestone
             self.data_processor.auto_aug_weaken(int(epoch), milestone=aug_epoch)
-            if epoch == aug_epoch: self.dist_sampler['beta'] = None # weaken mixup
 
             # progressive learning: effect on imagesz & mixup
             if self.prog_learn:
                 self.auto_prog(epoch=epoch)
 
-            # mixup epoch-wise
-            lam = self.auto_mixup(mixup=mixup, epoch=epoch, milestone=mixup_milestone)
-
             # train for one epoch
-            fitness = trainer.train_one_epoch(epoch, lam, self.lossfn)
+            fitness = trainer.train_one_epoch(epoch, self.lossfn)
 
             if rank in {-1, 0}:
                 # Best fitness

@@ -50,6 +50,7 @@ class Trainer:
                  sampler = None,
                  thresh = 0,
                  teacher = None,
+                 mixup_sampler = None,
                  # face
                  task: str = 'face',
                  print_freq = 50,
@@ -74,6 +75,7 @@ class Trainer:
         self.teacher = teacher
         self.sam: bool = type(self.optimizer) is SAM
         self.distill: bool = teacher is not None
+        self.mixup_sampler = mixup_sampler
 
         # face
         self.task = task
@@ -85,7 +87,7 @@ class Trainer:
         if rank in (-1, 0):
             self.writer = SummaryWriter(log_dir=out_dir)
 
-    def train_one_epoch(self, epoch: int, lam: float, criterion: Callable):
+    def train_one_epoch(self, epoch: int, criterion: Callable):
         # train mode
         self.model.train()
 
@@ -102,6 +104,12 @@ class Trainer:
         tloss, fitness = 0., 0.
 
         for i, (images, labels) in pbar:  # progress bar
+
+            if self.mixup_sampler is not None:
+                lam = self.mixup_sampler.sample()
+            else: 
+                lam = 0
+
             images, labels = images.to(self.device, non_blocking=True), labels.to(self.device)
             if self.sampler is not None:  # OHEM-Softmax
                 with torch.no_grad():

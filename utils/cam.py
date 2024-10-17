@@ -53,10 +53,12 @@ class ClassActivationMaper:
             self.cam = ClassActivationMaper.METHODS[method](model=model,
                                        target_layers=target_layers,
                                        reshape_transform=reshape_transform,
+                                       use_cuda = device != torch.device('cpu'),
                                        ablation_layer=AblationLayerVit())
         else:
             self.cam = ClassActivationMaper.METHODS[method](model=model,
                                        target_layers=target_layers,
+                                       use_cuda = device != torch.device('cpu'),
                                        reshape_transform=reshape_transform)
 
         self.spatial_transforms, reversed_fun = ClassActivationMaper.pickup_spatial_transforms(transforms)
