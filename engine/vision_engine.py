@@ -24,7 +24,6 @@ import datetime
 import yaml
 from copy import deepcopy
 from models.ema import ModelEMA
-from built.class_augmenter import ClassWiseAugmenter
 from models import get_model, PreTrainedModels
 from dataset.dataprocessor import SmartDataProcessor
 from utils.average_meter import AverageMeter
@@ -195,7 +194,7 @@ class CenterProcessor:
         self.model_processor.model.to(device)
         # data processor
         self.data_processor = SmartDataProcessor(self.data_cfg, rank=rank, project=project)
-        if self.task != 'cbir':
+        if self.task == 'classification':
             self.data_processor.val_dataset = self.data_processor.create_dataset('val')
 
         # loss
@@ -217,7 +216,7 @@ class CenterProcessor:
                 self.data_processor.val_dataset.label_transforms = \
                     partial(ImageDatasets.set_label_transforms,
                             num_classes=self.model_cfg['num_classes'],
-                            label_smooth=self.hyp_cfg['label_smooth'])
+                            label_smooth=0)
                 # bce not support self.sampler
                 self.sampler = None
                 self.data_processor.train_dataset.multi_label = self.hyp_cfg['loss']['bce'][2]
@@ -317,9 +316,6 @@ class CenterProcessor:
         if hasattr(self.data_processor.train_dataset.transforms, 'class_transforms') and self.data_processor.train_dataset.transforms.class_transforms is not None:
             for c, transforms in self.data_processor.train_dataset.transforms.class_transforms.items():
                 self.data_processor.train_dataset.transforms.class_transforms[c] = Compose(create_AugSequence(transforms.transforms, size))
-        if hasattr(self.data_processor.train_dataset.transforms, 'common_transforms') and self.data_processor.train_dataset.transforms.common_transforms is not None:
-            transforms = self.data_processor.train_dataset.transforms.common_transforms.transforms
-            self.data_processor.train_dataset.transforms.common_transforms = Compose(create_AugSequence(transforms, size))
 
     def set_sync_bn(self):
         self.model_processor.model = nn.SyncBatchNorm.convert_sync_batchnorm(module=self.model_processor.model)
@@ -420,13 +416,13 @@ class CenterProcessor:
         for epoch in range(start_epoch, total_epoch):
             # warmup set augment as val
             if epoch == 0:
-                self.data_processor.set_augment('train', sequence=None)
+                self.data_processor.set_augment('train', transforms=None)
                 trainer.mixup_sampler = None
 
             # change optimizer momentum from warm_moment0.8 -> momentum0.937
             if epoch == warm_ep:
                 self.set_optimizer_momentum(self.hyp_cfg['momentum'])
-                self.data_processor.set_augment('train', sequence=ClassWiseAugmenter(self.data_cfg['train']['augment'], self.data_cfg['train']['class_aug'], self.data_cfg['train']['common_aug']))
+                self.data_processor.set_augment('train', transforms=create_AugTransforms(self.data_cfg['train']['augment']))
                 if self.mixup_ratio == 0 or self.mixup_duration == 0:
                     trainer.mixup_sampler = None
                 else:
@@ -568,7 +564,7 @@ class CenterProcessor:
         if self.rank in {-1, 0}: time.sleep(0.2)
 
         # total epochs
-        total_epoch = epochs + warm_ep
+        total_epoch = epochs
 
         # trainer
         trainer = Trainer(model=model, 
@@ -595,17 +591,15 @@ class CenterProcessor:
         for epoch in range(start_epoch, total_epoch):
             # warmup set augment as val
             if epoch == 0:
-                self.data_processor.set_augment('train', sequence=create_AugTransforms(self.data_cfg['val']['augment']))
+                self.data_processor.set_augment('train', transforms=create_AugTransforms(self.data_cfg['val']['augment']))
 
             # change optimizer momentum from warm_moment0.8 -> momentum0.937
             if epoch == warm_ep:
                 self.set_optimizer_momentum(self.hyp_cfg['momentum'])
-                self.data_processor.set_augment('train',
-                                                sequence=ClassWiseAugmenter(self.data_cfg['train']['augment'],
-                                                                            self.data_cfg['train']['class_aug'],
-                                                                            self.data_cfg['train']['common_aug']))
+                self.data_processor.set_augment('train', transforms=create_AugTransforms(self.data_cfg['train']['augment']))
+
             # weaken data augment at milestone
-            self.data_processor.auto_aug_weaken(int(epoch-warm_ep), milestone=aug_epoch, sequence=create_AugTransforms(self.data_cfg['val']['augment']))
+            self.data_processor.auto_aug_weaken(epoch, milestone=aug_epoch, sequence = create_AugTransforms(self.data_cfg['val']['augment']))
 
             # train for one epoch
             trainer.train_one_epoch_face(self.lossfn, epoch, self.loss_meter)

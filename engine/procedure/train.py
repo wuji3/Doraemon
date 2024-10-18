@@ -228,9 +228,9 @@ class Trainer:
 
             global_batch_idx = cur_epoch * iters_per_epoch + batch_idx
             self.scheduler.step() # step batch-wise
-
-            torch.cuda.synchronize()
-            loss_meter.update(loss.item(), images.shape[0])
+            
+            if self.rank in (-1, 0):
+                loss_meter.update(loss.item(), images.shape[0])
 
             if self.rank in (-1, 0) and batch_idx % self.print_freq == 0:
                 loss_avg = loss_meter.avg
@@ -241,8 +241,7 @@ class Trainer:
                 self.writer.add_scalar('Train_lr', lr, global_batch_idx)
                 loss_meter.reset()
 
-            warm_epoch = self.hyp_cfg['warm_ep']
-            if self.rank in (-1, 0) and cur_epoch + 1 > warm_epoch and ((cur_epoch - warm_epoch) * iters_per_epoch + batch_idx + 1) % (self.save_freq * iters_per_epoch)== 0:
+            if self.rank in (-1, 0) and (cur_epoch * iters_per_epoch + batch_idx + 1) % (self.save_freq * iters_per_epoch)== 0:
                 saved_name = 'Epoch_%d.pt' % (cur_epoch+1)
                 if self.task == 'face':
 
