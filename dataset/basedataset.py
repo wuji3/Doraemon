@@ -11,6 +11,7 @@ from built.class_augmenter import ClassWiseAugmenter
 from prettytable import PrettyTable
 import datasets
 import numpy as np
+from typing import Optional
 
 class ImageDatasets(Dataset):
     def __init__(self, root, mode, transforms = None, label_transforms = None, project = None, rank = None):
@@ -129,7 +130,7 @@ class ImageDatasets(Dataset):
         return data_distribution
 
 class PredictImageDatasets(Dataset):
-    def __init__(self, root = None, transforms = None, postfix: tuple = ('jpg', 'png')):
+    def __init__(self, root = None, transforms = None, postfix: tuple = ('jpg', 'png'), sampling: Optional[int] = None):
         assert transforms is not None, 'transforms would not be None'
         if root is None: # used for face embedding infer
             self.imgs_path = []
@@ -138,6 +139,9 @@ class PredictImageDatasets(Dataset):
             # self.imgs_path = glob.glob(os.path.join(root, f'**/*.{postfix[0]}')) + glob.glob(os.path.join(root, f'**/*.{postfix[1]}'))
             assert len(self.imgs_path) != 0, f'there are no files with postfix as {postfix}'
         self.transforms = transforms
+
+        if sampling is not None:
+            self.imgs_path = self.imgs_path[:sampling]
 
     def __getitem__(self, idx: int):
         img = ImageDatasets.read_image(self.imgs_path[idx])
@@ -211,21 +215,32 @@ class EmbeddingDistillDataset(Dataset):
     def __init__(self, 
                  image_dir: str,
                  feat_dir: str,
-                 transform = None) -> None:
+                 transform = None,
+                 exclude = None) -> None:
         super().__init__()
         self.image_dir = image_dir
         self.feat_dir = feat_dir
         self.transform = transform
         self.images, self.labels = [], []
-        
+
+        if exclude is not None:
+            with open(exclude, 'r') as f:
+                exclude_files = f.readlines()
+                exclude_files = [path.strip() for path in exclude_files]
+                exclude_files = set(exclude_files)
         # Collect all valid images and corresponding .npy files
         for img_path in EmbeddingDistillDataset.generator(image_dir, 'jpg'):
             basename = os.path.splitext(os.path.basename(img_path))[0]
             feat_path = os.path.join(feat_dir, f'{basename}.npy')
             
             if os.path.isfile(feat_path):
-                self.images.append(img_path)
-                self.labels.append(feat_path)
+                if exclude is None:
+                    self.images.append(img_path)
+                    self.labels.append(feat_path)
+                else:
+                    if feat_path not in exclude_files:
+                        self.images.append(img_path)
+                        self.labels.append(feat_path) 
 
     def __len__(self):
         return len(self.images)

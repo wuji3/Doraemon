@@ -391,6 +391,18 @@ class CenterProcessor:
 
             if rank in (-1, 0): logger.both(f'resume: {resume}')
 
+        if 'load_from' in self.model_cfg:
+            load_from = self.model_cfg['load_from']
+            state_dict = torch.load(load_from, weights_only=False)
+            if 'ema' in state_dict: state_dict = state_dict['ema'].state_dict()
+            else: 
+                state_dict = state_dict['model_state_dict'].state_dict()
+            missing_keys, unexpected_keys = model.load_state_dict(state_dict=state_dict, strict=False)
+            if rank in (-1, 0): 
+                logger.both(f'load_from: {load_from}')
+                logger.both(f"Missing keys: {missing_keys}")
+                logger.both(f"Unexpected keys: {unexpected_keys}")
+
         if rank != -1:
             model = DDP(model, device_ids=[self.rank])
 

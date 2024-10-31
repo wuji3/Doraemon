@@ -31,6 +31,7 @@ def parse_opt():
     parser.add_argument('--ema', action='store_true', help = 'Exponential Moving Average for model weight')
     parser.add_argument('--class_json', default = 'run/exp/class_indices.json', type=str)
     parser.add_argument('--badcase', action='store_true', help='Automatically organize badcases')
+    parser.add_argument('--sampling', default=None, type=int, help='Sample n images for visualization')
 
     # CBIR
     parser.add_argument('--max_rank', default=10, type=int, help='Visualize top k retrieval results')
@@ -66,7 +67,7 @@ if __name__ == '__main__':
             class_dict = dict((eval(k), v) for k,v in class_dict.items())
 
         dataset = PredictImageDatasets(opt.data,
-                                    transforms=create_AugTransforms(cpu.data_cfg['val']['augment']))
+                                    transforms=create_AugTransforms(cpu.data_cfg['val']['augment']), sampling = opt.sampling)
         dataloader = DataLoader(dataset, shuffle=False, pin_memory=True, num_workers=cpu.data_cfg['nw'], batch_size=1,
                                 collate_fn=PredictImageDatasets.collate_fn)
 
