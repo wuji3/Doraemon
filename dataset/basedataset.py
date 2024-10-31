@@ -9,6 +9,9 @@ from pathlib import Path
 from collections import defaultdict
 from built.class_augmenter import ClassWiseAugmenter
 from prettytable import PrettyTable
+import datasets
+import numpy as np
+from typing import Optional
 
 class ImageDatasets(Dataset):
     def __init__(self, root, mode, transforms = None, label_transforms = None, project = None, rank = None):
@@ -127,14 +130,18 @@ class ImageDatasets(Dataset):
         return data_distribution
 
 class PredictImageDatasets(Dataset):
-    def __init__(self, root = None, transforms = None, postfix: tuple = ('jpg', 'png')):
+    def __init__(self, root = None, transforms = None, postfix: tuple = ('jpg', 'png'), sampling: Optional[int] = None):
         assert transforms is not None, 'transforms would not be None'
         if root is None: # used for face embedding infer
             self.imgs_path = []
         else:
             self.imgs_path = glob.glob(os.path.join(root, f'*.{postfix[0]}')) + glob.glob(os.path.join(root, f'*.{postfix[1]}'))
+            # self.imgs_path = glob.glob(os.path.join(root, f'**/*.{postfix[0]}')) + glob.glob(os.path.join(root, f'**/*.{postfix[1]}'))
             assert len(self.imgs_path) != 0, f'there are no files with postfix as {postfix}'
         self.transforms = transforms
+
+        if sampling is not None:
+            self.imgs_path = self.imgs_path[:sampling]
 
     def __getitem__(self, idx: int):
         img = ImageDatasets.read_image(self.imgs_path[idx])
@@ -149,3 +156,119 @@ class PredictImageDatasets(Dataset):
     def collate_fn(batch):
         images, tensors, image_path = tuple(zip(*batch))
         return images, torch.stack(tensors, dim=0), image_path
+
+class CBIRDatasets(Dataset):
+    def __init__(self, 
+                 root: str, 
+                 transforms = None,
+                 postfix: tuple = ('jpg', 'png'),
+                 mode: str = 'query'):
+
+        assert transforms is not None, 'transforms would not be None'
+        assert mode in ('query', 'gallery'), 'make sure mode is query or gallery'
+        query_dir, gallery_dir = os.path.join(opj(root, 'query')), os.path.join(opj(root, 'gallery'))
+        assert os.path.isdir(query_dir) and os.path.isdir(gallery_dir), 'make sure query dir and gallery dir exists'
+
+        is_subset, query_identity, gallery_identity = self._check_subset(query_dir, gallery_dir) 
+        if not is_subset:
+            raise ValueError('query identity is not subset of gallery identity')
+
+        data = {'query': [], 'pos': []}
+        gallery = {'gallery': []}
+        if mode == 'query':
+            for q in query_identity:
+                one_identity_queries = glob.glob(opj(query_dir, q, f'*.{postfix[0]}')) + glob.glob(opj(query_dir, q, f'*.{postfix[1]}'))
+                one_identity_positives = glob.glob(opj(gallery_dir, q, f'*.{postfix[0]}')) + glob.glob(opj(gallery_dir, q, f'*.{postfix[1]}'))
+                for one_q in one_identity_queries:
+                    data['query'].append(one_q)
+                    data['pos'].append(one_identity_positives)
+        else:
+            gallery['gallery'] = glob.glob(opj(gallery_dir, f'**/*.{postfix[0]}')) + glob.glob(opj(gallery_dir, f'**/*.{postfix[1]}'))
+        
+        self.mode = mode
+        self.data = datasets.Dataset.from_dict(data)
+        self.gallery = datasets.Dataset.from_dict(gallery)
+
+        self.transforms = transforms
+    
+    @classmethod
+    def build(cls, root: str, transforms = None, postfix: tuple = ('jpg', 'png')):
+        return cls(root, transforms, postfix, 'query'), cls(root, transforms, postfix, 'gallery')
+
+    def _check_subset(self, query: str, gallery: str):
+        query_identity = [q for q in os.listdir(query) if not q.startswith('.')]
+        gallery_identity = [q for q in os.listdir(gallery) if not q.startswith('.')]
+
+        return set(query_identity).issubset(set(gallery_identity)), query_identity, gallery_identity
+    
+    def __getitem__(self, idx: int):
+        data = self.data[idx]['query'] if self.mode == 'query' else self.gallery[idx]['gallery']
+        data_image = ImageDatasets.read_image(data)
+        tensor = self.transforms(data_image)
+
+        return tensor     
+    
+    def __len__(self):
+        return self.data.num_rows if self.mode == 'query' else self.gallery.num_rows
+
+class EmbeddingDistillDataset(Dataset):
+    def __init__(self, 
+                 image_dir: str,
+                 feat_dir: str,
+                 transform = None,
+                 exclude = None) -> None:
+        super().__init__()
+        self.image_dir = image_dir
+        self.feat_dir = feat_dir
+        self.transform = transform
+        self.images, self.labels = [], []
+
+        if exclude is not None:
+            with open(exclude, 'r') as f:
+                exclude_files = f.readlines()
+                exclude_files = [path.strip() for path in exclude_files]
+                exclude_files = set(exclude_files)
+        # Collect all valid images and corresponding .npy files
+        for img_path in EmbeddingDistillDataset.generator(image_dir, 'jpg'):
+            basename = os.path.splitext(os.path.basename(img_path))[0]
+            feat_path = os.path.join(feat_dir, f'{basename}.npy')
+            
+            if os.path.isfile(feat_path):
+                if exclude is None:
+                    self.images.append(img_path)
+                    self.labels.append(feat_path)
+                else:
+                    if feat_path not in exclude_files:
+                        self.images.append(img_path)
+                        self.labels.append(feat_path) 
+
+    def __len__(self):
+        return len(self.images)
+    
+    def __getitem__(self, idx):
+        # Load image
+        img_path = self.images[idx]
+        image = ImageDatasets.read_image(img_path)
+        
+        # Apply transforms to the image if any
+        if self.transform is not None:
+            image = self.transform(image)
+        
+        # Load corresponding feature from .npy file
+        feat_path = self.labels[idx]
+        feature = np.load(feat_path)
+        
+        return image, feature
+
+    @staticmethod
+    def generator(image_dir, post_fix = 'jpg'):
+        with os.scandir(image_dir) as it:
+            for entry in it:
+                if entry.is_file() and entry.name.endswith(f".{post_fix}"):
+                    yield entry.path
+    
+    @staticmethod
+    def collate_fn(batch):
+        images, labels = tuple(zip(*batch))
+
+        return torch.stack(images, dim=0), torch.from_numpy(np.stack(labels, axis=0))

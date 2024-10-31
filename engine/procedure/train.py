@@ -1,17 +1,15 @@
 import torch
 from tqdm import tqdm
-from os.path import join as opj
 from torch import Tensor
 from engine.procedure.evaluation import valuate
-from engine.faceX.evaluation import valuate as valuate_face, process_pairtxt
-from models.faceX.face_model import FeatureExtractor
-from dataset.basedataset import PredictImageDatasets
-from dataset.transforms import create_AugTransforms
-from torch.utils.data import DataLoader
+from engine.faceX.evaluation import valuate as valuate_face
+from engine.cbir.evaluation import valuate as valuate_cbir
 from typing import Callable
 import math
 from engine.optimizer import SAM
 from torch.utils.tensorboard import SummaryWriter
+import os
+from copy import deepcopy
 
 __all__ = ['Trainer']
 
@@ -48,10 +46,13 @@ class Trainer:
                  logger,
                  rank: int,
                  scheduler,
-                 ema, sampler = None,
+                 ema, 
+                 sampler = None,
                  thresh = 0,
                  teacher = None,
+                 mixup_sampler = None,
                  # face
+                 task: str = 'face',
                  print_freq = 50,
                  save_freq = 5,
                  cfgs: dict = None,
@@ -74,8 +75,10 @@ class Trainer:
         self.teacher = teacher
         self.sam: bool = type(self.optimizer) is SAM
         self.distill: bool = teacher is not None
+        self.mixup_sampler = mixup_sampler
 
         # face
+        self.task = task
         self.print_freq = print_freq
         self.save_freq = save_freq
         self.data_cfg = cfgs['data']
@@ -84,7 +87,7 @@ class Trainer:
         if rank in (-1, 0):
             self.writer = SummaryWriter(log_dir=out_dir)
 
-    def train_one_epoch(self, epoch: int, lam: float, criterion: Callable):
+    def train_one_epoch(self, epoch: int, criterion: Callable):
         # train mode
         self.model.train()
 
@@ -101,6 +104,12 @@ class Trainer:
         tloss, fitness = 0., 0.
 
         for i, (images, labels) in pbar:  # progress bar
+
+            if self.mixup_sampler is not None:
+                lam = self.mixup_sampler.sample()
+            else: 
+                lam = 0
+
             images, labels = images.to(self.device, non_blocking=True), labels.to(self.device)
             if self.sampler is not None:  # OHEM-Softmax
                 with torch.no_grad():
@@ -178,18 +187,18 @@ class Trainer:
             loss = mixup_criterion(criterion, self.model(images), targets_a, targets_b, lam)
             Trainer.update(self.model, loss, self.scaler, self.optimizer, self.ema)
         elif self.sam and self.distill:
-            pass
+            raise ValueError('SAM optimizer and Knowledge distilling have not been implemented yet.')
         elif self.sam: # close
             loss = Trainer.update_sam(self.model, images, labels, self.optimizer, criterion, self.rank, self.ema, mixup=False)
         elif self.distill:
-            pass
+            raise ValueError('Knowledge distilling have not been implemented yet.')
         else: # close
             loss = criterion(self.model(images), labels) if not face else criterion(self.model(images, labels), labels)
             Trainer.update(self.model, loss, self.scaler, self.optimizer, self.ema)
 
         return loss
 
-    # scale + backward + grad_clip + step + zero_gra
+    # scale + backward + grad_clip + step + zero_grad
     @staticmethod
     def update(model, loss, scaler, optimizer, ema=None):
         # backward
@@ -209,9 +218,7 @@ class Trainer:
         """Tain one epoch by traditional training.
         """
 
-        import os
-        from copy import deepcopy
-
+        self.model.train()
         iters_per_epoch = len(self.train_dataloader)
 
         for batch_idx, (images, labels) in enumerate(self.train_dataloader):
@@ -221,9 +228,9 @@ class Trainer:
 
             global_batch_idx = cur_epoch * iters_per_epoch + batch_idx
             self.scheduler.step() # step batch-wise
-
-            torch.cuda.synchronize()
-            loss_meter.update(loss.item(), images.shape[0])
+            
+            if self.rank in (-1, 0):
+                loss_meter.update(loss.item(), images.shape[0])
 
             if self.rank in (-1, 0) and batch_idx % self.print_freq == 0:
                 loss_avg = loss_meter.avg
@@ -234,21 +241,34 @@ class Trainer:
                 self.writer.add_scalar('Train_lr', lr, global_batch_idx)
                 loss_meter.reset()
 
-            warm_epoch = self.hyp_cfg['warm_ep']
-            if self.rank in (-1, 0) and cur_epoch + 1 > warm_epoch and ((cur_epoch - warm_epoch) * iters_per_epoch + batch_idx + 1) % (self.save_freq * iters_per_epoch)== 0:
+            if self.rank in (-1, 0) and (cur_epoch * iters_per_epoch + batch_idx + 1) % (self.save_freq * iters_per_epoch)== 0:
                 saved_name = 'Epoch_%d.pt' % (cur_epoch+1)
+                if self.task == 'face':
 
-                mean, std = valuate_face(self.ema.ema.trainingwrapper['backbone'],
-                                         self.data_cfg,
-                                         self.device)
-                self.writer.add_scalar('Val_mean', mean, global_batch_idx)
-                self.writer.add_scalar('Val_std', std, global_batch_idx)
+                    mean, std = valuate_face(self.ema.ema.trainingwrapper['backbone'],
+                                            self.data_cfg,
+                                            self.device)
+                    self.writer.add_scalar('Val_mean', mean, global_batch_idx)
+                    self.writer.add_scalar('Val_std', std, global_batch_idx)
+
+                    fitness = {'fitness': {'Val_mean': float(mean), 'Val_std': float(std)}}
+                elif self.task == 'cbir':
+                    metrics = valuate_cbir(self.ema.ema.trainingwrapper['backbone'],
+                                           self.data_cfg,
+                                           self.device,
+                                           self.logger)
+                    for k, v in metrics.items():
+                        self.writer.add_scalar(f'Val_{k}', v, global_batch_idx)
+                    fitness = {'fitness': metrics}
+                
+                fitness['checkpoint'] = saved_name
+                    
                 ckpt = {
                     'epoch': cur_epoch,
                     'batch_id': batch_idx,
-                    'fitness': (mean, std),
-                    'state_dict': self.model.state_dict() if self.rank == -1 else self.model.module.state_dict(),
-                    'ema': deepcopy(self.ema.ema),
+                    'fitness': fitness,
+                    'state_dict': self.model.trainingwrapper['backbone'].state_dict() if self.rank == -1 else self.model.module.trainingwrapper['backbone'].state_dict(),
+                    'ema': deepcopy(self.ema.ema.trainingwrapper['backbone'].state_dict()),
                     'updates': self.ema.updates,
                     'optimizer': self.optimizer.state_dict(),  # optimizer.state_dict(),
                     'scheduler': self.scheduler.state_dict(),
@@ -256,5 +276,5 @@ class Trainer:
                 if self.device != torch.device('cpu'): ckpt['scaler'] = self.scaler.state_dict()
 
                 torch.save(ckpt, os.path.join(self.writer.log_dir, saved_name))
-                self.logger.both('Save checkpoint %s, mean %f.4, std %f.4' % (saved_name, mean, std))
+                self.logger.both(fitness)
             torch.cuda.empty_cache()

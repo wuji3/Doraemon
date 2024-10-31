@@ -1,5 +1,5 @@
 import copy
-from PIL import Image
+from PIL import Image, ImageOps
 from typing import Optional, List, Tuple, Callable, Union, Dict, Sequence
 import numpy as np
 import random
@@ -21,7 +21,8 @@ __all__ = ['color_jitter', # 颜色抖动
            'random_crop', # [随机]抠图
            'random_augment', # RandAug
            'center_crop', # 中心抠图
-           'resize', # 缩放
+           'resize', # 按最小边缩放
+           'resize_and_padding', # 按最大边缩放+填充
            'centercrop_resize', # 中心抠图+缩放
            'random_cutout', # 随机CutOut
            'random_localgaussian', # 随机局部高斯
@@ -39,7 +40,7 @@ __all__ = ['color_jitter', # 颜色抖动
            'random_augmix', # 随机样本自混合
            'random_grayscale', # 随机灰度 input几通道 forward也是几通道
            'random_crop_and_resize', # 随机crop再resize
-           'pad2square', # 按最大边填充正方向
+           'pad2square', # 按最大边填充正方形
            'create_AugTransforms',
            'list_augments']
 
@@ -208,9 +209,9 @@ class PadIfNeed:
         if isinstance(pad_value, int):
             pad_value = (pad_value, pad_value, pad_value)
         else:
-            assert len(pad_value) == 3, 'pad_value 只能是三维向量或int'
+            assert len(pad_value) == 3, 'pad_value can only be a three-dimensional vector or an int'
 
-        assert mode in ('edge', 'average'), 'mode 只能edge[填一端]和average[填两端]'
+        assert mode in ('edge', 'average'), "mode can only be 'edge' [fill one side] and 'average' [fill both sides]"
 
         self.pad_value = pad_value
         self.mode = mode
@@ -303,7 +304,10 @@ class LocalGaussian:
 
             mask = self.generate_seamless_mask(roi)
 
-            merge_image = cv2.seamlessClone(roi, array_image, mask, p=(x + w // 2, y + h // 2), flags=cv2.NORMAL_CLONE)
+            try:
+                merge_image = cv2.seamlessClone(roi, array_image, mask, p=(x + w // 2, y + h // 2), flags=cv2.NORMAL_CLONE)
+            except cv2.error:
+                return image
 
             return Image.fromarray(cv2.cvtColor(merge_image, cv2.COLOR_BGR2RGB))
         else:
@@ -318,6 +322,83 @@ class RandomDoubleFlip:
     def __call__(self, image):
         return random.choices(self.choices, weights=self.prob, k=1)[0](image)
 
+class ResizeAndPadding2Square:
+
+    """
+    size is an int, longger edge of the image will be matched to this number.
+    This function is resize as the longger edge and padding 0, put the image as center.
+    """
+
+    def __init__(self, size: int = 224, training: bool = False) -> None:
+        self.size = size
+        self.training = training
+
+    def __call__(self, image):
+        if self.training:
+            resample = Image.BILINEAR if random.random() < 0.5 else Image.NEAREST
+        else: 
+            resample = Image.BILINEAR
+    
+        # Get original image dimensions
+        width, height = image.size
+        max_side = max(width, height)
+
+        # Scale image based on the larger side
+        scale_factor = self.size / max_side
+        new_width = int(width * scale_factor)
+        new_height = int(height * scale_factor)
+
+        # Resize the image while maintaining aspect ratio
+        image = image.resize((new_width, new_height), resample)
+        
+        # Calculate padding to make the image square and centered
+        pad_width = (self.size - new_width) // 2
+        pad_height = (self.size - new_height) // 2
+        
+        # Apply padding to center the image
+        padding = (pad_width, pad_height, self.size - new_width - pad_width, self.size - new_height - pad_height)
+        padded_image = ImageOps.expand(image, padding, fill=(0, 0, 0))  # You can change fill color if needed
+
+        return padded_image
+    
+    def __repr__(self) -> str:
+        return f"{super().__repr__()}(size={self.size})"
+
+class ReverseResizeAndPadding2Square:
+    def __init__(self, size: int = 224) -> None:
+        self.size = size
+
+    def __call__(self, image: np.ndarray, dsize: Tuple[int, int]) -> np.ndarray:
+        # Get original image dimensions
+        width, height = dsize
+        max_side = max(width, height)
+
+        # Scale image based on the larger side
+        scale_factor = self.size / max_side
+        new_width = int(width * scale_factor)
+        new_height = int(height * scale_factor)
+
+        pad_width = (self.size - new_width) // 2
+        pad_height = (self.size - new_height) // 2
+
+        image = image[pad_height: pad_height + new_height, pad_width: pad_width + new_width]
+
+        image = cv2.resize(image, dsize, cv2.INTER_LINEAR)
+
+        return image
+
+class RandomResizedCrop(T.RandomResizedCrop):
+    def __init__(self, size, scale=(0.08, 1.0), ratio=(3./4., 4./3.), interpolation=InterpolationMode.BILINEAR, antialias: Optional[bool] = True):
+        super().__init__(size, scale, ratio, interpolation, antialias)
+        self.resize_and_padding = ResizeAndPadding2Square(size=size, training=True)
+    
+    def forward(self, img):
+        w, h = img.size
+        ratio = max(h/w, w/h)
+        if ratio > 1.5:
+            return self.resize_and_padding(img)
+        else: return super().forward(img)
+    
 @register_method
 def random_cutout(n_holes:int = 1, length: int = 200, ratio: float = 0.2,
                   h_range: Optional[List[int]] = None, w_range: Optional[List[int]] = None, prob: float = 0.5, color: tuple[int, int] = (0, 0)):
@@ -415,6 +496,10 @@ def resize(size = 224):
     return T.Resize(size = size, interpolation=InterpolationMode.BILINEAR)
 
 @register_method
+def resize_and_padding(size: int = 224, training: bool = False):
+    return ResizeAndPadding2Square(size=size, training = training)
+
+@register_method
 def centercrop_resize(center_size: tuple, re_size: tuple):
     return CenterCropAndResize(center_size, re_size)
 
@@ -432,17 +517,17 @@ def random_grayscale(p: float = 0.5): # 图是几通道 灰度输出也是几通
 
 @register_method
 def random_crop_and_resize(size, *args, **kwargs):
-    return T.RandomResizedCrop(size = size, *args, **kwargs)
+    return RandomResizedCrop(size = size, *args, **kwargs)
 
 @register_method
 def pad2square(pad_value: Union[int, Sequence] = 0, mode: str = 'average'):
     return PadIfNeed(pad_value, mode)
 
 @register_method
-def random_choice(transforms: list):
-    return T.RandomChoice(transforms=transforms)
+def random_choice(transforms: list, p: Optional[Union[Sequence, float]] = None):
+    return T.RandomChoice(transforms=transforms, p = p)
 
-def create_AugTransforms(augments: dict):
+def create_AugTransforms(augments: list):
 
     def addAugToSequence(aug_name: str, params: Union[dict, str], aug_list: list) -> None:
         if params == 'no_params':
@@ -452,18 +537,20 @@ def create_AugTransforms(augments: dict):
             aug_list.append(AUG_METHODS[aug_name](**params))
 
     augs = []
-    for key, params in augments.items():
-        if key == 'random_choice':
-            assert isinstance(params, list) or isinstance(params, tuple), 'random_choice params must be passed list or tuple'
-            choice_aug_list = []
-            for choice in augments[key]:
-                assert isinstance(choice, dict) and len(choice)==1, f'every augment methord must be dict in random_choice, {len(params)}augments need to be {len(params)} dicts'
-                choice_key, choice_param = tuple(*choice.items())
-                addAugToSequence(choice_key, choice_param, choice_aug_list)
-            # 把random_choice作为单独的aug加进去
-            augs.append(AUG_METHODS[key](choice_aug_list))
-        else:
-            addAugToSequence(key, params, augs)
+    for aug in augments:
+        for key, params in aug.items():
+            if key == 'random_choice':
+                assert "transforms" in params and isinstance(params["transforms"], list), 'random_choice should have "transforms" keys'
+                choice_aug_list = []
+                for choice in params["transforms"]:
+                    assert isinstance(choice, dict) and len(choice)==1, f'every augment methord must be dict in random_choice, {len(params)}augments need to be {len(params)} dicts'
+                    choice_key, choice_param = tuple(*choice.items())
+                    addAugToSequence(choice_key, choice_param, choice_aug_list)
+                # 把random_choice作为单独的aug加进去
+                kwargs = {"transforms": choice_aug_list, "p": params.get("p", None)}
+                augs.append(AUG_METHODS[key](**kwargs))
+            else:
+                addAugToSequence(key, params, augs)
 
     return T.Compose(augs)
     # augments = augments.strip().split()
@@ -474,4 +561,4 @@ def list_augments():
     return sorted(augments)
 
 # transforms about image size
-SPATIAL_TRANSFORMS = set([T.CenterCrop, T.Resize, CenterCropAndResize, T.RandomCrop, T.RandomResizedCrop, PadIfNeed])
+SPATIAL_TRANSFORMS = set([T.CenterCrop, T.Resize, CenterCropAndResize, T.RandomCrop, T.RandomResizedCrop, PadIfNeed, ResizeAndPadding2Square])

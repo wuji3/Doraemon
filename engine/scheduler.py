@@ -1,7 +1,6 @@
-from copy import deepcopy
 from typing import Callable
 from functools import wraps
-from torch.optim.lr_scheduler import LinearLR, CosineAnnealingLR, PolynomialLR, SequentialLR
+from torch.optim.lr_scheduler import LinearLR, CosineAnnealingLR, SequentialLR
 
 __all__ = ['linear',  # 线性衰减
            'cosine',  # 余弦衰减
@@ -39,7 +38,7 @@ def linear_with_warm(optimizer, warm_ep, epochs, lr0, lrf_ratio):
         optimizer = optimizer,
         schedulers=[
             LinearLR(optimizer, start_factor=0.1, end_factor=1, total_iters=warm_ep),
-            LinearLR(optimizer, start_factor=1, end_factor=de_lrf_ratio(lrf_ratio), total_iters=epochs)
+            LinearLR(optimizer, start_factor=1, end_factor=de_lrf_ratio(lrf_ratio), total_iters=epochs-warm_ep),
         ],
         milestones=[warm_ep,]
     )
@@ -51,7 +50,7 @@ def cosine_with_warm(optimizer, warm_ep, epochs, lr0, lrf_ratio):
         optimizer=optimizer,
         schedulers=[
             LinearLR(optimizer, start_factor=0.1, end_factor=1, total_iters=warm_ep),
-            CosineAnnealingLR(optimizer, T_max=epochs, eta_min=de_lrf_ratio(lrf_ratio) * lr0, )
+            CosineAnnealingLR(optimizer, T_max=epochs-warm_ep, eta_min=de_lrf_ratio(lrf_ratio) * lr0, )
         ],
         milestones=[warm_ep, ]
     )

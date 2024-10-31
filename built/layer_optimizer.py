@@ -18,9 +18,14 @@ class SeperateLayerParams(BaseSeperateLayer):
         """
         if not layer_wise: return self.model.parameters()
 
+        # params = [
+        #     {'params': self.model.features.parameters()},
+        #     {'params': self.model.norm.parameters()},
+        #     {'params': self.model.head.parameters(), 'lr': lr * 10}
+        # ]
+
         params = [
-            {'params': self.model.features.parameters()},
-            {'params': self.model.norm.parameters()},
-            {'params': self.model.head.parameters(), 'lr': lr * 10}
+            {'params': self.model.trainingwrapper['backbone'].parameters(), 'lr': lr},
+            {'params': self.model.trainingwrapper['head'].parameters(), 'lr': lr * 10}
         ]
         return params

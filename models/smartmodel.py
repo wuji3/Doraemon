@@ -130,5 +130,5 @@ def get_model(model_cfg, logger, rank):
     assert 'task' in model_cfg, 'image classification or face recognition ?'
 
     match model_cfg['task']:
-        case 'face': return FaceTrainingWrapper(model_cfg, logger)
+        case 'face' | 'cbir': return FaceTrainingWrapper(model_cfg, logger)
         case 'classification': return TorchVisionWrapper(model_cfg, logger, rank)

@@ -3,7 +3,6 @@ from .head.head_def import HeadFactory
 import torch.nn as nn
 from torch.nn.init import normal_, constant_
 import torch
-from typing import Union
 import torch.nn.functional as F
 import os
 import numpy as np
@@ -67,7 +66,7 @@ class FaceModelLoader:
         Returns:
             model: initialized model.
         """
-        self.model.load_state_dict(torch.load(model_path)['state_dict'], strict=True)
+        self.model.load_state_dict(torch.load(model_path, weights_only=False)['state_dict'], strict=True)
 
         return self.model
 
@@ -80,16 +79,9 @@ class FaceModelLoader:
         Returns:
             model: initialized model.
         """
-        model_dict = self.model.state_dict()
+        pretrained_dict = torch.load(model_path, weights_only=False)['ema'] if ema else torch.load(model_path, weights_only=False)['state_dict']
 
-        pretrained_dict = torch.load(model_path)['ema'].float().state_dict() if ema else torch.load(model_path)['state_dict']
-
-        new_pretrained_dict = {}
-        for k in model_dict:
-            new_pretrained_dict[k] = pretrained_dict['trainingwrapper.backbone.' + k]  # tradition training
-
-        model_dict.update(new_pretrained_dict)
-        self.model.load_state_dict(model_dict)
+        self.model.load_state_dict(pretrained_dict, strict=True)
 
         return self.model
 
@@ -98,7 +90,7 @@ class FeatureExtractor:
     def __init__(self, model):
         self.model = model
 
-    def extract_online(self, dataloader, device) -> dict:
+    def extract_face(self, dataloader, device) -> dict:
         """Extract and return features.
 
         Args:
@@ -124,3 +116,29 @@ class FeatureExtractor:
                     image_name2feature[filename] = feature
 
         return image_name2feature
+    
+    def extract_cbir(self, dataloader, device) -> np.ndarray:
+        """Extract and return features.
+
+        Args:
+            model: initialized model.
+            dataloader: load data to be extracted.
+
+        Returns:
+            features: feature of image.
+        """
+        model = self.model
+        model.eval()
+        model.to(device)
+
+        features = []
+        with torch.no_grad():
+            for batch_idx, tensors in enumerate(dataloader):
+                tensors = tensors.to(device)
+                feature = model(tensors)
+                feature = F.normalize(feature)
+                feature = feature.cpu().numpy()
+
+                features.append(feature)
+
+        return np.concatenate(features, axis=0)
