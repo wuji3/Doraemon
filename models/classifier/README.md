@@ -68,6 +68,7 @@ python visualize.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --weight 
                                                                                                                                                                                                --badcase[Option: group the badcase in a folder]
                                                                                                                                                                                                --target_class[Option: which catogary do you want to check, serving for --badcase, if not set, directory-name will be regarded as catogary]
                                                                                                                                                                                                --no_annotation[Optition: remove model description on left-top]
+                                                                                                                                                                                               --sampling[Optional: default None, mean no sampling]
 ```
 
 ```shell

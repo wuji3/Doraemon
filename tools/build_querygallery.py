@@ -4,6 +4,30 @@ import argparse
 import os
 from os.path import join as opj
 
+"""
+Before
+--data
+    --ID1
+        --xxx1.jpg
+        --xxx2.jpg
+    --ID2
+        --xxx3.jpg
+        --xxx4.jpg
+
+After
+--data
+    --data-query
+        --ID1
+            --xxx1.jpg
+        --ID2
+            --xxx3.jpg
+    --data-gallery
+        --ID1
+            --xxx2.jpg
+        --ID2
+            --xxx4.jpg
+"""
+
 def parse_opt():
     parsers = argparse.ArgumentParser()
     parsers.add_argument('--src', default='data', help='Image dir')

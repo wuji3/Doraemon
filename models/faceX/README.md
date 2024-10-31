@@ -1,4 +1,4 @@
-## <div align="center">Face Recognition/ Content-Based Image Retrieval</div>
+## <div align="center">Representation Learning</div>
 
 ## Tutorials
 <details open>
