@@ -26,31 +26,11 @@ cp misc/Arial.ttf ~/.config/DuKe
 </details>
 
 
-<details close>
-<summary>Training 🌟️</summary>
-
-```shell
-# one machine one gpu
-python main.py --cfgs configs/task/pet.yaml
-
-# one machine multiple gpus
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/classification/pet.yaml
-                                                                 --sync_bn[Option: this will lead to training slowly]
-                                                                 --resume[Option: training from checkpoint]
-                                                                 --load_from[Option: training from fine-tuning]
-```
-</details>
-
-
 ## What's New
 - [Oct. 2024]  [Content-Based Image Retrieval(CBIR)](models/faceX/README.md) has been supported 🚀️️! We provide Convnext as backbone, and give useful tools to evaluate. 
 - [Apr. 2024]  [Face Recognition Task(FRT)](models/faceX/README.md) is supported now 🚀️️! We provide ResNet, EfficientNet, and Swin Transformer as backbone; As for head, ArcFace, CircleLoss, MegFace and MV Softmax could be used for training. **Note**: partial implementation refers to [JD-FaceX](https://github.com/JDAI-CV/FaceX-Zoo)
 - [Jun. 2023]  [Image Classification Task(ICT)](models/classifier/README.md) has launched 🚀️️! Supporting many powerful strategies, such as progressive learning, online enhancement, beautiful training interface, exponential moving average, etc. The models are fully integrated into torchvision.
 - [May. 2023]  The first initialization version of Vision.
-
-## Which's task
-1. [Face Recognition Task(FRT)](models/faceX/README.md)
-2. [Image Classification Task(ICT)](models/classifier/README.md)
 
 ## Implemented Method & Paper
 | Method                                                   | Paper                                                                           |
@@ -89,23 +69,23 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/
 ## Tools  
 1. Split the data set into training set and validation set
 ```shell
-python tools/data_prepare.py --postfix <jpg or png> --root <input your data realpath> --frac <train segment ratio, eg: 0.9 0.6 0.3 0.9 0.9>
+python tools/data_prepare.py --postfix <jpg or png> --root <input your data realpath> --frac <train/full ratio, eg: 0.9>
 ```
-2. Prepare the data into query and gallery set
+2. Prepare the data into query and gallery set, for image retrieval validation
 ```shell
 python tools/build_querygallery.py --src <realpath of src> --frac <frac of query>
 ```
-3. Data augmented visualization 
+3. Data augmentation visualization 
 ```shell
 cd visiondk
 python -m tools.test_augment
 ```
+![](misc/augments.jpg)
 4. Data deduplicating
 ```shell
 python tools/deduplicate.py (note: scipt should be updated)
 ```
 
-![](misc/augments.jpg)
 
 ## Contact Me
 1. If you enjoy reproducing papers and algorithms, welcome to pull request.
