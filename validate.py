@@ -30,7 +30,7 @@ def main(opt):
     cfgs = yaml_load(opt.cfgs)
     task: str = cfgs['model']['task']
     if task == 'classification':
-        cpu = CenterProcessor(cfgs, LOCAL_RANK, train=False, opt=opt)
+        cpu = CenterProcessor(cfgs, LOCAL_RANK, train=False, opt=opt, project = os.path.dirname(opt.cfgs))
 
         # checkpoint loading
         model = cpu.model_processor.model

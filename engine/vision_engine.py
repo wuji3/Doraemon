@@ -1,4 +1,5 @@
 import torch
+from datasets import load_dataset
 from torchvision.transforms import CenterCrop, Resize, Compose, RandomChoice
 from dataset.transforms import ResizeAndPadding2Square, RandomResizedCrop
 import torch.nn as nn
@@ -126,28 +127,44 @@ def check_cfgs_face(cfgs):
     #         assert image_size_backbone == train_image_size, f'image_size {image_size_backbone} in backbone should be equal to image_size {train_image_size} in data augment'
         
 def check_cfgs_classification(cfgs):
-
     check_cfgs_common(cfgs=cfgs)
 
     model_cfg = cfgs['model']
     data_cfg = cfgs['data']
     hyp_cfg = cfgs['hyp']
-    # num_classes
-    train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') if not (x.startswith('.') or x.startswith('_'))]
-    assert model_cfg['num_classes'] == len(train_classes), 'num_classes in model should be equal to classes in data folder'
-    # model
+
+    # Check num_classes
+    if os.path.isdir(data_cfg['root']):
+        # Local dataset
+        train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') if not (x.startswith('.') or x.startswith('_'))]
+        num_classes = len(train_classes)
+    else:
+        # Assume it's a Hugging Face dataset
+        try:
+            dataset = load_dataset(data_cfg['root'], split='train')
+            num_classes = len(set(dataset['label']))
+        except Exception as e:
+            raise ValueError(f"Failed to load dataset from {data_cfg['root']}. Error: {str(e)}")
+
+    assert model_cfg['num_classes'] == num_classes, f'num_classes in model ({model_cfg["num_classes"]}) should be equal to classes in dataset ({num_classes})'
+
+    # Check model
     assert model_cfg['name'].split('-')[0] in {'torchvision', 'custom'}, 'if from torchvision, torchvision-ModelName; if from your own, custom-ModelName'
     if model_cfg['kwargs'] and model_cfg['pretrained']:
         for k in model_cfg['kwargs'].keys():
-            if k not in {'dropout','attention_dropout', 'stochastic_depth_prob'}: raise KeyError('set kwargs except dropout, pretrained must be False')
-    # strategy
+            if k not in {'dropout','attention_dropout', 'stochastic_depth_prob'}:
+                raise KeyError('set kwargs except dropout, pretrained must be False')
+
+    # Check strategy
     # focalloss
-    if hyp_cfg['strategy']['focal'][0]: assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
+    if hyp_cfg['strategy']['focal'][0]:
+        assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
     # ohem
-    if hyp_cfg['strategy']['ohem'][0]: assert not hyp_cfg['loss']['bce'][0], 'ohem not support bceloss'
+    if hyp_cfg['strategy']['ohem'][0]:
+        assert not hyp_cfg['loss']['bce'][0], 'ohem not support bceloss'
     # mixup
     mix_ratio, mix_duration = hyp_cfg['strategy']['mixup']["ratio"], hyp_cfg['strategy']['mixup']["duration"]
-    assert mix_ratio >= 0 and mix_ratio <= 1 and mix_duration >= 0 and mix_duration <= hyp_cfg['epochs'], f'{mix_ratio} should in [0,1], mix_duration should in [0, {hyp_cfg["epochs"]}]'
+    assert 0 <= mix_ratio <= 1 and 0 <= mix_duration <= hyp_cfg['epochs'], f'mix_ratio should be in [0,1], mix_duration should be in [0, {hyp_cfg["epochs"]}]'
     hyp_cfg['strategy']['mixup'] = [mix_ratio, mix_duration]
 
 def get_imgsz(augment: dict):
@@ -193,9 +210,9 @@ class CenterProcessor:
         self.model_processor = get_model(self.model_cfg, self.logger, rank)
         self.model_processor.model.to(device)
         # data processor
-        self.data_processor = SmartDataProcessor(self.data_cfg, rank=rank, project=project)
+        self.data_processor = SmartDataProcessor(self.data_cfg, rank=rank, project=project, training = train)
         if self.task == 'classification':
-            self.data_processor.val_dataset = self.data_processor.create_dataset('val')
+            self.data_processor.val_dataset = self.data_processor.create_dataset('val', training = train)
 
         # loss
         loss_choice: str = 'ce' if self.hyp_cfg['loss']['ce'] else 'bce'
@@ -353,7 +370,7 @@ class CenterProcessor:
 
         # tell data distribution
         if rank in (-1, 0):
-            ImageDatasets.tell_data_distribution(self.data_cfg['root'], logger, self.model_cfg['num_classes'])
+            ImageDatasets.tell_data_distribution({"train": train_dataset, "val": val_dataset}, logger, self.model_cfg['num_classes'], train_dataset.is_local_dataset)
 
         # optimizer
         params = SeperateLayerParams(model)

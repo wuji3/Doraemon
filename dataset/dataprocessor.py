@@ -6,23 +6,24 @@ from torch.utils.data import DataLoader
 from typing import Optional
 
 class SmartDataProcessor:
-    def __init__(self, data_cfgs: dict, rank, project):
+    def __init__(self, data_cfgs: dict, rank, project, training: bool = True):
         self.data_cfgs = data_cfgs # root, nw, imgsz, train, val
         self.rank = rank
         self.project = project
         self.label_transforms = None # used in CenterProcessor.__init__
 
-        self.train_dataset = self.create_dataset('train')
+        if training:
+            self.train_dataset = self.create_dataset('train')
 
-    def create_dataset(self, mode: str):
+    def create_dataset(self, mode: str, training: bool = True):
         assert mode in {'train', 'val'}
 
         cfg = self.data_cfgs.get(mode, -1)
         if isinstance(cfg, dict):
-            dataset = ImageDatasets(root=self.data_cfgs['root'], mode=mode,
+            dataset = ImageDatasets(root_or_dataset=self.data_cfgs['root'], mode=mode,
                                     transforms=ClassWiseAugmenter(cfg['augment'], None, None) if mode == 'val' else \
                                ClassWiseAugmenter(cfg['augment'], cfg['class_aug'], cfg['base_aug']),
-                                    project=self.project, rank=self.rank)
+                                    project=self.project, rank=self.rank, training = training)
         else: dataset = None
         return dataset
 
