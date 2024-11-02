@@ -27,9 +27,9 @@ mkdir -p ~/.config/DuKe && cp misc/Arial.ttf ~/.config/DuKe
 
 ## 📢 What's New
 
-- **[Oct. 2024]** Content-Based Image Retrieval (CBIR) support added with ConvNext backbone
-- **[Apr. 2024]** Face Recognition Task (FRT) launched with various backbones and loss functions
-- **[Jun. 2023]** Image Classification Task (ICT) released with advanced training strategies
+- **[Oct. 2024]** [Content-Based Image Retrieval(CBIR)](models/faceX/README.md) support added with ConvNext backbone
+- **[Apr. 2024]** [Face Recognition Task(FRT)](models/faceX/README.md) launched with various backbones and loss functions
+- **[Jun. 2023]** [Image Classification Task(ICT)](models/classifier/README.md) released with advanced training strategies
 - **[May. 2023]** Initial release of VisionDK
 
 ## 🧠 Implemented Methods
