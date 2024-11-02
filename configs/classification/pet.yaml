@@ -1,6 +1,6 @@
 model:
   task: classification
-  name: torchvision-swin_t
+  name: torchvision-swin_b
   image_size: &resize_size 224
   kwargs: {} # kwargs feed into torchvision-style models.__init__ 'attention_dropout': 0.1,
   num_classes: 35
@@ -10,8 +10,8 @@ model:
   bn_freeze_affine: False
   attention_pool: False
 data:
-  root: data/pet
-  nw: 8 # if not multi-nw, set to 0
+  root: wuji3/oxford-iiit-pet
+  nw: 64 # if not multi-nw, set to 0
   train:
     bs: 320 # per gpu
     base_aug: null
@@ -56,7 +56,7 @@ data:
        - normalize: 
             mean: [0.485, 0.456, 0.406]
             std: [0.229, 0.224, 0.225]
-    aug_epoch: 17 
+    aug_epoch: 13 
   val:
     bs: 320
     augment:
@@ -68,13 +68,13 @@ data:
             mean: [0.485, 0.456, 0.406]
             std: [0.229, 0.224, 0.225]
 hyp:
-  epochs: 20
+  epochs: 15
   lr0: 0.06 
   lrf_ratio: null # decay to lrf_ratio * lr0, if None, 0.1
   momentum: 0.937
   weight_decay: 0.0005
   warmup_momentum: 0.8
-  warm_ep: 0
+  warm_ep: 1
   loss:
     ce: True
     bce:
@@ -83,10 +83,10 @@ hyp:
       - False # multi-label
   label_smooth: 0.1
   strategy:
-    prog_learn: True
+    prog_learn: False
     mixup:
-      ratio: 0.1 
-      duration: 0
+      ratio: 0.0
+      duration: 10
     focal: 
       - False
       - 0.25
@@ -99,4 +99,4 @@ hyp:
   optimizer: 
     - sgd # sgd, adam or sam
     - False # Different layers in the model set different learning rates, in built/layer_optimizer
-  scheduler: cosine # linear or cosine
+  scheduler: cosine_with_warm # linear or cosine

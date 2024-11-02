@@ -12,7 +12,8 @@ from built.class_augmenter import ClassWiseAugmenter
 from prettytable import PrettyTable
 import datasets
 import numpy as np
-from typing import Optional
+from typing import Optional, Union
+import io
 
 class ImageDatasets(Dataset):
     def __init__(self, root_or_dataset, mode='train', transforms=None, label_transforms=None, project=None, rank=None, training=True):
@@ -42,7 +43,7 @@ class ImageDatasets(Dataset):
             self._save_class_indices(class_indices, mode, project, rank)
         else:
             class_indices = self._load_class_indices(project)
-            data_class: list[str] = list(class_indices.values())
+            data_class: list[str] = list(class_indices.keys())
 
         support = [".jpg", ".png"]
 
@@ -91,7 +92,7 @@ class ImageDatasets(Dataset):
             self._save_class_indices(class_indices, split, project, rank)
         else:
             class_indices = self._load_class_indices(project)
-            data_class = list(class_indices.values())
+            data_class = list(class_indices.keys())
 
         self.images = self.dataset['image']
         self.labels = self.dataset['label']
@@ -120,7 +121,7 @@ class ImageDatasets(Dataset):
         with open(class_indices_path, 'r') as f:
             class_indices = json.load(f)
         
-        return {int(k): v for k, v in class_indices.items()}
+        return {v: int(k) for k, v in class_indices.items()}
 
     def __getitem__(self, idx):
         if hasattr(self, 'dataset'):  # Hugging Face dataset
@@ -207,8 +208,10 @@ class PredictImageDatasets(Dataset):
         if root is None: # used for face embedding infer
             self.imgs_path = []
         else:
+            if not os.path.isdir(root): 
+                raise ValueError(f"The provided path {root} is not a directory. If you're trying to use a Hugging Face dataset, please note that only supports local datasets now")
+
             self.imgs_path = glob.glob(os.path.join(root, f'*.{postfix[0]}')) + glob.glob(os.path.join(root, f'*.{postfix[1]}'))
-            # self.imgs_path = glob.glob(os.path.join(root, f'**/*.{postfix[0]}')) + glob.glob(os.path.join(root, f'**/*.{postfix[1]}'))
             assert len(self.imgs_path) != 0, f'there are no files with postfix as {postfix}'
         self.transforms = transforms
 

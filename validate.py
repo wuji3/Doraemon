@@ -40,6 +40,8 @@ def main(opt):
             weights = torch.load(opt.weight, map_location=cpu.device)['model']
         model.load_state_dict(weights)
 
+        cpu.data_processor.val_dataset = cpu.data_processor.create_dataset('val', training = False) 
+
         # set val dataloader
         dataloader = cpu.data_processor.set_dataloader(cpu.data_processor.val_dataset, nw=cpu.data_cfg['nw'], bs=cpu.data_cfg['train']['bs'],
                                                        collate_fn=cpu.data_processor.val_dataset.collate_fn)

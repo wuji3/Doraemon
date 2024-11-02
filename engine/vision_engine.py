@@ -211,7 +211,7 @@ class CenterProcessor:
         self.model_processor.model.to(device)
         # data processor
         self.data_processor = SmartDataProcessor(self.data_cfg, rank=rank, project=project, training = train)
-        if self.task == 'classification':
+        if self.task == 'classification' and train:
             self.data_processor.val_dataset = self.data_processor.create_dataset('val', training = train)
 
         # loss

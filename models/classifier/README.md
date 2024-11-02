@@ -1,84 +1,124 @@
-## <div align="center">Image Classification</div>
+# <div align="center">Image Classification</div>
 
-## Tutorials
-<details open>
-<summary>Data</summary>
+## 🚀 Quick Start
 
-1. [Oxford IIIT Pet](../../oxford-iiit-pet/README.md) : A pet dataset with 37 categories and approximately 200 images per category. 
-2. Custom Data: Prepare your data as below.
-3. If you only have multiple images in some category-folder, the script will be useful.
-- ```python
-  python tools/data_prepare.py --postfix <jpg | png> --root <input your data realpath> --frac <segment ratio of train-set per category, eg: 0.9 0.6 0.3 0.9 0.9>
+### 1. Data Preparation
+
+- [Oxford IIIT Pet Dataset](../../oxford-iiit-pet/README.md): 37 categories, ~200 images per category.
+- Custom Data: Organize your data as follows:
+  ```txt
+    data/pet/
+  ├── train/
+  │   ├── Abyssinian/
+  │   │   ├── Abyssinian_1.jpg
+  │   │   ├── Abyssinian_2.jpg
+  │   │   └── ...
+  │   ├── Beagle/
+  │   │   ├── Beagle_1.jpg
+  │   │   ├── Beagle_2.jpg
+  │   │   └── ...
+  │   └── ...
+  └── val/
+      ├── Abyssinian/
+      │   ├── Abyssinian_101.jpg
+      │   ├── Abyssinian_102.jpg
+      │   └── ...
+      ├── Beagle/
+      │   ├── Beagle_101.jpg
+      │   ├── Beagle_102.jpg
+      │   └── ...
+      └── ...
+
   ```
-```markdone
-data/
-├── train
-│   └── dog
-│       └── 0-dog.jpg
-└── val
-    ├── dog
-    │   └── 1-dog.jpg
-    └── cat
-        └── 0-cat.jpg
-```
+- For multiple images in category folders, use:
+  ```
+  python tools/data_prepare.py --postfix <jpg|png> --root <data_path> --frac <train_set_ratio>
+  ```
 
-</details>
+### 2. Configuration
 
-<details open>
-<summary>Configuration ️</summary>
+- [Config Instructions](../../configs/classification/README.md)
+- Oxford IIIT Pet: Use [pet.yaml](../../configs/classification/pet.yaml)
+- Custom Data: Modify [pet.yaml](../../configs/classification/pet.yaml)
+- To switch between local and Hugging Face datasets, modify the data.root field in pet.yaml:
+  ```txt
+  data:
+    root: data/pet  # For local dataset
+    # or
+    root: dataset_name/config  # For Hugging Face dataset (e.g., wuji3/oxford-iiit-pet)
+  ```
 
-**ATTENTION**, [Config Instructions](../../configs/classification/README.md) Is All You Need 🌟
-- [_Oxford IIIT Pet_] [pet.yaml](../../configs/classification/pet.yaml) has prepared for you.
-- [_Custom Data_]  Modify based on [config.yaml](../../configs/classification/complete.yaml) or [pet.yaml](../../configs/classification/pet.yaml)  
 
-</details>
-
-<details open>
-<summary>Training 🚀️️</summary>
+### 3. Training
 
 ```shell
-# one machine one gpu
+# Single GPU
 python main.py --cfgs configs/classification/pet.yaml
 
-# one machine multiple gpus
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/classification/pet.yaml
-                                                                 --sync_bn[Option: this will lead to training slowly]
-                                                                 --resume[Option: training from checkpoint]
-                                                                 --load_from[Option: training from fine-tuning]
+# Multi-GPU
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node 8 main.py --cfgs configs/classification/pet.yaml
+
+# Optional flags:
+#   --sync_bn         # Synchronize BatchNorm (slower training)
+#   --resume          # Resume from checkpoint
+#   --load_from       # Fine-tune from pre-trained weights
 ```
-</details>
 
-<details open>
-<summary>Validate & Visualization 🌟🌟</summary>
+### 4. Validation & Visualization
 
-```markdown
-# You will find context below in log when training completes.
-
-Training complete (0.093 hours)  
-Results saved to /home/duke/project/vision-face/run/exp3  
-Predict:         python visualize.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --weight /xxx/.../vision-classifier/run/exp/best.pt --badcase --class_json /xxx/.../vision-classifier/run/exp/class_indices.json --ema --cam --data <your data>/val/XXX_cls 
-Validate:        python validate.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --eval_topk 5 --weight /xxx/.../vision-classifier/run/exp/best.pt --ema
-```
+After training, you'll find these commands in the log:
 
 ```shell
-# visualize.py provides the attention heatmalp function, which can be called by passing "--cam"
-python visualize.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --weight /xxx/.../vision-classifier/run/exp/best.pt  --class_json /xxx/.../vision-classifier/run/exp/class_indices.json --data <your data>/val/XXX_cls
-                                                                                                                                                                                               --ema[Option: may improve performance a bit] 
-                                                                                                                                                                                               --cam[Option: show the attention heatmap]
-                                                                                                                                                                                               --badcase[Option: group the badcase in a folder]
-                                                                                                                                                                                               --target_class[Option: which catogary do you want to check, serving for --badcase, if not set, directory-name will be regarded as catogary]
-                                                                                                                                                                                               --no_annotation[Optition: remove model description on left-top]
-                                                                                                                                                                                               --sampling[Optional: default None, mean no sampling]
+# Predict and Visualize
+python visualize.py --cfgs /path/to/pet.yaml --weight /path/to/best.pt --class_json /path/to/class_indices.json --data /path/to/val/XXX_cls
+
+# Optional flags:
+#   --ema             # Use EMA weights
+#   --cam             # Show attention heatmap
+#   --badcase         # Group misclassified images
+#   --target_class    # Specify category to check (for --badcase)
+#   --auto_label      # Auto-labeling for active learning
+#   --sampling N      # Sample N images for visualization
+
+# Validate
+python validate.py --cfgs /path/to/pet.yaml --eval_topk 5 --weight /path/to/best.pt
+
+# Optional flag:
+#   --ema             # Use EMA weights
 ```
 
-```shell
-python validate.py --cfgs /xxx/.../vision-classifier/run/exp/pet.yaml --eval_topk 5 --weight /xxx/.../vision-classifier/run/exp/best.pt 
-                                                                                    --ema[Option: may improve performance a bit]
-```
+## 📊 Results
 
-The picture below is the visualize and validate result. It is for visual reference only.
+Here's a sample of the visualization and validation results:
 
 <p align="center">
-  <img src="../../misc/visual&validation.jpg" width="40%" height="auto" >
+  <img src="../../misc/visual&validation.jpg" width="40%" height="auto">
 </p>
-</details>
+
+## 🔍 Advanced Features
+
+### Hugging Face Dataset Support
+
+You can now use Hugging Face datasets directly:
+
+```shell
+python main.py --cfgs configs/classification/pet.yaml
+```
+
+### Badcase Analysis
+
+To analyze misclassified images and view attention heatmaps:
+
+```shell
+python visualize.py --cfgs /path/to/pet.yaml --weight /path/to/best.pt --badcase --class_json /path/to/class_indices.json --ema --cam --data /path/to/val/CLS
+```
+
+### Auto-labeling for Active Learning
+
+For automatic labeling of new data:
+
+```shell
+python visualize.py --cfgs /path/to/pet.yaml --weight /path/to/best.pt --class_json /path/to/class_indices.json --ema --auto_label --data /path/to/new_images
+```
+
+This README now provides a clear, concise overview of the project's features and usage, with a focus on readability and visual appeal. The structure guides users from data preparation through training to advanced features like badcase analysis and auto-labeling.
