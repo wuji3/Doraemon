@@ -30,7 +30,7 @@ def main(opt):
     cfgs = yaml_load(opt.cfgs)
     task: str = cfgs['model']['task']
     if task == 'classification':
-        cpu = CenterProcessor(cfgs, LOCAL_RANK, train=False, opt=opt)
+        cpu = CenterProcessor(cfgs, LOCAL_RANK, train=False, opt=opt, project = os.path.dirname(opt.cfgs))
 
         # checkpoint loading
         model = cpu.model_processor.model
@@ -39,6 +39,8 @@ def main(opt):
         else:
             weights = torch.load(opt.weight, map_location=cpu.device)['model']
         model.load_state_dict(weights)
+
+        cpu.data_processor.val_dataset = cpu.data_processor.create_dataset('val', training = False) 
 
         # set val dataloader
         dataloader = cpu.data_processor.set_dataloader(cpu.data_processor.val_dataset, nw=cpu.data_cfg['nw'], bs=cpu.data_cfg['train']['bs'],

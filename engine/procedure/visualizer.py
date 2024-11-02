@@ -14,7 +14,7 @@ import numpy as np
 class Visualizer:
     
     @staticmethod
-    def predict_images(model, dataloader, root, device, visual_path, class_indices: dict, logger, class_head: str, badcase: bool, is_cam: bool, no_annotation: bool, target_class: Optional[str] = None):
+    def predict_images(model, dataloader, root, device, visual_path, class_indices: dict, logger, class_head: str, auto_label: bool, badcase: bool, is_cam: bool, target_class: Optional[str] = None):
 
         os.makedirs(visual_path, exist_ok=True)
 
@@ -32,7 +32,7 @@ class Visualizer:
             img = img[0]
             img_path = img_path[0]
 
-            if is_cam:
+            if not auto_label and is_cam:
                 cam_image = cam(image=img, input_tensor=inputs, dsize=img.size)
                 cam_image = cv2.resize(cam_image, img.size, interpolation=cv2.INTER_LINEAR)
 
@@ -57,11 +57,10 @@ class Visualizer:
 
             text = '\n'.join(f'{probs[j].item():.2f} {class_indices[j]}' for j in top5i)
 
-            if not no_annotation:
+            if not auto_label:
                 annotator.text((32, 32), text, txt_color=(0, 0, 0))
 
-
-            if badcase:  # Write to file
+            if auto_label or badcase:  # Write to file
                 os.makedirs(os.path.join(visual_path, 'labels'), exist_ok=True)
                 image_postfix_table[os.path.basename(os.path.splitext(img_path)[0] + '.txt')] = os.path.splitext(img_path)[1]
                 with open(os.path.join(visual_path, 'labels', os.path.basename(os.path.splitext(img_path)[0] + '.txt')), 'a') as f:
@@ -69,18 +68,16 @@ class Visualizer:
 
             logger.console(f"[{i+1}|{n}] " + os.path.basename(img_path) +" " + reduce(lambda x,y: x + " "+ y, text.split()))
 
-            if is_cam:
+            if not auto_label and is_cam:
                 img = np.hstack([cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR), cam_image])
                 cv2.imwrite(os.path.join(visual_path, os.path.basename(img_path)), img)
             else: img.save(os.path.join(visual_path, os.path.basename(img_path)))
 
         if badcase:
-            c = os.path.basename(os.path.normpath(root)) if target_class is None else target_class
-            assert c in class_indices.values(), 'Either specify the correct category through target_class or the category of the folder name itself'
             os.makedirs(os.path.join(visual_path, 'bad_case'), exist_ok=True)
             for txt in glob.glob(os.path.join(visual_path, 'labels', '*.txt')):
                 with open(txt, 'r') as f:
-                    if f.readlines()[0].split()[1] != c:
+                    if f.readlines()[0].split()[1] != target_class:
                         try:
                             shutil.move(os.path.join(visual_path, os.path.basename(txt).replace('.txt', image_postfix_table[os.path.basename(txt)])), os.path.dirname(txt).replace('labels','bad_case'))
                         except FileNotFoundError:

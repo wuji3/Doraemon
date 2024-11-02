@@ -1,92 +1,71 @@
-## <div align="center">VisionDK: ToolBox Of Image Classification & Representation Learning </div>
+# <div align="center">VisionDK: Image Classification & Representation Learning ToolBox</div>
 
-## Tutorials
+## 🚀 Quick Start
 
-<details open>
-<summary>Install ☘️</summary>
+<details>
+<summary><b>Installation Guide</b></summary>
 
-```shell
-# It is recommanded to create a separate virtual environment
-conda create -n vision python=3.10 
-conda activate vision
+```bash
+# Create and activate environment
+conda create -n vision python=3.10 && conda activate vision
 
-# torch==2.0.1(lower is also ok) -> https://pytorch.org/get-started/locally/
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y # cuda-version
-conda install pytorch torchvision torchaudio cpuonly -c pytorch -y # cpu-version
+# Install PyTorch (CUDA or CPU version)
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
+# or
+conda install pytorch torchvision torchaudio cpuonly -c pytorch -y
 
+# Install dependencies
 pip install -r requirements.txt
 
-# For CBIR
+# For CBIR functionality
 conda install faiss-gpu=1.8.0 -c pytorch
 
-# Without Arial.ttf, inference may be slow due to network IO.
-mkdir -p ~/.config/DuKe
-cp misc/Arial.ttf ~/.config/DuKe
+# Optional: Install Arial font for faster inference
+mkdir -p ~/.config/DuKe && cp misc/Arial.ttf ~/.config/DuKe
 ```
 </details>
 
+## 📢 What's New
 
-## What's New
-- [Oct. 2024]  [Content-Based Image Retrieval(CBIR)](models/faceX/README.md) has been supported 🚀️️! We provide Convnext as backbone, and give useful tools to evaluate. 
-- [Apr. 2024]  [Face Recognition Task(FRT)](models/faceX/README.md) is supported now 🚀️️! We provide ResNet, EfficientNet, and Swin Transformer as backbone; As for head, ArcFace, CircleLoss, MegFace and MV Softmax could be used for training. **Note**: partial implementation refers to [JD-FaceX](https://github.com/JDAI-CV/FaceX-Zoo)
-- [Jun. 2023]  [Image Classification Task(ICT)](models/classifier/README.md) has launched 🚀️️! Supporting many powerful strategies, such as progressive learning, online enhancement, beautiful training interface, exponential moving average, etc. The models are fully integrated into torchvision.
-- [May. 2023]  The first initialization version of Vision.
+- **[Oct. 2024]** Content-Based Image Retrieval (CBIR) support added with ConvNext backbone
+- **[Apr. 2024]** Face Recognition Task (FRT) launched with various backbones and loss functions
+- **[Jun. 2023]** Image Classification Task (ICT) released with advanced training strategies
+- **[May. 2023]** Initial release of VisionDK
 
-## Implemented Method & Paper
-| Method                                                   | Paper                                                                           |
-|----------------------------------------------------------|---------------------------------------------------------------------------------|
-| [SAM](https://arxiv.org/abs/2010.01412v3)                | Sharpness-Aware Minimization for Efficiently Improving Generalization           |
-| [Progressive Learning](https://arxiv.org/abs/2104.00298) | EfficientNetV2: Smaller Models and Faster Training                              |
-| [OHEM](https://arxiv.org/abs/1604.03540)                 | Training Region-based Object Detectors with Online Hard Example Mining          |
-| [Focal Loss](https://arxiv.org/abs/1708.02002)           | Focal Loss for Dense Object Detection                                           |
-| [Cosine Annealing](https://arxiv.org/abs/1608.03983)     | SGDR: Stochastic Gradient Descent with Warm Restarts                            |
-| [Label Smoothing](https://arxiv.org/abs/1512.00567)      | Rethinking the Inception Architecture for Computer Vision                       |
-| [Mixup](https://arxiv.org/abs/1710.09412)                | MixUp: Beyond Empirical Risk Minimization                                       |
-| [CutOut](https://arxiv.org/abs/1708.04552)               | Improved Regularization of Convolutional Neural Networks with Cutout            |
-| [Attention Pool](https://arxiv.org/abs/2112.13692)       | Augmenting Convolutional networks with attention-based aggregation              |
-| [GradCAM](https://arxiv.org/abs/1610.02391)              | Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization |
-| [ArcFace](https://arxiv.org/abs/1801.07698)              | ArcFace: Additive Angular Margin Loss for Deep Face Recognition |
-| [CircleLoss](https://arxiv.org/abs/2002.10857)           | Circle Loss: A Unified Perspective of Pair Similarity Optimization |
-| [MegFace](https://arxiv.org/abs/2103.06627)              | MagFace: A Universal Representation for Face Recognition and Quality Assessment |
-| [MV Softmax](https://arxiv.org/abs/1912.00833)           | Mis-classified Vector Guided Softmax Loss for Face Recognition |
+## 🧠 Implemented Methods
 
-## Model & Paper
+| Category | Methods |
+|----------|---------|
+| Optimization | SAM, Progressive Learning, OHEM, Focal Loss, Cosine Annealing |
+| Regularization | Label Smoothing, Mixup, CutOut |
+| Attention & Visualization | Attention Pool, GradCAM |
+| Face Recognition | ArcFace, CircleLoss, MegFace, MV Softmax |
 
-| Method                                                 | Paper                                                                 | Name in configs, eg: torchvision-mobilenet_v2                                   |
-|--------------------------------------------------------|-----------------------------------------------------------------------|---------------------------------------------------------------------------------|
-| [MobileNetv2](https://arxiv.org/abs/1801.04381)        | MobileNetV2: Inverted Residuals and Linear Bottlenecks           | mobilenet_v2                                                                    |
-| [MobileNetv3](https://arxiv.org/abs/1905.02244)        | Searching for MobileNetV3                     | mobilenet_v3_small, mobilenet_v3_large                                          |
-| [ShuffleNetv2](https://arxiv.org/abs/1807.11164)       | ShuffleNet V2: Practical Guidelines for Efficient CNN Architecture Design | shufflenet_v2_x0_5, shufflenet_v2_x1_0, shufflenet_v2_x1_5, shufflenet_v2_x2_0  |
-| [ResNet](https://arxiv.org/abs/1512.03385)             | Deep Residual Learning for Image Recognition                                 | resnet18, resnet34, resnet50, resnet101, resnet152                              |
-| [ResNeXt](https://arxiv.org/abs/1611.05431)            | Aggregated Residual Transformations for Deep Neural Networks                  | resnext50_32x4d, resnext101_32x8d, resnext101_64x4d                             |
-| [ConvNext](https://arxiv.org/abs/2201.03545)           | A ConvNet for the 2020s             | convnext_tiny, convnext_small, convnext_base, convnext_large                    |
-| [EfficientNet](https://arxiv.org/abs/1905.11946)       | EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks                             | efficientnet_b{0..7}                                          |
-| [EfficientNetv2](https://arxiv.org/abs/2104.00298)     | EfficientNetV2: Smaller Models and Faster Training  | efficientnet_v2_s, efficientnet_v2_m, efficientnet_v2_l            |
-| [Swin Transformer](https://arxiv.org/abs/2103.14030)   | Swin Transformer: Hierarchical Vision Transformer using Shifted Windows    | swin_t, swin_s, swin_b              |
-| [Swin Transformerv2](https://arxiv.org/abs/2111.09883) | Swin Transformer V2: Scaling Up Capacity and Resolution | swin_v2_t, swin_v2_s, swin_v2_b |
+## 📚 Supported Models
 
+| Model Family | Variants |
+|--------------|----------|
+| MobileNet | v2, v3_small, v3_large |
+| ShuffleNet | v2_x0_5, v2_x1_0, v2_x1_5, v2_x2_0 |
+| ResNet & ResNeXt | 18, 34, 50, 101, 152, 50_32x4d, 101_32x8d, 101_64x4d |
+| ConvNext | tiny, small, base, large |
+| EfficientNet | b0-b7, v2_s, v2_m, v2_l |
+| Swin Transformer | tiny, small, base (v1 & v2) |
 
-## Tools  
-1. Split the data set into training set and validation set
-```shell
-python tools/data_prepare.py --postfix <jpg or png> --root <input your data realpath> --frac <train/full ratio, eg: 0.9>
-```
-2. Prepare the data into query and gallery set, for image retrieval validation
-```shell
-python tools/build_querygallery.py --src <realpath of src> --frac <frac of query>
-```
-3. Data augmentation visualization 
-```shell
-cd visiondk
-python -m tools.test_augment
-```
-![](misc/augments.jpg)
-4. Data deduplicating
-```shell
-python tools/deduplicate.py (note: scipt should be updated)
-```
+## 🛠️ Utility Tools
 
+| Tool | Description | Usage |
+|------|-------------|-------|
+| Data Splitter | Split dataset into train/val sets | `python tools/data_prepare.py --postfix <jpg\|png> --root <path> --frac <ratio>` |
+| Query-Gallery Prep | Prepare data for image retrieval | `python tools/build_querygallery.py --src <path> --frac <ratio>` |
+| Augmentation Visualizer | Visualize data augmentations | `python -m tools.test_augment` |
+| Data Deduplicator | Remove duplicate entries | `python tools/deduplicate.py` |
 
-## Contact Me
-1. If you enjoy reproducing papers and algorithms, welcome to pull request.
-2. If you have some confusion about the repo, please submit issues.
+<p align="center">
+  <img src="misc/augments.jpg" width="60%" alt="Data Augmentation Visualization">
+</p>
+
+## 🤝 Contribute
+
+- For contributions: Submit a pull request
+- For questions or issues: Open an issue
