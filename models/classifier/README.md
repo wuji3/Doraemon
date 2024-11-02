@@ -37,7 +37,6 @@
 
 ### 2. Configuration
 
-- [Config Instructions](../../configs/classification/README.md)
 - Oxford IIIT Pet: Use [pet.yaml](../../configs/classification/pet.yaml)
 - Custom Data: Modify [pet.yaml](../../configs/classification/pet.yaml)
 - To switch between local and Hugging Face datasets, modify the data.root field in pet.yaml:

@@ -1,24 +1,24 @@
 model:
-  task: classification
-  name: torchvision-swin_b
-  image_size: &resize_size 224
-  kwargs: {} # kwargs feed into torchvision-style models.__init__ 'attention_dropout': 0.1,
-  num_classes: 35
-  pretrained: True
-  backbone_freeze: False
-  bn_freeze: False
-  bn_freeze_affine: False
-  attention_pool: False
+  task: classification # Task type: classification
+  name: torchvision-swin_b # Model used: Swin Transformer (base version)
+  image_size: &resize_size 224 # Input image size, using anchor for later reference
+  kwargs: {} # Additional parameters passed to model initialization into torchvision-style models.__init__ 'attention_dropout': 0.1,
+  num_classes: 35 # Number of classification categories
+  pretrained: True # Whether to use pre-trained weights
+  backbone_freeze: False # Whether to freeze the backbone network
+  bn_freeze: False # Whether to freeze Batch Normalization layers
+  bn_freeze_affine: False # Whether to freeze affine transformation parameters of BN layers
+  attention_pool: False # Whether to use attention pooling
 data:
-  root: wuji3/oxford-iiit-pet
+  root: wuji3/oxford-iiit-pet # Dataset path or Hugging Face dataset name
   nw: 64 # if not multi-nw, set to 0
   train:
-    bs: 320 # per gpu
-    base_aug: null
-    class_aug: null
+    bs: 320 # Batch size per GPU
+    base_aug: null # Base data augmentation
+    class_aug: null # Class-specific data augmentation
       # Abyssinian: [1,2,3,4]
       # Birman: [1,2,3,4]
-    augment: # refer to utils/augment.py
+    augment: # Data augmentation strategy, refer to utils/augment.py
        - random_choice:
           transforms: 
             - random_color_jitter:
@@ -56,7 +56,7 @@ data:
        - normalize: 
             mean: [0.485, 0.456, 0.406]
             std: [0.229, 0.224, 0.225]
-    aug_epoch: 13 
+    aug_epoch: 13 # Number of epochs to apply data augmentation
   val:
     bs: 320
     augment:
@@ -68,35 +68,35 @@ data:
             mean: [0.485, 0.456, 0.406]
             std: [0.229, 0.224, 0.225]
 hyp:
-  epochs: 15
-  lr0: 0.06 
-  lrf_ratio: null # decay to lrf_ratio * lr0, if None, 0.1
-  momentum: 0.937
-  weight_decay: 0.0005
-  warmup_momentum: 0.8
-  warm_ep: 1
+  epochs: 15 # Total number of training epochs
+  lr0: 0.06 # Initial learning rate
+  lrf_ratio: null # Learning rate decay ratio, null means using default value 0.1
+  momentum: 0.937 # Optimizer momentum
+  weight_decay: 0.0005 # Weight decay
+  warmup_momentum: 0.8 # Momentum during warmup phase
+  warm_ep: 1 # Number of warmup epochs
   loss:
-    ce: True
-    bce:
-      - False
+    ce: True # Whether to use cross-entropy loss
+    bce: # Binary cross-entropy, config: [use or not, weight, multi-label or not]
+      - False 
       - 0.5
-      - False # multi-label
-  label_smooth: 0.1
+      - False 
+  label_smooth: 0.1 # Label smoothing coefficient
   strategy:
-    prog_learn: False
-    mixup:
+    prog_learn: False # Whether to use progressive learning
+    mixup: # Mixup data augmentation configuration
       ratio: 0.0
       duration: 10
-    focal: 
+    focal: # Focal Loss, config: [use or not, alpha, gamma]
       - False
       - 0.25
       - 1.5
-    ohem:
+    ohem: # Online Hard Example Mining, config: [use or not, min_kept, thresh_prob, ignore_index]
       - False
-      - 8 # min_kept
-      - 0.7 # thresh_prob
-      - 255 # ignore_index
+      - 8 
+      - 0.7 
+      - 255 
   optimizer: 
-    - sgd # sgd, adam or sam
-    - False # Different layers in the model set different learning rates, in built/layer_optimizer
-  scheduler: cosine_with_warm # linear or cosine
+    - sgd # Optimizer type: SGD, Adam, or SAM
+    - False # Whether to set different learning rates for different layers of the model
+  scheduler: cosine_with_warm # Learning rate scheduler: cosine annealing with warmup
