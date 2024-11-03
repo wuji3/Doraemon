@@ -62,7 +62,7 @@ mkdir -p ~/.config/DuKe && cp misc/Arial.ttf ~/.config/DuKe
 | Data Deduplicator | Remove duplicate entries | `python tools/deduplicate.py` |
 
 <p align="center">
-  <img src="misc/augments.jpg" width="60%" alt="Data Augmentation Visualization">
+  <img src="misc/augments.jpg" width="100%" alt="Data Augmentation Visualization">
 </p>
 
 ## 🤝 Contribute
