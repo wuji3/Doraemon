@@ -10,7 +10,7 @@ model:
   bn_freeze_affine: False # Whether to freeze affine transformation parameters of BN layers
   attention_pool: False # Whether to use attention pooling
 data:
-  root: wuji3/oxford-iiit-pet # Dataset path or Hugging Face dataset name
+  root: StarQuestLab/oxford-iiit-pet # Dataset path or Hugging Face dataset name
   nw: 64 # if not multi-nw, set to 0
   train:
     bs: 320 # Batch size per GPU

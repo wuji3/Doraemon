@@ -44,7 +44,7 @@
   data:
     root: data/pet  # For local dataset
     # or
-    root: dataset_name/config  # For Hugging Face dataset (e.g., wuji3/oxford-iiit-pet)
+    root: dataset_name/config  # For Hugging Face dataset (e.g., StarQuestLab/oxford-iiit-pet)
   ```
 
 
