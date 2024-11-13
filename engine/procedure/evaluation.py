@@ -106,7 +106,7 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_trainin
         f1score = f1scorer(pred, targets)
 
         if not is_training: logger.console(f'{"name":<8}{"nums":>8}{"precision":>10}{"recall":>10}{"f1-score":>10}')
-        cls_numbers = torch.bincount(torch.argmax(targets, dim=1), minlength=pred.shape[-1]).tolist()
+        cls_numbers = targets.sum(0).int().tolist()
         for i, c in enumerate(dataloader.dataset.class_indices):
             if not is_training: logger.console(f'{c:<8}{cls_numbers[i]:>8}{precision[i].item():>10.3f}{recall[i].item():>10.3f}{f1score[i].item():>10.3f}')
             else: logger.log(f'{c:<8}{cls_numbers[i]:>8}{precision[i].item():>15.3f}{recall[i].item():>10.3f}{f1score[i].item():>10.3f}')

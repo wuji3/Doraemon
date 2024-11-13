@@ -14,17 +14,22 @@ import datasets
 import numpy as np
 from typing import Optional, Union
 import io
+import pandas as pd
 
 class ImageDatasets(Dataset):
     def __init__(self, root_or_dataset, mode='train', transforms=None, label_transforms=None, project=None, rank=None, training=True):
         self.transforms = transforms
         self.label_transforms = label_transforms
-        self.multi_label = False
         self.is_local_dataset = True
         self.training = training
 
         try:
-            self._init_from_local(root_or_dataset, mode, project, rank)
+            if os.path.isfile(root_or_dataset) and root_or_dataset.endswith('.csv'):
+                self.multi_label = True
+                self._init_from_csv(root_or_dataset, mode, project, rank)
+            else:
+                self.multi_label = False
+                self._init_from_local(root_or_dataset, mode, project, rank)
         except AssertionError:
             try:
                 self._init_from_huggingface(root_or_dataset, mode, project, rank)
@@ -32,6 +37,32 @@ class ImageDatasets(Dataset):
             except Exception as e:
                 raise ValueError(f"Failed to load dataset from local path or Hugging Face. Error: {str(e)}")
         
+    def _init_from_csv(self, csv_path, mode, project, rank):
+        # Read CSV file
+        df = pd.read_csv(csv_path)
+        
+        # Filter data based on mode
+        is_train = True if mode == 'train' else False
+        df = df[df['train'] == is_train].reset_index(drop=True)
+        
+        # Get image paths
+        self.images = df['image_path'].tolist()
+        
+        # Get class columns (excluding image_path and train columns)
+        data_class = [col for col in df.columns if col not in ['image_path', 'train']]
+        data_class.sort()
+        
+        if self.training:
+            class_indices = dict((k, v) for v, k in enumerate(data_class))
+            self._save_class_indices(class_indices, mode, project, rank)
+        else:
+            class_indices = self._load_class_indices(project)
+            data_class = list(class_indices.keys())
+        
+        # Vectorize labels
+        self.labels = df[data_class].values.tolist()  # shape: (num_samples, num_classes)
+        self.class_indices = data_class
+    
     def _init_from_local(self, root, mode, project, rank):
         assert os.path.isdir(root), f"Dataset root: {root} does not exist."
         src_path = os.path.join(root, mode)
@@ -49,8 +80,6 @@ class ImageDatasets(Dataset):
 
         images_path = []
         images_label = []
-        images_path_unique = []
-        hashtable = defaultdict(list)
 
         for cla in data_class:
             cla_path = os.path.join(src_path, cla)
@@ -60,14 +89,6 @@ class ImageDatasets(Dataset):
             images_path.extend(images)
             images_label += [image_class] * len(images)
 
-            for img_path in images:
-                img_basename = os.path.basename(img_path)
-                if img_basename not in hashtable:
-                    images_path_unique.append(img_path)
-                hashtable[img_basename].append(image_class)
-
-        self.hashtable = hashtable
-        self.images_unique = images_path_unique
         self.images = images_path
         self.labels = images_label
         self.class_indices = data_class
@@ -96,12 +117,6 @@ class ImageDatasets(Dataset):
 
         self.images = self.dataset['image']
         self.labels = self.dataset['label']
-
-        self.hashtable = defaultdict(list)
-        for idx, label in enumerate(self.labels):
-            self.hashtable[idx].append(label)
-
-        self.images_unique = list(range(len(self.images)))
         self.class_indices = data_class
 
     def _save_class_indices(self, class_indices, mode, project, rank):
@@ -136,8 +151,8 @@ class ImageDatasets(Dataset):
             else:
                 raise ValueError(f"Unexpected image type: {type(img)}")
         else:  # Local dataset
-            img = self.read_image(self.images[idx] if not self.multi_label else self.images_unique[idx])
-            label = self.hashtable[os.path.basename(self.images[idx])] if self.multi_label else self.labels[idx]
+            img = self.read_image(self.images[idx])
+            label = self.labels[idx]
 
         if self.transforms is not None:
             img = self.transforms(img, label, self.class_indices) if type(self.transforms) is ClassWiseAugmenter else self.transforms(img)
@@ -148,22 +163,73 @@ class ImageDatasets(Dataset):
         return img, label
 
     def __len__(self):
-        return len(self.images) if not self.multi_label else len(self.images_unique)
+        return len(self.images)
 
     @staticmethod
     def collate_fn(batch):
+        """
+        Collate function to handle different types of labels in a batch.
+        Supports label smoothing through dataset.label_transforms.
+        
+        Args:
+            batch: List of tuples (image, label)
+        
+        Returns:
+            tuple: (stacked_images, stacked_labels)
+        """
         imgs, labels = tuple(zip(*batch))
         imgs = torch.stack(imgs, dim=0)
-        labels = torch.as_tensor(labels) if isinstance(labels[0], int) else torch.stack(labels, dim=0)
+        
+        # Handle different label formats
+        if isinstance(labels[0], int):
+            # Single-label case: [1,3,0,2,...]
+            labels = torch.as_tensor(labels, dtype=torch.int64)
+        elif isinstance(labels[0], (list, tuple)):
+            # Multi-label case with indices [[0,2], [1,4], [0,1,3], ...]
+            labels = torch.stack([torch.as_tensor(lbl, dtype=torch.float) for lbl in labels], dim=0)
+        elif isinstance(labels[0], torch.Tensor):
+            # Multi-label case (CSV case)
+            # Labels should already be processed by set_label_transforms [[1,0,1,0,0], [0,1,0,0,1], ...]
+            labels = torch.stack(labels, dim=0).float()
+        else:
+            raise ValueError(f"Unsupported label type: {type(labels[0])}")
+        
         return imgs, labels
 
     @staticmethod
     def set_label_transforms(label, num_classes, label_smooth):
+        """
+        Transform labels with label smoothing for both single-label and multi-label cases.
+        
+        Args:
+            label: Label in various formats:
+                - int: single-label classification
+                - list: multi-label classification (indices)
+                - torch.Tensor: multi-label classification (one-hot encoded)
+            num_classes: Number of classes
+            label_smooth: Label smoothing factor
+        
+        Returns:
+            torch.Tensor: Smoothed label vector
+        """
+        if isinstance(label, torch.Tensor) and label.size(0) == num_classes:
+            # Already one-hot encoded (from CSV)
+            if label_smooth > 0:
+                # Apply label smoothing: y = y * (1 - α) + α/2
+                return label * (1 - label_smooth) + (label_smooth * 0.5)
+            return label
+        
+        # Create smoothed background
         vector = torch.zeros(num_classes).fill_(0.5 * label_smooth)
+        
         if isinstance(label, int):
+            # Single-label case
             vector[label] = 1 - 0.5 * label_smooth
-        elif isinstance(label, list):
-            vector = torch.scatter(vector, dim=0, index=torch.as_tensor(label), value=1 - 0.5 * label_smooth)
+        elif isinstance(label, (list, tuple)):
+            # Multi-label case with indices
+            label_tensor = torch.tensor(label)
+            indices = torch.nonzero(label_tensor).squeeze()
+            vector[indices] = 1 - 0.5 * label_smooth
         return vector
 
     @staticmethod
@@ -178,28 +244,55 @@ class ImageDatasets(Dataset):
     
     @staticmethod
     def tell_data_distribution(datasets, logger, nc: int, is_local_dataset: bool):
+        """
+        Display the distribution of samples across classes for both train and val sets.
+        
+        Args:
+            datasets: Dictionary containing train and val datasets
+            logger: Logger instance for output
+            nc: Number of classes
+            is_local_dataset: Boolean indicating if dataset is local
+        """
         data_distribution = defaultdict(lambda: {'train': 0, 'val': 0})
         
         for split, dataset in datasets.items():
-            for label in dataset.labels:
-                class_name = dataset.class_indices[label]
-                data_distribution[class_name][split] += 1
+            if hasattr(dataset, 'multi_label') and dataset.multi_label:
+                # For multi-label data from CSV
+                for label_vector in dataset.labels:
+                    # label_vector is a list of 0/1 indicating presence of each class
+                    for idx, is_present in enumerate(label_vector):
+                        if is_present == 1:
+                            class_name = dataset.class_indices[idx]
+                            data_distribution[class_name][split] += 1
+            else:
+                # For single-label data
+                for label in dataset.labels:
+                    class_name = dataset.class_indices[label]
+                    data_distribution[class_name][split] += 1
 
+        # Create and populate the distribution table
         pretty_table = PrettyTable(['Class', 'Train Samples', 'Val Samples'])
         train_total, val_total = 0, 0
         
-        for class_name, counts in data_distribution.items():
+        # Sort class names to match _init_from_csv order
+        sorted_classes = sorted(data_distribution.keys())
+        
+        # Add rows for each class in sorted order
+        for class_name in sorted_classes:
+            counts = data_distribution[class_name]
             train_count = counts['train']
             val_count = counts['val']
             pretty_table.add_row([class_name, train_count, val_count])
             train_total += train_count
             val_total += val_count
 
+        # Add total row
         pretty_table.add_row(['total', train_total, val_total])
 
+        # Output the table
         msg = '\n' + str(pretty_table)
         logger.both(msg) if nc <= 50 else logger.log(msg)
-        return list(data_distribution.items())
+        return [(class_name, data_distribution[class_name]) for class_name in sorted_classes]
 
 
 class PredictImageDatasets(Dataset):

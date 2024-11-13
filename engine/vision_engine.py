@@ -77,7 +77,7 @@ def check_cfgs_common(cfgs):
     # image size
     # assert get_imgsz(cfgs['data']['train']['augment']) == get_imgsz(cfgs['data']['val']['augment']), 'imgsz should be same in training and inference'
     # loss
-    assert reduce(lambda x, y: int(x) + int(y[0]), list(hyp_cfg['loss'].values())) == 1, 'ce or bce'
+    assert reduce(lambda x, y: int(x) + int(y[0]), list(hyp_cfg['loss'].values())) == 1, 'ce or bce in config yaml'
     # optimizer
     assert hyp_cfg['optimizer'][0] in {'sgd', 'adam', 'sam'}, 'optimizer choose sgd adam sam'
     # scheduler
@@ -127,17 +127,38 @@ def check_cfgs_face(cfgs):
     #         assert image_size_backbone == train_image_size, f'image_size {image_size_backbone} in backbone should be equal to image_size {train_image_size} in data augment'
         
 def check_cfgs_classification(cfgs):
+    """
+    Check configurations specific to classification tasks.
+    
+    Args:
+        cfgs: Configuration dictionary
+    """
     check_cfgs_common(cfgs=cfgs)
 
     model_cfg = cfgs['model']
     data_cfg = cfgs['data']
     hyp_cfg = cfgs['hyp']
 
+    # Check CSV data source and loss configuration
+    if data_cfg['root'].endswith('.csv'):
+        assert not hyp_cfg['loss']['ce'], \
+            'For CSV data (multi-label), CE loss is not supported. Please set ce: false in hyp.loss'
+        assert hyp_cfg['loss']['bce'][0], \
+            'For CSV data (multi-label), BCE loss must be enabled. Please set bce: [true, ...] in hyp.loss'
+
     # Check num_classes
     if os.path.isdir(data_cfg['root']):
-        # Local dataset
-        train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') if not (x.startswith('.') or x.startswith('_'))]
+        # Local dataset (folder structure)
+        train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') 
+                        if not (x.startswith('.') or x.startswith('_'))]
         num_classes = len(train_classes)
+    elif os.path.isfile(data_cfg['root']) and data_cfg['root'].endswith('.csv'):
+        # CSV dataset
+        import pandas as pd
+        df = pd.read_csv(data_cfg['root'])
+        # 排除特殊列（image_path和train）
+        class_columns = [col for col in df.columns if col not in ['image_path', 'train']]
+        num_classes = len(class_columns)
     else:
         # Assume it's a Hugging Face dataset
         try:
@@ -146,7 +167,8 @@ def check_cfgs_classification(cfgs):
         except Exception as e:
             raise ValueError(f"Failed to load dataset from {data_cfg['root']}. Error: {str(e)}")
 
-    assert model_cfg['num_classes'] == num_classes, f'num_classes in model ({model_cfg["num_classes"]}) should be equal to classes in dataset ({num_classes})'
+    assert model_cfg['num_classes'] == num_classes, \
+        f'num_classes in model ({model_cfg["num_classes"]}) should be equal to classes in dataset ({num_classes})'
 
     # Check model
     assert model_cfg['name'].split('-')[0] in {'torchvision', 'custom'}, 'if from torchvision, torchvision-ModelName; if from your own, custom-ModelName'
@@ -236,8 +258,6 @@ class CenterProcessor:
                             label_smooth=0)
                 # bce not support self.sampler
                 self.sampler = None
-                self.data_processor.train_dataset.multi_label = self.hyp_cfg['loss']['bce'][2]
-                self.data_processor.val_dataset.multi_label = self.hyp_cfg['loss']['bce'][2]
             # ohem
             elif self.hyp_cfg['strategy']['ohem'][0]: self.sampler = OHEMImageSampler(*self.hyp_cfg['strategy']['ohem'][1:])
             else: self.sampler = None
@@ -550,7 +570,8 @@ class CenterProcessor:
                                                          drop_last = True)
         # tell data distribution
         if self.rank in (-1, 0):
-            ImageDatasets.tell_data_distribution(self.data_cfg['root'], logger, self.model_cfg['head'][next(iter(self.model_cfg['head'].keys()))]['num_class'])
+            ImageDatasets.tell_data_distribution({"train": train_dataset}, logger, self.model_cfg['head'][next(iter(self.model_cfg['head'].keys()))]['num_class'], train_dataset.is_local_dataset)
+
 
         # optimizer
         params = SeperateLayerParams(model)

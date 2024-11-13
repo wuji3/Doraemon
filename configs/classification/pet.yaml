@@ -10,7 +10,7 @@ model:
   bn_freeze_affine: False # Whether to freeze affine transformation parameters of BN layers
   attention_pool: False # Whether to use attention pooling
 data:
-  root: StarQuestLab/oxford-iiit-pet # Dataset path or Hugging Face dataset name
+  root: StarQuestLab/oxford-iiit-pet # Dataset path or Hugging Face dataset name or XXX.csv
   nw: 64 # if not multi-nw, set to 0
   train:
     bs: 320 # Batch size per GPU
@@ -80,7 +80,6 @@ hyp:
     bce: # Binary cross-entropy, config: [use or not, weight, multi-label or not]
       - False 
       - 0.5
-      - False 
   label_smooth: 0.1 # Label smoothing coefficient
   strategy:
     prog_learn: False # Whether to use progressive learning
