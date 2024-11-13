@@ -17,7 +17,7 @@ class ClassWiseAugmenter(BaseClassWiseAugmenter):
         if isinstance(label, int):
             if class_indices[label] in self.class_transforms:
                 return self.class_transforms[class_indices[label]](image)
-            else: return self.common_transforms(image)
+            else: return self.base_transforms(image)
         # sigmoid
         elif isinstance(label, list): # multi-label
             # multi-label
@@ -27,4 +27,4 @@ class ClassWiseAugmenter(BaseClassWiseAugmenter):
                     return self.class_transforms[class_indices[c]](image)
 
             # Generally common class
-            return self.common_transforms(image)
+            return self.base_transforms(image)
