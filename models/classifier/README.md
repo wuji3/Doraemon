@@ -37,7 +37,7 @@ data/pet/
 See our [Sample CSV File](../../data/toy-multi-cls.csv):
 ```csv
 image_path,tag1,tag2,tag3,tag4,tag5,train
-/path/to/image1.jpg,0,1,0,0,0,True
+/path/to/image1.jpg,1,1,0,0,0,True
 /path/to/image2.jpg,0,1,0,0,0,True
 ```
 
