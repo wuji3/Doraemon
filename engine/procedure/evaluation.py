@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 from tqdm import tqdm
-from typing import Callable, Optional
+from typing import Callable, Optional, Union, List
 from torchmetrics import Precision, Recall, F1Score
 from torch import Tensor
 import itertools
@@ -49,9 +49,45 @@ class ConfusedMatrix:
         plt.gcf().subplots_adjust(top=0.9)
         plt.savefig(save_path)
 
-def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_training: bool = False, lossfn: Optional[Callable] = None, logger = None, thresh: float = 0, top_k: int = 5, conm_path: str = None):
+def valuate(model: nn.Module, dataloader, device: torch.device, pbar, 
+            is_training: bool = False, lossfn: Optional[Callable] = None, 
+            logger = None, thresh: Union[float, List[float]] = 0, 
+            top_k: int = 5, conm_path: str = None):
+    """
+    Evaluate model performance
+    
+    Args:
+        ...
+        thresh: float or List[float], threshold for each class in multi-label classification
+               - float: same threshold for all classes
+               - List[float]: specific threshold for each class
+        ...
+    """
+    is_single_label = isinstance(thresh, (int, float)) and thresh == 0
 
-    assert thresh == 0 or thresh > 0 and thresh < 1, 'When softmax, thresh == 0; when bce, 0 < thresh < 1'
+    # Check threshold type
+    if isinstance(thresh, (list, tuple, np.ndarray)):
+        # Multi-threshold case: each class uses a different threshold
+        assert len(thresh) == len(dataloader.dataset.class_indices), \
+            f'Number of thresholds ({len(thresh)}) must match number of classes ({len(dataloader.dataset.class_indices)})'
+        thresh = torch.tensor(thresh, device=device)
+        # Verify that all thresholds are within the valid range
+        assert (thresh > 0).all() and (thresh < 1).all(), \
+            'For multi-label (BCE), all thresholds should be in (0, 1)'
+    elif isinstance(thresh, (int, float)):
+        if is_single_label:
+            # Single-label classification (Softmax) case
+            pass
+        else:
+            # Multi-label classification (BCE), use the same threshold
+            assert 0 < thresh < 1, 'For multi-label (BCE), threshold should be in (0, 1)'
+            thresh = torch.full((len(dataloader.dataset.class_indices),), 
+                              thresh, 
+                              device=device)
+    else:
+        raise ValueError(f'Unsupported threshold type: {type(thresh)}. '
+                        f'Expected float or list/tuple/ndarray of floats.')
+
     # eval mode
     model.eval()
 
@@ -60,17 +96,21 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_trainin
     desc = f'{pbar.desc[:-36]}{action:>36}' if pbar else f'{action}'
     bar = tqdm(dataloader, desc, n, not is_training, bar_format='{l_bar}{bar:10}{r_bar}', position=0)
     pred, targets, loss = [], [], 0
-    with torch.no_grad(): # w/o this op, computation graph will be save
-        with autocast(enabled=(device != torch.device('cpu'))):
+    
+    with torch.no_grad():
+        with autocast('cuda', enabled=(device != torch.device('cpu'))):
             for images, labels in bar:
-                images, labels = images.to(device, non_blocking = True), labels.to(device)
+                images, labels = images.to(device, non_blocking=True), labels.to(device)
                 y = model(images)
-                if thresh == 0:
+                if is_single_label:
                     pred.append(y.argsort(1, descending=True)[:, :top_k])
                     targets.append(labels)
                 else:
-                    pred.append(y.sigmoid())
-                    # turn label_smoothing to onehot 硬标签
+                    # Get prediction probabilities using sigmoid
+                    pred_prob = y.sigmoid()
+                    # Predict using threshold for each class
+                    pred.append(pred_prob >= thresh)
+                    # Convert to hard labels
                     hard_labels = labels.round()
                     hard_labels = torch.where(hard_labels == 1, hard_labels, 0)
                     targets.append(hard_labels)
@@ -79,12 +119,13 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_trainin
 
     loss /= n
     pred, targets = torch.cat(pred), torch.cat(targets)
-    if not is_training and thresh == 0 and len(dataloader.dataset.class_indices) <= 10:
+    
+    if not is_training and is_single_label and len(dataloader.dataset.class_indices) <= 10:
         conm = ConfusedMatrix(len(dataloader.dataset.class_indices))
         conm.update(targets, pred[:, 0])
         conm.save_conm(conm.mat.detach().cpu().numpy(), dataloader.dataset.class_indices, conm_path if conm_path is not None else 'conm.png')
 
-    if thresh == 0:
+    if is_single_label:
         correct = (targets[:, None] == pred).float()
         acc = torch.stack((correct[:, 0], correct.max(1).values), dim=1)  # (top1, top5) accuracy
         top1, top5 = acc.mean(0).tolist()
@@ -97,30 +138,48 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar, is_trainin
         if not is_training: logger.console(f'{"    ":<15}{acc.shape[0]:>8}{top1:>10.3f}{round(top5, 3):>10.3f}')
     else:
         num_classes = len(dataloader.dataset.class_indices)
-        precisioner = Precision(task='multilabel', threshold=thresh, num_labels=num_classes, average=None).to(device)
-        recaller = Recall(task='multilabel', threshold=thresh, num_labels=num_classes, average=None).to(device)
-        f1scorer = F1Score(task='multilabel', threshold=thresh, num_labels=num_classes, average=None).to(device)
+        # Compute precision, recall, and F1-score for each class
+        precisioner = Precision(task='multilabel', threshold=0.5, num_labels=num_classes, average=None).to(device)
+        recaller = Recall(task='multilabel', threshold=0.5, num_labels=num_classes, average=None).to(device)
+        f1scorer = F1Score(task='multilabel', threshold=0.5, num_labels=num_classes, average=None).to(device)
 
-        precision = precisioner(pred, targets)
-        recall = recaller(pred, targets)
-        f1score = f1scorer(pred, targets)
+        # Compute precision, recall, and F1-score for each class
+        precision = precisioner(pred.float(), targets)
+        recall = recaller(pred.float(), targets)
+        f1score = f1scorer(pred.float(), targets)
 
-        if not is_training: logger.console(f'{"name":<8}{"nums":>8}{"precision":>10}{"recall":>10}{"f1-score":>10}')
+        if not is_training: 
+            logger.console(f'{"name":<8}{"nums":>8}{"precision":>10}{"recall":>10}{"f1-score":>10}{"thresh":>10}')
         cls_numbers = targets.sum(0).int().tolist()
         for i, c in enumerate(dataloader.dataset.class_indices):
-            if not is_training: logger.console(f'{c:<8}{cls_numbers[i]:>8}{precision[i].item():>10.3f}{recall[i].item():>10.3f}{f1score[i].item():>10.3f}')
-            else: logger.log(f'{c:<8}{cls_numbers[i]:>8}{precision[i].item():>15.3f}{recall[i].item():>10.3f}{f1score[i].item():>10.3f}')
-        if not is_training: logger.console(
-            f'mprecision:{precision.mean().item():.3f}, mrecall:{recall.mean().item():.3f}, mf1-score:{f1score.mean().item():.3f},')
+            if not is_training: 
+                logger.console(
+                    f'{c:<8}{cls_numbers[i]:>8}{precision[i].item():>10.3f}'
+                    f'{recall[i].item():>10.3f}{f1score[i].item():>10.3f}'
+                    f'{thresh[i].item():>10.3f}'
+                )
+            else: 
+                logger.log(
+                    f'{c:<8}{cls_numbers[i]:>8}{precision[i].item():>15.3f}'
+                    f'{recall[i].item():>10.3f}{f1score[i].item():>10.3f}'
+                )
 
-    if pbar and thresh == 0:
-        pbar.desc = f'{pbar.desc[:-36]}{loss:>12.3g}{top1:>12.3g}{top5:>12.3g}'
-    elif pbar and thresh > 0:
-        pbar.desc = f'{pbar.desc[:-36]}{loss:>12.3g}{precision.mean().item():>12.3g}{recall.mean().item():>12.3g}{f1score.mean().item():>12.3g}'
+        if not is_training: 
+            logger.console(
+                f'mprecision:{precision.mean().item():.3f}, '
+                f'mrecall:{recall.mean().item():.3f}, '
+                f'mf1-score:{f1score.mean().item():.3f}'
+            )
+
+    if pbar:
+        if is_single_label:
+            pbar.desc = f'{pbar.desc[:-36]}{loss:>12.3g}{top1:>12.3g}{top5:>12.3g}'
+        else:
+            pbar.desc = f'{pbar.desc[:-36]}{loss:>12.3g}{precision.mean().item():>12.3g}{recall.mean().item():>12.3g}{f1score.mean().item():>12.3g}'
 
     if lossfn:
-        if thresh == 0: return top1, top5, loss
+        if is_single_label: return top1, top5, loss
         else: return precision.mean().item(), recall.mean().item(), f1score.mean().item(), loss
     else:
-        if thresh == 0: return top1, top5
-        else: return precision.mean().item(), recall.mean().item(), f1score.mean().item(),
+        if is_single_label: return top1, top5
+        else: return precision.mean().item(), recall.mean().item(), f1score.mean().item()

@@ -1,6 +1,6 @@
 model:
   task: classification # Task type: classification
-  name: torchvision-swin_b # Model used: Swin Transformer (base version)
+  name: torchvision-swin_b # Model used please refer to README.md OR torchvision.models
   image_size: &resize_size 224 # Input image size, using anchor for later reference
   kwargs: {} # Additional parameters passed to model initialization into torchvision-style models.__init__ 'attention_dropout': 0.1,
   num_classes: 35 # Number of classification categories
@@ -10,10 +10,20 @@ model:
   bn_freeze_affine: False # Whether to freeze affine transformation parameters of BN layers
   attention_pool: False # Whether to use attention pooling
 data:
-  root: StarQuestLab/oxford-iiit-pet # Dataset path or Hugging Face dataset name or XXX.csv
-  nw: 64 # if not multi-nw, set to 0
+  # Choose ONE of the following data sources:
+
+  # 1. HuggingFace Dataset (Single-label)
+  root: StarQuestLab/oxford-iiit-pet  # Format: {username}/{dataset_name}
+
+  # 2. Local Dataset (Single-label)
+  # root: data-favie/pet  # Format: path/to/dataset with train/ and val/ subdirs
+
+  # 3. CSV Dataset (Multi-label)
+  # root: <Data>.csv  # Format: CSV file with image_path and label columns
+
+  nw: 16 # if not multi-nw, set to 0
   train:
-    bs: 320 # Batch size per GPU
+    bs: 160 # Batch size per GPU
     base_aug: null # Base data augmentation
     class_aug: null # Class-specific data augmentation
       # Abyssinian: [1,2,3,4]
@@ -79,18 +89,18 @@ hyp:
     ce: True # Whether to use cross-entropy loss
     bce: # Binary cross-entropy, config: [use or not, weight, multi-label or not]
       - False 
-      - 0.5
-  label_smooth: 0.1 # Label smoothing coefficient
+      - [0.5, 0.5, 0.5, 0.5, 0.5] # tag1, tag2, tag3, tag4, tag5
+  label_smooth: 0.05 # Label smoothing coefficient
   strategy:
     prog_learn: False # Whether to use progressive learning
     mixup: # Mixup data augmentation configuration
       ratio: 0.0
       duration: 10
-    focal: # Focal Loss, config: [use or not, alpha, gamma]
+    focal: # Only With BCE, Focal Loss, config: [use or not, alpha, gamma]
       - False
       - 0.25
       - 1.5
-    ohem: # Online Hard Example Mining, config: [use or not, min_kept, thresh_prob, ignore_index]
+    ohem: # Only With CE, Online Hard Example Mining, config: [use or not, min_kept, thresh_prob, ignore_index]
       - False
       - 8 
       - 0.7 

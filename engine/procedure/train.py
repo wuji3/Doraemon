@@ -115,7 +115,7 @@ class Trainer:
                 with torch.no_grad():
                     valid = self.sampler.sample(self.model(images), labels)
                     images, labels = images[valid], labels[valid]
-            with torch.cuda.amp.autocast(enabled=cuda):
+            with torch.autocast(device_type=self.device.type, enabled=(self.device != torch.device('cpu'))):
                 loss = self.compute_loss(images, labels, lam, criterion)
 
             if self.rank in {-1, 0}:

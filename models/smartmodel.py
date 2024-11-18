@@ -64,20 +64,25 @@ class TorchVisionWrapper:
                      backbone_freeze: bool = False, bn_freeze: bool = False, bn_freeze_affine: bool = False, load_from: str = None ,**kwargs):
         assert kind in {'torchvision', 'custom'}, 'kind must be torchvision or custom'
         if kind == 'torchvision':
+            # Get weights using get_model_weights
+            weights = torchvision.models.get_model_weights(choice).DEFAULT if pretrained else None
+            
             if pretrained and self.rank == 0:
-                torchvision.models.get_model(choice, weights = torchvision.models.get_model_weights(choice) if pretrained else None, **kwargs['kwargs'])
+                torchvision.models.get_model(choice, weights=weights, **kwargs['kwargs'])
             if self.rank >= 0: dist.barrier()
 
-            model = torchvision.models.get_model(choice, weights=torchvision.models.get_model_weights(
-                choice) if pretrained else None, **kwargs['kwargs'])
+            model = torchvision.models.get_model(choice, weights=weights, **kwargs['kwargs'])
+            
             # load weight if need
             if load_from is not None:
                 weights = self.load_weight(load_from)
                 weigths_out_nc = weights[list(weights.keys())[-1]].numel()
                 self.init_nc_torchvision.init_nc(model, choice, weigths_out_nc)
                 model.load_state_dict(weights)
-                if weigths_out_nc != num_classes: self.init_nc_torchvision.init_nc(model, choice, num_classes)
-                if self.logger is not None and self.rank in (-1, 0): self.logger.both(f'load_from: {load_from}')
+                if weigths_out_nc != num_classes: 
+                    self.init_nc_torchvision.init_nc(model, choice, num_classes)
+                if self.logger is not None and self.rank in (-1, 0): 
+                    self.logger.both(f'load_from: {load_from}')
             else:
                 # init num_classes from torchvision.models
                 self.init_nc_torchvision.init_nc(model, choice, num_classes)

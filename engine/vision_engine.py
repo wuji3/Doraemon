@@ -51,13 +51,6 @@ def increment_path(path, exist_ok=False, sep='', mkdir=False):
                 break
         path = Path(p)
 
-        # Method 2 (deprecated)
-        # dirs = glob.glob(f"{path}{sep}*")  # similar paths
-        # matches = [re.search(rf"{path.stem}{sep}(\d+)", d) for d in dirs]
-        # i = [int(m.groups()[0]) for m in matches if m]  # indices
-        # n = max(i) + 1 if i else 2  # increment number
-        # path = Path(f"{path}{sep}{n}{suffix}")  # increment path
-
     if mkdir:
         path.mkdir(parents=True, exist_ok=True)  # make directory
 
@@ -74,58 +67,88 @@ def check_cfgs_common(cfgs):
     data_cfg = cfgs['data']
     model_cfg = cfgs['model']
 
-    # image size
-    # assert get_imgsz(cfgs['data']['train']['augment']) == get_imgsz(cfgs['data']['val']['augment']), 'imgsz should be same in training and inference'
-    # loss
-    assert reduce(lambda x, y: int(x) + int(y[0]), list(hyp_cfg['loss'].values())) == 1, 'ce or bce in config yaml'
-    # optimizer
-    assert hyp_cfg['optimizer'][0] in {'sgd', 'adam', 'sam'}, 'optimizer choose sgd adam sam'
-    # scheduler
-    assert hyp_cfg['scheduler'] in {'linear', 'cosine', 'linear_with_warm', 'cosine_with_warm'}, 'scheduler support linear cosine linear_with_warm and cosine_with_warm'
-    assert hyp_cfg['warm_ep'] >= 0 and isinstance(hyp_cfg['warm_ep'], int) and hyp_cfg['warm_ep'] < hyp_cfg['epochs'], 'warm_ep not be negtive, and should smaller than epochs'
-    if hyp_cfg['warm_ep'] == 0: assert hyp_cfg['scheduler'] in {'linear', 'cosine'}, 'no warm, linear or cosine supported'
-    if hyp_cfg['warm_ep'] > 0: assert hyp_cfg['scheduler'] in {'linear_with_warm', 'cosine_with_warm'}, 'with warm, linear_with_warm or cosine_with_warm supported'
+    # Check loss configuration
+    assert reduce(lambda x, y: int(x) + int(y[0]), list(hyp_cfg['loss'].values())) == 1, \
+        'Loss configuration error: Only one loss type should be enabled. Set either ce: true or bce: [true, ...] in hyp.loss'
 
-    # normalize
+    # Check optimizer
+    assert hyp_cfg['optimizer'][0] in {'sgd', 'adam', 'sam'}, \
+        'Invalid optimizer selection. Please choose from: sgd, adam, or sam'
+
+    # Check scheduler and warm-up settings
+    valid_schedulers = {'linear', 'cosine', 'linear_with_warm', 'cosine_with_warm'}
+    assert hyp_cfg['scheduler'] in valid_schedulers, \
+        'Invalid scheduler selection. Supported options: linear, cosine, linear_with_warm, cosine_with_warm'
+
+    assert hyp_cfg['warm_ep'] >= 0 and isinstance(hyp_cfg['warm_ep'], int) and hyp_cfg['warm_ep'] < hyp_cfg['epochs'], \
+        f'Invalid warm-up epochs: must be a non-negative integer less than total epochs ({hyp_cfg["epochs"]})'
+
+    if hyp_cfg['warm_ep'] == 0:
+        assert hyp_cfg['scheduler'] in {'linear', 'cosine'}, \
+            'When warm-up is disabled (warm_ep: 0), only linear or cosine scheduler is supported'
+    if hyp_cfg['warm_ep'] > 0:
+        assert hyp_cfg['scheduler'] in {'linear_with_warm', 'cosine_with_warm'}, \
+            'When using warm-up (warm_ep > 0), scheduler must be either linear_with_warm or cosine_with_warm'
+
+    # Check normalization settings
     train_normalize = find_normalize(data_cfg['train']['augment'])
     val_normalize = find_normalize(data_cfg['val']['augment'])
 
-    # Conditions for pretrained and non-pretrained models
-    if model_cfg.get('pretrained', False) or model_cfg.get('load_from', 'False').startswith('torchvision'):
-        # If pretrained, normalize must exist in both train and val, and their mean and std should be the same
-        assert train_normalize is not None and val_normalize is not None, \
-            'If pretrained, normalize must be present in both train and val'
-        assert train_normalize['mean'] == val_normalize['mean'] and train_normalize['std'] == val_normalize['std'], \
-            'Train and Val normalization parameters (mean, std) must be the same'
-    elif 'load_from' in model_cfg and os.path.isfile(model_cfg['load_from']):
-        pass
+    is_pretrained = model_cfg.get('pretrained', False)
+    is_torchvision = model_cfg.get('load_from', '').startswith('torchvision')
+    is_custom_weights = 'load_from' in model_cfg and os.path.isfile(model_cfg['load_from'])
+
+    if is_pretrained or is_torchvision:
+        # Pretrained model requirements
+        if train_normalize is None or val_normalize is None:
+            raise ValueError('Pretrained models require normalization in both training and validation augmentations')
+        if train_normalize['mean'] != val_normalize['mean'] or train_normalize['std'] != val_normalize['std']:
+            raise ValueError('Inconsistent normalization parameters: mean and std must be identical for training and validation')
+    elif is_custom_weights:
+        pass  # Custom weights can have flexible normalization settings
     else:
-        # If not pretrained, normalize must not exist in either train or val
-        assert train_normalize is None and val_normalize is None, \
-            'If not pretrained, normalize should not be present in train or val'
+        # Non-pretrained model requirements
+        if train_normalize is not None or val_normalize is not None:
+            raise ValueError('Non-pretrained models should not use normalization in augmentations. Please remove normalize from both train and val augmentations')
 
 def check_cfgs_face(cfgs):
+    """
+    Check configurations specific to face recognition tasks.
+    
+    Args:
+        cfgs: Configuration dictionary
+    """
     check_cfgs_common(cfgs=cfgs)
 
     model_cfg = cfgs['model']
     data_cfg = cfgs['data']
-    # num_classes
-    train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') if not (x.startswith('.') or x.startswith('_'))]
-    nc = model_cfg['head'][next(iter(model_cfg['head'].keys()))]['num_class']
-    assert nc == len(train_classes), 'num_classes in model should be equal to classes in data folder'
-    # pair_txt
+
+    # Check number of classes
+    train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') 
+                    if not (x.startswith('.') or x.startswith('_'))]
+    head_key = next(iter(model_cfg['head'].keys()))
+    model_classes = model_cfg['head'][head_key]['num_class']
+    
+    assert model_classes == len(train_classes), \
+        f'Model configuration error: Number of classes mismatch. Expected {len(train_classes)} from dataset, but got {model_classes} in model configuration'
+
+    # Check face recognition specific configurations
     if cfgs['model']['task'] == 'face':
-        assert os.path.isfile(data_cfg['val']['pair_txt']), 'make sure pair_txt exists'
-        from engine.faceX.evaluation import Evaluator
-        with open(data_cfg['val']['pair_txt']) as f:
-            pair_list = [line.strip() for line in f.readlines()]
-        Evaluator.check_nps(pair_list)
-    # if cfgs['model']['task'] == 'cbir':
-    #     for backbone in cfgs['model']['backbone']:
-    #         image_size_backbone = int(cfgs['model']['backbone'][backbone]['image_size'])
-    #         train_image_size = get_imgsz(cfgs['data']['train']['augment'])[0]
-    #         assert image_size_backbone == train_image_size, f'image_size {image_size_backbone} in backbone should be equal to image_size {train_image_size} in data augment'
+        pair_txt_path = data_cfg['val']['pair_txt']
         
+        # Verify pair text file existence
+        if not os.path.isfile(pair_txt_path):
+            raise ValueError(f'Validation data error: Pair text file not found at {pair_txt_path}')
+
+        # Validate pair list format
+        from engine.faceX.evaluation import Evaluator
+        try:
+            with open(pair_txt_path) as f:
+                pair_list = [line.strip() for line in f.readlines()]
+            Evaluator.check_nps(pair_list)
+        except Exception as e:
+            raise ValueError(f'Pair list validation error: Invalid format in {pair_txt_path}. Details: {str(e)}')
+
 def check_cfgs_classification(cfgs):
     """
     Check configurations specific to classification tasks.
@@ -139,54 +162,72 @@ def check_cfgs_classification(cfgs):
     data_cfg = cfgs['data']
     hyp_cfg = cfgs['hyp']
 
-    # Check CSV data source and loss configuration
-    if data_cfg['root'].endswith('.csv'):
-        assert not hyp_cfg['loss']['ce'], \
-            'For CSV data (multi-label), CE loss is not supported. Please set ce: false in hyp.loss'
-        assert hyp_cfg['loss']['bce'][0], \
-            'For CSV data (multi-label), BCE loss must be enabled. Please set bce: [true, ...] in hyp.loss'
+    # Determine data source type
+    is_csv = data_cfg['root'].endswith('.csv')
+    is_local = os.path.isdir(data_cfg['root'])
+    is_huggingface = not (is_csv or is_local)
+
+    # Check loss configuration based on data source
+    if is_csv:
+        if hyp_cfg['loss']['ce']:
+            raise ValueError('Loss configuration error: Multi-label tasks (CSV format) require BCE loss. Please set ce: false in hyp.loss')
+        if not hyp_cfg['loss']['bce'][0]:
+            raise ValueError('Loss configuration error: Multi-label tasks (CSV format) require BCE loss. Please set bce: [true, ...] in hyp.loss')
+    else:
+        if not hyp_cfg['loss']['ce']:
+            raise ValueError('Loss configuration error: Single-label tasks (folder structure/HuggingFace) require CE loss. Please set ce: true in hyp.loss')
+        if hyp_cfg['loss']['bce'][0]:
+            raise ValueError('Loss configuration error: Single-label tasks (folder structure/HuggingFace) do not support BCE loss. Please set bce: [false, ...] in hyp.loss')
 
     # Check num_classes
-    if os.path.isdir(data_cfg['root']):
-        # Local dataset (folder structure)
+    if is_local:
         train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') 
                         if not (x.startswith('.') or x.startswith('_'))]
         num_classes = len(train_classes)
-    elif os.path.isfile(data_cfg['root']) and data_cfg['root'].endswith('.csv'):
-        # CSV dataset
+    elif is_csv:
         import pandas as pd
         df = pd.read_csv(data_cfg['root'])
-        # 排除特殊列（image_path和train）
         class_columns = [col for col in df.columns if col not in ['image_path', 'train']]
         num_classes = len(class_columns)
     else:
-        # Assume it's a Hugging Face dataset
         try:
             dataset = load_dataset(data_cfg['root'], split='train')
             num_classes = len(set(dataset['label']))
         except Exception as e:
-            raise ValueError(f"Failed to load dataset from {data_cfg['root']}. Error: {str(e)}")
+            raise ValueError(f"Dataset loading error: Unable to load HuggingFace dataset from {data_cfg['root']}. Details: {str(e)}")
 
     assert model_cfg['num_classes'] == num_classes, \
-        f'num_classes in model ({model_cfg["num_classes"]}) should be equal to classes in dataset ({num_classes})'
+        f'Model configuration error: Number of classes mismatch. Expected {num_classes} from dataset, but got {model_cfg["num_classes"]} in model configuration'
 
-    # Check model
-    assert model_cfg['name'].split('-')[0] in {'torchvision', 'custom'}, 'if from torchvision, torchvision-ModelName; if from your own, custom-ModelName'
+    # Check model configuration
+    assert model_cfg['name'].split('-')[0] in {'torchvision', 'custom'}, \
+        'Model name error: Format should be [torchvision-ModelName] for torchvision models or [custom-ModelName] for custom models'
+
     if model_cfg['kwargs'] and model_cfg['pretrained']:
         for k in model_cfg['kwargs'].keys():
-            if k not in {'dropout','attention_dropout', 'stochastic_depth_prob'}:
-                raise KeyError('set kwargs except dropout, pretrained must be False')
+            if k not in {'dropout', 'attention_dropout', 'stochastic_depth_prob'}:
+                raise KeyError('Model kwargs error: When using pretrained models, only [dropout, attention_dropout, stochastic_depth_prob] are allowed')
 
-    # Check strategy
-    # focalloss
+    # Check training strategies
     if hyp_cfg['strategy']['focal'][0]:
-        assert hyp_cfg['loss']['bce'], 'focalloss only support bceloss'
-    # ohem
+        assert hyp_cfg['loss']['bce'], \
+            'Strategy configuration error: Focal loss requires BCE loss. Please enable BCE loss'
+    
     if hyp_cfg['strategy']['ohem'][0]:
-        assert not hyp_cfg['loss']['bce'][0], 'ohem not support bceloss'
-    # mixup
+        assert not hyp_cfg['loss']['bce'][0], \
+            'Strategy configuration error: OHEM is not compatible with BCE loss. Please disable BCE loss'
+
+    # Check mixup configuration
     mix_ratio, mix_duration = hyp_cfg['strategy']['mixup']["ratio"], hyp_cfg['strategy']['mixup']["duration"]
-    assert 0 <= mix_ratio <= 1 and 0 <= mix_duration <= hyp_cfg['epochs'], f'mix_ratio should be in [0,1], mix_duration should be in [0, {hyp_cfg["epochs"]}]'
+    
+    # Basic ratio check
+    assert 0 <= mix_ratio <= 1, 'Mixup configuration error: ratio must be in [0,1]'
+    
+    # Only check duration when mixup is enabled
+    if mix_ratio > 0:
+        assert 0 < mix_duration <= hyp_cfg['epochs'], \
+            f'Mixup configuration error: when mixup is enabled (ratio > 0), duration must be in (0,{hyp_cfg["epochs"]}]'
+    
     hyp_cfg['strategy']['mixup'] = [mix_ratio, mix_duration]
 
 def get_imgsz(augment: dict):
@@ -199,7 +240,7 @@ def get_imgsz(augment: dict):
 
 class CenterProcessor:
     def __init__(self, cfgs: dict, rank: int, project: str = None, train: bool = True, opt = None):
-        log_filename = Path(project) / "log{}.log".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S")) if project is not None else None
+        log_filename = Path(project) / "log{}.log".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S")) if project is not None and train else None
         self.project = project
         if rank in {-1, 0} and train:
             project.mkdir(parents=True, exist_ok=True)
@@ -247,7 +288,7 @@ class CenterProcessor:
             self.thresh = self.hyp_cfg['loss']['bce'][1] if loss_choice == 'bce' else 0
 
             # add label_transforms
-            if loss_choice == 'bce':
+            if loss_choice == 'bce' and train:
                 self.data_processor.train_dataset.label_transforms = \
                     partial(ImageDatasets.set_label_transforms,
                             num_classes = self.model_cfg['num_classes'],
@@ -376,7 +417,9 @@ class CenterProcessor:
                                                          sampler=data_sampler,
                                                          shuffle=data_sampler is None,
                                                          collate_fn=train_dataset.collate_fn,
-                                                         drop_last = True)
+                                                         drop_last = True,
+                                                         prefetch_factor=2,
+                                                         persistent_workers=True)
 
         if self.rank in {-1, 0}:
             val_dataloader = data_processor.set_dataloader(dataset=val_dataset,
@@ -523,12 +566,37 @@ class CenterProcessor:
                     torch.save(ckpt, best)
                 del ckpt
 
-                # complete
+                # Training complete
                 if final_epoch:
+                    dataset = data_processor.train_dataset
+                    
+                    # Determine data path based on dataset type
+                    data_path = (os.path.join(data_processor.data_cfgs["root"], 'val') 
+                               if dataset.is_local_dataset 
+                               else data_processor.data_cfgs["root"])
+                    
+                    # Build base predict command
+                    predict_cmd = (f'python visualize.py '
+                                 f'--cfgs {os.path.join(os.path.dirname(best), os.path.basename(self.opt.cfgs))} '
+                                 f'--weight {best} '
+                                 f'--class_json {self.project}/class_indices.json '
+                                 f'--ema '
+                                 f'--data {data_path} '
+                                 f'--target_class {colorstr("blue", "YOUR_TARGET_CLASS")}')
+                    
+                    # Build validation command
+                    validate_cmd = (f'python validate.py '
+                                  f'--cfgs {os.path.join(os.path.dirname(best), os.path.basename(self.opt.cfgs))} '
+                                  f'--eval_topk 5 --weight {best} --ema')
+
                     logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
-                                   f"\nResults saved to {colorstr('bold', self.project)}"
-                                   f'\nPredict:         python visualize.py --cfgs {os.path.join(os.path.dirname(best), os.path.basename(self.opt.cfgs))} --weight {best} --badcase --class_json {self.project}/class_indices.json --ema --cam --data {data_processor.data_cfgs["root"]}/val/{colorstr("blue", "XXX_cls")}'
-                                   f'\nValidate:        python validate.py --cfgs {os.path.join(os.path.dirname(best), os.path.basename(self.opt.cfgs))} --eval_topk 5 --weight {best} --ema' )
+                              f"\nResults saved to {colorstr('bold', self.project)}"
+                              f'\nPredict:         {predict_cmd}'
+                              f'\n             └── Optional: --cam          # Enable CAM visualization'
+                              f'\n             └── Optional: --badcase      # Organize incorrect predictions'
+                              f'\n             └── Optional: --sampling N   # Visualize N random samples'
+                              f'\n             └── Optional: --remove_label # Hide prediction text'
+                              f'\nValidate:        {validate_cmd}')
 
     def run_face(self, resume = None):
         model, data_processor, scaler, device, epochs, logger, rank, warm_ep, aug_epoch, task = self.model_processor.model, self.data_processor, \
@@ -567,7 +635,9 @@ class CenterProcessor:
                                                          sampler=data_sampler,
                                                          shuffle=data_sampler is None,
                                                          collate_fn=train_dataset.collate_fn,
-                                                         drop_last = True)
+                                                         drop_last = True,
+                                                         prefetch_factor=2,
+                                                         persistent_workers=True)
         # tell data distribution
         if self.rank in (-1, 0):
             ImageDatasets.tell_data_distribution({"train": train_dataset}, logger, self.model_cfg['head'][next(iter(self.model_cfg['head'].keys()))]['num_class'], train_dataset.is_local_dataset)

@@ -12,8 +12,7 @@ from built.class_augmenter import ClassWiseAugmenter
 from prettytable import PrettyTable
 import datasets
 import numpy as np
-from typing import Optional, Union
-import io
+from typing import Optional
 import pandas as pd
 
 class ImageDatasets(Dataset):
@@ -151,7 +150,13 @@ class ImageDatasets(Dataset):
             else:
                 raise ValueError(f"Unexpected image type: {type(img)}")
         else:  # Local dataset
-            img = self.read_image(self.images[idx])
+            try:
+                img = self.read_image(self.images[idx])
+            except Exception as e:
+                random_idx = np.random.randint(0, len(self.images))
+                while random_idx == idx:
+                    random_idx = np.random.randint(0, len(self.images))
+                return self.__getitem__(random_idx)
             label = self.labels[idx]
 
         if self.transforms is not None:
@@ -296,35 +301,158 @@ class ImageDatasets(Dataset):
 
 
 class PredictImageDatasets(Dataset):
-    def __init__(self, root = None, transforms = None, postfix: tuple = ('jpg', 'png'), sampling: Optional[int] = None):
+    def __init__(self, root=None, transforms=None, postfix: tuple=('jpg', 'png'), 
+                 sampling: Optional[int]=None, class_indices: Optional[list]=None,
+                 target_class: Optional[str]=None):
+        """
+        Dataset for prediction, supporting directory, CSV file, and HuggingFace dataset inputs
+        
+        Args:
+            root: Path to image directory, CSV file, or HuggingFace dataset name
+            transforms: Image transformations
+            postfix: Tuple of image extensions (for directory mode)
+            sampling: Number of samples to use (for subset testing)
+            class_indices: List of class names
+            target_class: Filter dataset to only include specific class
+        """
         assert transforms is not None, 'transforms would not be None'
-        if root is None: # used for face embedding infer
-            self.imgs_path = []
-        else:
-            if not os.path.isdir(root): 
-                raise ValueError(f"The provided path {root} is not a directory. If you're trying to use a Hugging Face dataset, please note that only supports local datasets now")
-
-            self.imgs_path = glob.glob(os.path.join(root, f'*.{postfix[0]}')) + glob.glob(os.path.join(root, f'*.{postfix[1]}'))
-            assert len(self.imgs_path) != 0, f'there are no files with postfix as {postfix}'
         self.transforms = transforms
+        self.class_indices = class_indices
+        self.is_local_dataset = True
+        self.multi_label = False
+        self.target_class = target_class
+
+        if root is None:  # used for face embedding infer
+            self.images = []
+        else:
+            try:
+                if os.path.isfile(root) and root.endswith('.csv'):
+                    self.multi_label = True
+                    self._init_from_csv(root)
+                else:
+                    self._init_from_dir(root, postfix)
+            except (ValueError, FileNotFoundError):
+                try:
+                    self._init_from_huggingface(root)
+                    self.is_local_dataset = False
+                except Exception as e:
+                    raise ValueError(f"Failed to load dataset from {root}. Error: {str(e)}")
 
         if sampling is not None:
-            self.imgs_path = self.imgs_path[:sampling]
+            self.images = self.images[:sampling]
+
+    def _init_from_csv(self, csv_path):
+        """Initialize dataset from CSV file"""
+        df = pd.read_csv(csv_path)
+        assert 'image_path' in df.columns, 'CSV must contain image_path column'
+        
+        # Filter by target_class if specified
+        if self.target_class is not None:
+            assert self.target_class in df.columns, f'Target class {self.target_class} not found in CSV columns'
+            df = df[df[self.target_class] == 1].reset_index(drop=True)
+            
+        self.images = df['image_path'].tolist()
+        assert len(self.images) > 0, 'No valid image paths found in CSV'
+        
+        # Verify all image paths exist
+        for img_path in self.images:
+            if not os.path.exists(img_path):
+                raise FileNotFoundError(f"Image not found: {img_path}")
+
+    def _init_from_dir(self, root, postfix):
+        """Initialize dataset from directory"""
+        if not os.path.isdir(root):
+            raise ValueError(f"The provided path {root} is not a directory")
+
+        self.images = []
+        if self.target_class is not None:
+            # If target_class is specified, only look in that directory
+            target_dir = os.path.join(root, self.target_class)
+            if not os.path.isdir(target_dir):
+                raise ValueError(f"Target class directory not found: {target_dir}")
+            
+            # Search in target directory
+            for ext in postfix:
+                self.images.extend(glob.glob(os.path.join(target_dir, f'*.{ext}')))
+        else:
+            # Search recursively in all subdirectories
+            for ext in postfix:
+                self.images.extend(glob.glob(os.path.join(root, f'**/*.{ext}'), recursive=True))
+        
+        assert len(self.images) > 0, f'No files found with postfix {postfix}'
+
+    def _init_from_huggingface(self, dataset_name):
+        """Initialize dataset from HuggingFace"""
+        try:
+            from datasets import load_dataset
+            # Load validation split by default for prediction
+            self.dataset = load_dataset(dataset_name, split='validation')
+            
+            # Filter by target_class if specified
+            if self.target_class is not None:
+                if 'label' not in self.dataset.features:
+                    raise ValueError("Dataset does not contain 'label' feature")
+                
+                label_feature = self.dataset.features['label']
+                if isinstance(label_feature, datasets.ClassLabel):
+                    if self.target_class not in label_feature.names:
+                        raise ValueError(f"Target class {self.target_class} not found in dataset classes")
+                    target_idx = label_feature.names.index(self.target_class)
+                    self.dataset = self.dataset.filter(lambda x: x['label'] == target_idx)
+            
+            # Get image feature
+            if 'image' in self.dataset.features:
+                self.images = self.dataset['image']
+                # Generate image paths with indices and .jpg extension
+                self.image_paths = [f"hf_dataset_{i}.jpg" for i in range(len(self.images))]
+            else:
+                raise ValueError("Dataset does not contain 'image' feature")
+            
+            # Get class names if available
+            if 'label' in self.dataset.features:
+                label_feature = self.dataset.features['label']
+                if isinstance(label_feature, datasets.ClassLabel):
+                    self.class_indices = label_feature.names
+                
+        except Exception as e:
+            raise ValueError(f"Error loading HuggingFace dataset: {str(e)}")
 
     def __getitem__(self, idx: int):
-        img = ImageDatasets.read_image(self.imgs_path[idx])
-
-        tensor = self.transforms(img)
-
-        return img, tensor, self.imgs_path[idx]
+        """Get a single sample"""
+        try:
+            if not self.is_local_dataset:
+                # HuggingFace dataset
+                img = self.images[idx]
+                if isinstance(img, Image.Image):
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                elif isinstance(img, np.ndarray):
+                    if img.shape[-1] != 3:
+                        img = Image.fromarray(img).convert('RGB')
+                img_path = self.image_paths[idx]
+            else:
+                # Local dataset
+                img_path = self.images[idx]
+                img = ImageDatasets.read_image(img_path)
+            
+            tensor = self.transforms(img)
+            return img, tensor, img_path
+            
+        except Exception as e:
+            print(f"Error loading image at index {idx}: {str(e)}")
+            return self.__getitem__((idx + 1) % len(self))
 
     def __len__(self):
-        return len(self.imgs_path)
+        return len(self.images)
 
     @staticmethod
     def collate_fn(batch):
-        images, tensors, image_path = tuple(zip(*batch))
-        return images, torch.stack(tensors, dim=0), image_path
+        """Collate function for DataLoader"""
+        images, tensors, image_paths = tuple(zip(*batch))
+        return images, torch.stack(tensors, dim=0), image_paths
+
+    def get_class_indices(self):
+        return self.class_indices
 
 class CBIRDatasets(Dataset):
     def __init__(self, 

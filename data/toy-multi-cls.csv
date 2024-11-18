@@ -1,0 +1,9 @@
+image_path,cute,fluffy,small,aggressive,playful,train
+/home/xxx/data/toy-multi-cls/cat_1.jpg,1,1,1,0,1,True
+/home/xxx/data/toy-multi-cls/dog_1.jpg,1,1,0,0,1,True
+/home/xxx/data/toy-multi-cls/bird_1.jpg,1,0,1,0,0,True
+/home/xxx/data/toy-multi-cls/fish_1.jpg,0,0,1,0,0,True
+/home/xxx/data/toy-multi-cls/rabbit_1.jpg,1,1,1,0,1,True
+/home/xxx/data/toy-multi-cls/cat_3.jpg,1,1,1,0,1,False
+/home/xxx/data/toy-multi-cls/dog_3.jpg,1,1,0,1,1,False
+/home/xxx/data/toy-multi-cls/bird_3.jpg,1,0,1,0,0,False

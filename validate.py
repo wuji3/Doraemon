@@ -35,9 +35,9 @@ def main(opt):
         # checkpoint loading
         model = cpu.model_processor.model
         if opt.ema:
-            weights = torch.load(opt.weight, map_location=cpu.device)['ema'].float().state_dict()
+            weights = torch.load(opt.weight, map_location=cpu.device, weights_only=False)['ema'].float().state_dict()
         else:
-            weights = torch.load(opt.weight, map_location=cpu.device)['model']
+            weights = torch.load(opt.weight, map_location=cpu.device, weights_only=False)['model']
         model.load_state_dict(weights)
 
         cpu.data_processor.val_dataset = cpu.data_processor.create_dataset('val', training = False) 

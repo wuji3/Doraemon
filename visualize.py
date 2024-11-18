@@ -25,8 +25,8 @@ def parse_opt():
 
     # classification
     parser.add_argument('--data', default = ROOT / 'data/val/a', help='Target data directory')
-    parser.add_argument('--target_class', default = None, help='Which class do you want to check')
-    parser.add_argument('--auto_label', action='store_true', help = 'Do not write result in top-left')
+    parser.add_argument('--target_class', type=str, required=True, help='Which class to check')
+    parser.add_argument('--remove_label', action='store_true', help = 'Do not write result in top-left')
     parser.add_argument('--cam', action='store_true', help = 'Advanced AI explainability')
     parser.add_argument('--ema', action='store_true', help = 'Exponential Moving Average for model weight')
     parser.add_argument('--class_json', default = 'run/exp/class_indices.json', type=str)
@@ -56,43 +56,46 @@ if __name__ == '__main__':
             class_dict = json.load(f)
             class_dict = dict((eval(k), v) for k,v in class_dict.items())
 
-        if opt.badcase and opt.auto_label: 
-            raise ValueError('auto_label and badcase are mutually exclusive. Only one can be True.')
-        elif opt.auto_label: 
+        if opt.badcase and opt.remove_label: 
+            raise ValueError('remove_label and badcase are mutually exclusive. Only one can be True.')
+        elif opt.remove_label: 
             opt.cam = False
-        elif opt.badcase:
-            opt.target_class = os.path.basename(os.path.normpath(opt.data)) if opt.target_class is None else opt.target_class
-            assert opt.target_class in class_dict.values(), 'Either specify the correct category through target_class or the category of the folder name itself'
 
         cpu = CenterProcessor(cfgs, LOCAL_RANK, train=False, opt=opt)
-
+        
         # checkpoint loading
         model = cpu.model_processor.model
         if opt.ema:
-            weights = torch.load(opt.weight, map_location=cpu.device)['ema'].float().state_dict()
+            weights = torch.load(opt.weight, map_location=cpu.device, weights_only=False)['ema'].float().state_dict()
         else:
-            weights = torch.load(opt.weight, map_location=cpu.device)['model']
+            weights = torch.load(opt.weight, map_location=cpu.device, weights_only=False)['model']
         model.load_state_dict(weights)
 
         dataset = PredictImageDatasets(opt.data,
-                                    transforms=create_AugTransforms(cpu.data_cfg['val']['augment']), sampling = opt.sampling)
-        dataloader = DataLoader(dataset, shuffle=False, pin_memory=True, num_workers=cpu.data_cfg['nw'], batch_size=1,
-                                collate_fn=PredictImageDatasets.collate_fn)
+                                    transforms=create_AugTransforms(cpu.data_cfg['val']['augment']), 
+                                    sampling=opt.sampling, 
+                                    target_class=opt.target_class)
+        dataloader = DataLoader(dataset, 
+                              shuffle=False, 
+                              pin_memory=True, 
+                              num_workers=cpu.data_cfg['nw'], 
+                              batch_size=1,
+                              collate_fn=PredictImageDatasets.collate_fn)
 
         t0 = time.time()
         Visualizer.predict_images(model,
-                    dataloader,
-                    opt.data,
-                    cpu.device,
-                    visual_dir,
-                    class_dict,
-                    cpu.logger,
-                    'ce' if cpu.thresh == 0 else 'bce',
-                    opt.auto_label,
-                    opt.badcase,
-                    opt.cam,
-                    opt.target_class
-                    )
+                                dataloader,
+                                opt.data,
+                                cpu.device,
+                                visual_dir,
+                                class_dict,
+                                cpu.logger,
+                                cpu.thresh,
+                                opt.remove_label,
+                                opt.badcase,
+                                opt.cam,
+                                opt.target_class
+                                )
 
         cpu.logger.console(f'\nPredicting complete ({(time.time() - t0) / 60:.3f} minutes)'
                     f"\nResults saved to {colorstr('bold', visual_dir)}")

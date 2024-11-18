@@ -6,18 +6,55 @@ import shutil
 import os
 import torch.nn.functional as F
 import cv2
-from typing import Optional
+from typing import Optional, Union
 from dataset.basedataset import ImageDatasets
 import matplotlib.pyplot as plt
 import numpy as np
+from functools import partial
 
 class Visualizer:
     
     @staticmethod
-    def predict_images(model, dataloader, root, device, visual_path, class_indices: dict, logger, class_head: str, auto_label: bool, badcase: bool, is_cam: bool, target_class: Optional[str] = None):
+    def predict_images(model, 
+                       dataloader, 
+                       root, 
+                       device, 
+                       visual_path, 
+                       class_indices: dict, 
+                       logger, 
+                       thresh: Union[float, list[float]], 
+                       remove_label: bool, 
+                       badcase: bool, 
+                       is_cam: bool, 
+                       target_class: Optional[str] = None):
 
         os.makedirs(visual_path, exist_ok=True)
+        is_single_label = isinstance(thresh, (int, float)) and thresh == 0
+        
+        # Determine classification head type and activation function once
+        class_head = 'ce' if is_single_label else 'bce'
+        activation_fn = partial(F.softmax, dim=0) if class_head == 'ce' else partial(F.sigmoid)
 
+        # Get target class index for multi-label case
+        target_idx = None
+        if not is_single_label:
+            if isinstance(thresh, list):
+                # Find target class index and its threshold
+                for idx, class_name in class_indices.items():
+                    if class_name == target_class:
+                        target_idx = idx
+                        break
+            if target_idx is None:
+                raise ValueError(f"Target class {target_class} not found in class indices")
+                
+            # Get and validate threshold for target class
+            target_thresh = thresh[target_idx]
+            if not isinstance(target_thresh, float):
+                raise ValueError(f"Invalid threshold type for target class: {type(target_thresh)}. Must be float")
+                
+            # Update threshold to use only the target class threshold
+            thresh = target_thresh
+                
         # eval mode
         model.eval()
         n = len(dataloader)
@@ -32,7 +69,7 @@ class Visualizer:
             img = img[0]
             img_path = img_path[0]
 
-            if not auto_label and is_cam:
+            if not remove_label and is_cam:
                 cam_image = cam(image=img, input_tensor=inputs, dsize=img.size)
                 cam_image = cv2.resize(cam_image, img.size, interpolation=cv2.INTER_LINEAR)
 
@@ -47,20 +84,16 @@ class Visualizer:
             # forward
             logits = model(inputs).squeeze()
 
-            # post process
-            if class_head == 'ce':
-                probs = F.softmax(logits, dim=0)
-            else:
-                probs = F.sigmoid(logits)
-
+            # post process using pre-determined activation function
+            probs = activation_fn(logits)
             top5i = probs.argsort(0, descending=True)[:5].tolist()
 
             text = '\n'.join(f'{probs[j].item():.2f} {class_indices[j]}' for j in top5i)
 
-            if not auto_label:
+            if not remove_label:
                 annotator.text((32, 32), text, txt_color=(0, 0, 0))
 
-            if auto_label or badcase:  # Write to file
+            if remove_label or badcase:  # Write to file
                 os.makedirs(os.path.join(visual_path, 'labels'), exist_ok=True)
                 image_postfix_table[os.path.basename(os.path.splitext(img_path)[0] + '.txt')] = os.path.splitext(img_path)[1]
                 with open(os.path.join(visual_path, 'labels', os.path.basename(os.path.splitext(img_path)[0] + '.txt')), 'a') as f:
@@ -68,7 +101,7 @@ class Visualizer:
 
             logger.console(f"[{i+1}|{n}] " + os.path.basename(img_path) +" " + reduce(lambda x,y: x + " "+ y, text.split()))
 
-            if not auto_label and is_cam:
+            if not remove_label and is_cam:
                 img = np.hstack([cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR), cam_image])
                 cv2.imwrite(os.path.join(visual_path, os.path.basename(img_path)), img)
             else: img.save(os.path.join(visual_path, os.path.basename(img_path)))
@@ -77,11 +110,29 @@ class Visualizer:
             os.makedirs(os.path.join(visual_path, 'bad_case'), exist_ok=True)
             for txt in glob.glob(os.path.join(visual_path, 'labels', '*.txt')):
                 with open(txt, 'r') as f:
-                    if f.readlines()[0].split()[1] != target_class:
-                        try:
-                            shutil.move(os.path.join(visual_path, os.path.basename(txt).replace('.txt', image_postfix_table[os.path.basename(txt)])), os.path.dirname(txt).replace('labels','bad_case'))
-                        except FileNotFoundError:
-                            print(f'FileNotFoundError->{txt}')
+                    lines = f.readlines()
+                    if is_single_label:
+                        # Single-label case: check if top prediction matches target class
+                        is_badcase = lines[0].split()[1] != target_class
+                    else:
+                        # Multi-label case: check if target class probability exceeds threshold
+                        is_badcase = True
+                        for line in lines:
+                            prob, class_name = float(line.split()[0]), line.split()[1]
+                            if class_name == target_class and prob >= thresh:
+                                is_badcase = False
+                                break
+                
+                if is_badcase:
+                    try:
+                        shutil.move(
+                            os.path.join(visual_path, 
+                                       os.path.basename(txt).replace('.txt', 
+                                       image_postfix_table[os.path.basename(txt)])), 
+                            os.path.dirname(txt).replace('labels','bad_case')
+                        )
+                    except FileNotFoundError:
+                        print(f'FileNotFoundError->{txt}')
 
     @staticmethod
     def visualize_results(query, 
