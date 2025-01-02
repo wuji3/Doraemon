@@ -16,7 +16,7 @@ WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfgs', default = ROOT / 'configs/faceX/favie.yaml', help='configs for models, data, hyps')
+    parser.add_argument('--cfgs', default = ROOT / 'configs/classification/pet.yaml', help='configs for models, data, hyps')
     parser.add_argument('--resume', default = '', help='if no resume, not write')
     parser.add_argument('--load_from', default = '', help='load weight for finetune')
     parser.add_argument('--sync_bn', action='store_true', help='turn on syncBN, if on, speed will be slower')

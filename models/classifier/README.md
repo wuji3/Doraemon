@@ -2,117 +2,127 @@
 
 ## 📦 Data Preparation
 
-### Supported Data Formats
+### Quick Start with Pre-prepared Datasets
+1. **Using HuggingFace Dataset (Recommended)**
+   ```yaml
+   # In your config file (e.g., configs/classification/pet.yaml)
+   data:
+     root: StarQuestLab/oxford-iiit-pet
+   ```
 
-#### 1. Local Single-label Dataset
-Organize your data in the following structure:
+2. **Download Pre-prepared Dataset**
+   - Oxford-IIIT Pet Dataset (37 pet breeds)
+     - [Download from Baidu Cloud](https://pan.baidu.com/s/1PjM6kPoTyzNYPZkpmDoC6A) (Code: yjsl) **Recommended**
+     - [Download from Official URL](https://s3.amazonaws.com/fast-ai-imageclas/oxford-iiit-pet.tgz)
+   ```bash
+   # After downloading:
+   cd data
+   tar -xf oxford-iiit-pet.tgz
+   python split2dataset.py
+   ```
+
+### Training with Your Own Dataset
+You can prepare your data in either single-label or multi-label format:
+
+#### Option 1: Single-label Format
 ```
-data/pet/
+your_dataset/
 ├── train/
-│   ├── class1/
+│   ├── class1/             # Folder name = class name
 │   │   ├── image1.jpg
 │   │   └── ...
 │   └── class2/
-│       ├── image1.jpg
 │       └── ...
 └── val/
     ├── class1/
-    │   ├── image1.jpg
     │   └── ...
     └── class2/
-        ├── image1.jpg
         └── ...
 ```
 
-**Example Dataset**: Oxford-IIIT Pet Dataset (37 pet breeds, ~200 images/class)
-- Download: [Official URL](https://s3.amazonaws.com/fast-ai-imageclas/oxford-iiit-pet.tgz) or [Baidu Cloud](https://pan.baidu.com/s/1PjM6kPoTyzNYPZkpmDoC6A) (Code: yjsl)
-- Preparation:
-  ```bash
-  cd data
-  tar -xf oxford-iiit-pet.tgz
-  python split2dataset.py
-  ```
-
-#### 2. Local Multi-label Dataset (CSV)
-See our [Sample CSV File](../../data/toy-multi-cls.csv):
+#### Option 2: Multi-label Format (CSV)
+Create a CSV file with the following structure:
 ```csv
-image_path,tag1,tag2,tag3,tag4,tag5,train
-/path/to/image1.jpg,1,1,0,0,0,True
-/path/to/image2.jpg,0,1,0,0,0,True
+image_path,tag1,tag2,tag3,train
+/path/to/image1.jpg,1,0,1,True    # 1=has_tag, 0=no_tag
+/path/to/image2.jpg,0,1,0,True    # True=training set
 ```
 
-#### 3. HuggingFace Dataset
-```yaml
-data:
-  root: StarQuestLab/oxford-iiit-pet  # Format: {username}/{dataset_name}
-```
-
-### Data Preparation Tool
-For local single-label datasets:
+### Data Preparation Helper
+Convert a folder of categorized images into the required training format:
 ```bash
-python tools/data_prepare.py --postfix <jpg|png> --root <data_path> --frac <train_set_ratio>
+# If your data structure is:
+# your_dataset/
+# ├── class1/
+# │   ├── img1.jpg
+# │   └── img2.jpg
+# ├── class2/
+# │   ├── img3.jpg
+# │   └── img4.jpg
+# └── ...
+
+python tools/data_prepare.py \
+    --root path/to/your/images \
+    --postfix jpg \          # Image format: jpg or png
+    --frac 0.8              # Split ratio: 80% training, 20% validation
 ```
+
+This script will automatically:
+1. Create train/ and val/ directories
+2. Split images from each class into training and validation sets
+3. Maintain the class folder structure in both sets
 
 ## 🚀 Training
 
-### Configuration
-```yaml
-data:
-  # Choose ONE of the following:
-  root: data/pet                # Local single-label
-  root: data/multi_label.csv    # Local multi-label
-  root: username/dataset        # HuggingFace dataset
-```
-
-### Training Commands
+### Basic Training
 ```bash
-# Single GPU
+# Single GPU training
 python main.py --cfgs configs/classification/pet.yaml
 
-# Multi-GPU
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/classification/pet.yaml
-
-# Optional arguments:
-#   --sync_bn    # Sync BatchNorm layers
-#   --resume     # Resume from checkpoint
-#   --load_from  # Fine-tune from pretrained
+# Multi-GPU training
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py \
+    --cfgs configs/classification/pet.yaml
 ```
 
-Training logs will be saved to `run/exp/log{timestamp}.log`, containing dataset statistics, training progress, validation metrics and evaluation commands.
+### Advanced Options
 ```bash
-# View training log
-vi run/exp/log{timestamp}.log  # e.g., log20241113-155144.log
+# Resume interrupted training
+python main.py --cfgs configs/classification/pet.yaml --resume
+
+# Fine-tune from pretrained model
+python main.py --cfgs configs/classification/pet.yaml --load_from path/to/model.pt
+
+# Enable synchronized BatchNorm for multi-GPU
+python main.py --cfgs configs/classification/pet.yaml --sync_bn
 ```
 
-## 📊 Evaluation
-
-### Model Visualization
+### Monitor Training
 ```bash
-# Basic usage
-python visualize.py --cfgs <config.yaml> \
-                   --weight <best.pt> \
-                   --class_json <class_indices.json> \
-                   --data <val_data_path> \
-                   --target_class <class_name> \
-                   --ema
-
-# Optional arguments:
-#   --cam           # Enable CAM visualization
-#   --badcase       # Group misclassified images
-#   --sampling N    # Visualize N random samples
-#   --remove_label  # Hide prediction text
+# View real-time training log
+tail -f run/exp/log{timestamp}.log  # e.g., log20241113-155144.log
 ```
 
-Results will be saved to `visualization/exp/`:
-- Single-label: Top-5 predictions, CAM heatmaps, badcase grouping
-- Multi-label: Above-threshold predictions, per-class thresholds
+## 📊 Evaluation & Visualization
 
-### Model Validation
+### Visualize Model Predictions
 ```bash
-python validate.py --cfgs <config.yaml> \
-                  --weight <best.pt> \
-                  --eval_topk 5 \
-                  --ema
+python visualize.py \
+    --cfgs configs/classification/pet.yaml \
+    --weight path/to/best.pt \
+    --class_json class_indices.json \
+    --data val_data_path \
+    --target_class dog \
+    --sampling 10             # View 10 random samples
+    --cam                     # Show attention heatmaps
+    --badcase                 # Group wrong predictions
+```
+
+### Validate Model Performance
+```bash
+python validate.py \
+    --cfgs configs/classification/pet.yaml \
+    --weight path/to/best.pt \
+    --eval_topk 5
 ```
 
 ## 🖼️ Example Results
@@ -120,5 +130,5 @@ python validate.py --cfgs <config.yaml> \
 <p align="center">
   <img src="../../misc/visual&validation.jpg" width="40%">
   <br>
-  <em>Left: CAM visualization. Right: Validation metrics.</em>
+  <em>Left: Model attention visualization. Right: Performance metrics.</em>
 </p>

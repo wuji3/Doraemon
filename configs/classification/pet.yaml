@@ -1,6 +1,6 @@
 model:
   task: classification # Task type: classification
-  name: timm-vit_huge_patch14_clip_quickgelu_224 # Model used please refer to README.md OR torchvision.models
+  name: timm-swin_base_patch4_window7_224.ms_in22k_ft_in1k # Model used please refer to README.md OR torchvision.models OR timm.models
   image_size: &resize_size 224 # Input image size, using anchor for later reference
   kwargs: {} # Additional parameters passed to model initialization into torchvision-style models.__init__ 'attention_dropout': 0.1,
   num_classes: 35 # Number of classification categories
@@ -23,7 +23,7 @@ data:
 
   nw: 16 # if not multi-nw, set to 0
   train:
-    bs: 1 # Batch size per GPU
+    bs: 80 # Batch size per GPU
     base_aug: null # Base data augmentation
     class_aug: null # Class-specific data augmentation
       # Abyssinian: [1,2,3,4]
@@ -66,7 +66,7 @@ data:
        - normalize: 
             mean: [0.485, 0.456, 0.406]
             std: [0.229, 0.224, 0.225]
-    aug_epoch: 13 # Number of epochs to apply data augmentation
+    aug_epoch: 14 # Number of epochs to apply data augmentation
   val:
     bs: 320
     augment:
@@ -79,7 +79,7 @@ data:
             std: [0.229, 0.224, 0.225]
 hyp:
   epochs: 15 # Total number of training epochs
-  lr0: 0.06 # Initial learning rate
+  lr0: 0.006 # Initial learning rate
   lrf_ratio: null # Learning rate decay ratio, null means using default value 0.1
   momentum: 0.937 # Optimizer momentum
   weight_decay: 0.0005 # Weight decay

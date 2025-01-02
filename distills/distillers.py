@@ -1,7 +1,7 @@
 import torch.nn as nn
 from torch import Tensor
 from typing import Callable
-from models import TorchVisionWrapper
+from models import VisionWrapper
 from engine.vision_engine import CenterProcessor
 
 class Distiller:

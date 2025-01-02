@@ -42,7 +42,7 @@ class SetOutFeatures:
         else:
             model.fc = nn.Linear(model.fc.in_features, nc)
 
-class TorchVisionWrapper:
+class VisionWrapper:
     def __init__(self, model_cfgs: dict, logger = None, rank = -1):
         self.logger = logger
         self.model_cfgs = model_cfgs
@@ -169,4 +169,4 @@ def get_model(model_cfg, logger, rank):
 
     match model_cfg['task']:
         case 'face' | 'cbir': return FaceTrainingWrapper(model_cfg, logger)
-        case 'classification': return TorchVisionWrapper(model_cfg, logger, rank)
+        case 'classification': return VisionWrapper(model_cfg, logger, rank)
