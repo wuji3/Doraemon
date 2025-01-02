@@ -1,6 +1,6 @@
 model:
   task: classification # Task type: classification
-  name: torchvision-swin_b # Model used please refer to README.md OR torchvision.models
+  name: timm-vit_huge_patch14_clip_quickgelu_224 # Model used please refer to README.md OR torchvision.models
   image_size: &resize_size 224 # Input image size, using anchor for later reference
   kwargs: {} # Additional parameters passed to model initialization into torchvision-style models.__init__ 'attention_dropout': 0.1,
   num_classes: 35 # Number of classification categories
@@ -23,7 +23,7 @@ data:
 
   nw: 16 # if not multi-nw, set to 0
   train:
-    bs: 160 # Batch size per GPU
+    bs: 1 # Batch size per GPU
     base_aug: null # Base data augmentation
     class_aug: null # Class-specific data augmentation
       # Abyssinian: [1,2,3,4]

@@ -200,8 +200,8 @@ def check_cfgs_classification(cfgs):
         f'Model configuration error: Number of classes mismatch. Expected {num_classes} from dataset, but got {model_cfg["num_classes"]} in model configuration'
 
     # Check model configuration
-    assert model_cfg['name'].split('-')[0] in {'torchvision', 'custom'}, \
-        'Model name error: Format should be [torchvision-ModelName] for torchvision models or [custom-ModelName] for custom models'
+    assert model_cfg['name'].split('-')[0] in {'torchvision', 'timm'}, \
+        'Model name error: Format should be [torchvision-ModelName] for torchvision models or timm models'
 
     if model_cfg['kwargs'] and model_cfg['pretrained']:
         for k in model_cfg['kwargs'].keys():

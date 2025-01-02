@@ -6,6 +6,7 @@ from built.attention_based_pooler import atten_pool_replace
 import torch
 from .faceX import FaceTrainingWrapper
 import torch.distributed as dist
+import timm  
 
 class SetOutFeatures:
 
@@ -19,16 +20,26 @@ class SetOutFeatures:
             'swin',
         }
 
-    def init_nc(self, model: nn.Module, choice: str, nc: int) -> None:
+    def init_nc(self, model: nn.Module, choice: str, nc: int, model_type: str = 'torchvision') -> None:
+        if model_type == 'timm':
+            # timm models typically use 'head' or 'classifier' as final layer
+            if hasattr(model, 'head'):
+                if isinstance(model.head, nn.Linear):
+                    model.head = nn.Linear(model.head.in_features, nc)
+            elif hasattr(model, 'classifier'):
+                if isinstance(model.classifier, nn.Linear):
+                    model.classifier = nn.Linear(model.classifier.in_features, nc)
+            return
+
         model_name = choice.split('_')[0]
         assert model_name in self.models, 'Not supported model'
-        if model_name in {'mobilenet', 'convnext', 'efficientnet'}: # self.classify
+        if model_name in {'mobilenet', 'convnext', 'efficientnet'}:
             m = getattr(model, 'classifier')
             if isinstance(m, nn.Sequential):
                 m[-1] = nn.Linear(m[-1].in_features, nc)
         elif model_name == 'swin':
             model.head = nn.Linear(model.head.in_features, nc)
-        else: # self.fc
+        else:
             model.fc = nn.Linear(model.fc.in_features, nc)
 
 class TorchVisionWrapper:
@@ -48,9 +59,8 @@ class TorchVisionWrapper:
         model_cfgs_copy = deepcopy(model_cfgs)
         model_cfgs_copy['kind'], model_cfgs_copy['choice'] = model_cfgs['name'].split('-')
 
-        # init num_classes if torchvision
-        self.init_nc_torchvision = SetOutFeatures() if model_cfgs_copy['kind'] == 'torchvision' else None
-        # init model
+        # 修改这里以支持 timm
+        self.init_nc_helper = SetOutFeatures()
         self.model = self.create_model(**model_cfgs_copy)
         # pool layer
         if model_cfgs['attention_pool']:
@@ -60,10 +70,33 @@ class TorchVisionWrapper:
 
         if not self.pretrained: self.reset_parameters()
 
-    def create_model(self, choice: str, num_classes: int = 1000, pretrained: bool = False, kind: str = 'torchvision',
-                     backbone_freeze: bool = False, bn_freeze: bool = False, bn_freeze_affine: bool = False, load_from: str = None ,**kwargs):
-        assert kind in {'torchvision', 'custom'}, 'kind must be torchvision or custom'
-        if kind == 'torchvision':
+    def create_model(self, choice: str, num_classes: int = 1000, pretrained: bool = False, 
+                    kind: str = 'torchvision', backbone_freeze: bool = False, 
+                    bn_freeze: bool = False, bn_freeze_affine: bool = False, 
+                    load_from: str = None, **kwargs):
+        assert kind in {'torchvision', 'timm', 'custom'}, 'kind must be torchvision, timm or custom'
+        
+        if kind == 'timm':
+            # 创建 timm 模型
+            model = timm.create_model(
+                choice,
+                pretrained=pretrained,
+                num_classes=num_classes,
+                **kwargs['kwargs']
+            )
+            
+            # 处理自定义权重加载
+            if load_from is not None:
+                weights = self.load_weight(load_from)
+                weights_out_nc = weights[list(weights.keys())[-1]].shape[0]
+                self.init_nc_helper.init_nc(model, choice, weights_out_nc, kind)
+                model.load_state_dict(weights)
+                if weights_out_nc != num_classes:
+                    self.init_nc_helper.init_nc(model, choice, num_classes, kind)
+                if self.logger is not None and self.rank in (-1, 0):
+                    self.logger.both(f'load_from: {load_from}')
+            
+        elif kind == 'torchvision':
             # Get weights using get_model_weights
             weights = torchvision.models.get_model_weights(choice).DEFAULT if pretrained else None
             
@@ -77,15 +110,15 @@ class TorchVisionWrapper:
             if load_from is not None:
                 weights = self.load_weight(load_from)
                 weigths_out_nc = weights[list(weights.keys())[-1]].numel()
-                self.init_nc_torchvision.init_nc(model, choice, weigths_out_nc)
+                self.init_nc_helper.init_nc(model, choice, weigths_out_nc)
                 model.load_state_dict(weights)
                 if weigths_out_nc != num_classes: 
-                    self.init_nc_torchvision.init_nc(model, choice, num_classes)
+                    self.init_nc_helper.init_nc(model, choice, num_classes)
                 if self.logger is not None and self.rank in (-1, 0): 
                     self.logger.both(f'load_from: {load_from}')
             else:
                 # init num_classes from torchvision.models
-                self.init_nc_torchvision.init_nc(model, choice, num_classes)
+                self.init_nc_helper.init_nc(model, choice, num_classes)
 
         else:
             model = ...
