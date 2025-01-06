@@ -11,11 +11,11 @@ class OHEMImageSampler:
     def sample(self, logits: Tensor, labels: Tensor):
         with torch.no_grad():
             prob = F.softmax(logits, dim=1)
-            # 过滤ignore_index
+            # ignore ignore_index here
             valid1 = labels != self.ignore_index
             prob = prob[valid1]
 
-            # 取正确类别的分数
+            # extract the score for correct predictions
             tmp_prob = prob.gather(1, labels[valid1].unsqueeze(1)).squeeze(1)
             sort_prob, sort_indices = tmp_prob.sort()
 
