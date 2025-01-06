@@ -1,4 +1,8 @@
-# <div align="center">VisionDK: Image Classification & Representation Learning ToolBox</div>
+# <div align="center">DORAEMON (Deep Object Recognition And Embedding Model Of Networks)</div>
+
+<p align="center">
+<img src="misc/doraemon.jpg">
+</p>
 
 <p align="center">
 <img src="https://img.shields.io/badge/python-3.10-blue.svg">
@@ -16,7 +20,7 @@
 
 ```bash
 # Create and activate environment
-conda create -n vision python=3.10 && conda activate vision
+conda create -n Doraemon python=3.10 && conda activate Doraemon
 
 # Install PyTorch (CUDA or CPU version)
 conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
@@ -27,10 +31,10 @@ conda install pytorch torchvision torchaudio cpuonly -c pytorch -y
 pip install -r requirements.txt
 
 # For CBIR functionality
-conda install faiss-gpu=1.8.0 -c pytorch
+conda install faiss-gpu=1.8.0 -c pytorch -y
 
 # Optional: Install Arial font for faster inference
-mkdir -p ~/.config/DuKe && cp misc/Arial.ttf ~/.config/DuKe
+mkdir -p ~/.config/Doraemon && cp misc/Arial.ttf ~/.config/Doraemon
 ```
 </details>
 
@@ -52,7 +56,7 @@ mkdir -p ~/.config/DuKe && cp misc/Arial.ttf ~/.config/DuKe
 
 ## 📚 Supported Models
  
-VisionDK now supports 1000+ models through integration with TorchVision and Timm:
+Doraemon now supports 1000+ models through integration with TorchVision and Timm:
  
 - **TorchVision Models** (100+)
   - All models from `torchvision.models.list_models()`
