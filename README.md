@@ -1,4 +1,4 @@
-# <div align="center">DORAEMON (Deep Object Recognition And Embedding Model Of Networks)</div>
+# <div align="center">DORAEMON: Deep Object Recognition And Embedding Model Of Networks</div>
 
 <p align="center">
 <img src="./misc/doraemon.jpg">
