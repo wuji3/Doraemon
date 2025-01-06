@@ -66,8 +66,6 @@ Doraemon now supports 1000+ models through integration with TorchVision and Timm
   - All models from `timm.list_models(pretrained=True)`
   - Including CLIP, SigLIP, DeiT, BEiT, MAE, EVA, DINO and more
  
-For detailed model usage, please refer to [Image Classification Guide](models/classifier/README.md)
-
 ## 🛠️ Utility Tools
 
 | Tool | Description | Usage |
