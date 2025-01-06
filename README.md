@@ -1,5 +1,14 @@
 # <div align="center">VisionDK: Image Classification & Representation Learning ToolBox</div>
 
+<p align="center">
+<img src="https://img.shields.io/badge/python-3.10-blue.svg">
+<img src="https://img.shields.io/badge/pytorch-2.0+-orange.svg">
+<img src="https://img.shields.io/badge/torchmetrics-0.11.4-green.svg">
+<img src="https://img.shields.io/badge/timm-0.9.16-red.svg">
+<img src="https://img.shields.io/badge/opencv-4.7.0-lightgrey.svg">
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+</p>
+
 ## 🚀 Quick Start
 
 <details>
@@ -42,15 +51,18 @@ mkdir -p ~/.config/DuKe && cp misc/Arial.ttf ~/.config/DuKe
 | Face Recognition | ArcFace, CircleLoss, MegFace, MV Softmax |
 
 ## 📚 Supported Models
-
-| Model Family | Variants |
-|--------------|----------|
-| MobileNet | v2, v3_small, v3_large |
-| ShuffleNet | v2_x0_5, v2_x1_0, v2_x1_5, v2_x2_0 |
-| ResNet & ResNeXt | 18, 34, 50, 101, 152, 50_32x4d, 101_32x8d, 101_64x4d |
-| ConvNext | tiny, small, base, large |
-| EfficientNet | b0-b7, v2_s, v2_m, v2_l |
-| Swin Transformer | tiny, small, base (v1 & v2) |
+ 
+VisionDK now supports 1000+ models through integration with TorchVision and Timm:
+ 
+- **TorchVision Models** (100+)
+  - All models from `torchvision.models.list_models()`
+  - Including MobileNet, ShuffleNet, ResNet, ConvNext, EfficientNet, Swin, ViT and more
+ 
+- **Timm Models** (1000+)
+  - All models from `timm.list_models(pretrained=True)`
+  - Including CLIP, SigLIP, DeiT, BEiT, MAE, EVA, DINO and more
+ 
+For detailed model usage, please refer to [Image Classification Guide](models/classifier/README.md)
 
 ## 🛠️ Utility Tools
 
@@ -60,10 +72,6 @@ mkdir -p ~/.config/DuKe && cp misc/Arial.ttf ~/.config/DuKe
 | Query-Gallery Prep | Prepare data for image retrieval | `python tools/build_querygallery.py --src <path> --frac <ratio>` |
 | Augmentation Visualizer | Visualize data augmentations | `python -m tools.test_augment` |
 | Data Deduplicator | Remove duplicate entries | `python tools/deduplicate.py` |
-
-<p align="center">
-  <img src="misc/augments.jpg" width="100%" alt="Data Augmentation Visualization">
-</p>
 
 ## 🤝 Contribute
 
