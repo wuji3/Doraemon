@@ -20,7 +20,7 @@
 
 ```bash
 # Create and activate environment
-conda create -n Doraemon python=3.10 && conda activate Doraemon
+conda create -n doraemon python=3.10 -y && conda activate doraemon
 
 # Install PyTorch (CUDA or CPU version)
 conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
@@ -52,7 +52,7 @@ mkdir -p ~/.config/Doraemon && cp misc/Arial.ttf ~/.config/Doraemon
 | Optimization | SAM, Progressive Learning, OHEM, Focal Loss, Cosine Annealing |
 | Regularization | Label Smoothing, Mixup, CutOut |
 | Attention & Visualization | Attention Pool, GradCAM |
-| Face Recognition | ArcFace, CircleLoss, MegFace, MV Softmax |
+| Representation Learning | ArcFace, CircleLoss, MegFace, MV Softmax |
 
 ## 📚 Supported Models
  
