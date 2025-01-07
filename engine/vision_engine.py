@@ -94,14 +94,34 @@ def check_cfgs_common(cfgs):
     train_normalize = find_normalize(data_cfg['train']['augment'])
     val_normalize = find_normalize(data_cfg['val']['augment'])
 
-    is_pretrained = model_cfg.get('pretrained', False)
-    is_torchvision = model_cfg.get('load_from', '').startswith('torchvision')
+    # 检查backbone配置
+    # Handle both old and new format model configurations
+    if 'backbone' in model_cfg:
+        # New format with nested backbone structure
+        backbone_cfg = next(iter(model_cfg['backbone'].items()))
+        backbone_name, backbone_params = backbone_cfg
+    else:
+        # Old format with direct parameters
+        backbone_name = model_cfg['name']
+        backbone_params = {
+            'pretrained': model_cfg.get('pretrained', False),
+            'image_size': model_cfg.get('image_size')
+        }
+
+    # 检查 task 和 torchvision 模型的兼容性
+    is_torchvision = backbone_name.startswith('torchvision-')
+    if is_torchvision and model_cfg['task'] != 'classification':
+        raise ValueError(f"Torchvision models are only supported for classification tasks, "
+                        f"but got task: {model_cfg['task']}")
+
+    is_timm = backbone_name.startswith('timm-')
+    is_pretrained = backbone_params.get('pretrained', False)
     is_custom_weights = 'load_from' in model_cfg and os.path.isfile(model_cfg['load_from'])
 
-    if is_pretrained or is_torchvision:
-        # Pretrained model requirements
+    if is_timm or is_torchvision or is_pretrained:
+        # Pretrained model requirements (包括 timm 和 torchvision 模型)
         if train_normalize is None or val_normalize is None:
-            raise ValueError('Pretrained models require normalization in both training and validation augmentations')
+            raise ValueError('Pretrained models (including timm/torchvision models) require normalization in both training and validation augmentations')
         if train_normalize['mean'] != val_normalize['mean'] or train_normalize['std'] != val_normalize['std']:
             raise ValueError('Inconsistent normalization parameters: mean and std must be identical for training and validation')
     elif is_custom_weights:
@@ -110,6 +130,13 @@ def check_cfgs_common(cfgs):
         # Non-pretrained model requirements
         if train_normalize is not None or val_normalize is not None:
             raise ValueError('Non-pretrained models should not use normalization in augmentations. Please remove normalize from both train and val augmentations')
+
+    # Check image size for backbone
+    if is_timm or is_torchvision:
+        assert 'image_size' in backbone_params, \
+            f'Image size must be specified for {backbone_name}'
+        assert backbone_params['image_size'] == model_cfg['image_size'], \
+            f'Image size mismatch: {backbone_params["image_size"]} in backbone config vs {model_cfg["image_size"]} in model config'
 
 def check_cfgs_face(cfgs):
     """

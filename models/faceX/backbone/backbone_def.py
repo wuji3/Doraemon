@@ -3,6 +3,7 @@ from .resnets import Resnet
 from .swin import SwinTransformer
 from .efficientnets import efficientnet, EfficientNet
 from .convnext import ConvNeXt
+from .timm_wrapper import TimmWrapper
 
 class BackboneFactory:
     """Factory to produce backbone according the backbone_conf.yaml.
@@ -19,18 +20,19 @@ class BackboneFactory:
 
     def get_backbone(self):
 
-        if self.backbone_type == 'resnet':
-            image_size = self.backbone_param['image_size']
-            depth = self.backbone_param['depth'] # depth of the ResNet, e.g. 50, 100, 152.
-            drop_ratio = self.backbone_param['drop_ratio'] # drop out ratio.
-            net_mode = self.backbone_param['net_mode'] # 'ir' for improved by resnt, 'ir_se' for SE-ResNet.
-            feat_dim = self.backbone_param['feat_dim'] # dimension of the output features, e.g. 512.
+        if self.backbone_type.startswith('timm'):
+            model = self.backbone_type.split('-')[1]
+            return TimmWrapper(
+                model_name=model,
+                **self.backbone_param,
+            )
 
-            backbone = Resnet(num_layers=depth, 
-                              image_size=image_size,
-                              drop_ratio=drop_ratio, 
-                              mode=net_mode, 
-                              feat_dim=feat_dim)
+        elif self.backbone_type.startswith('torchvision'):  # torchvision
+            raise NotImplementedError("Torchvision models are not supported yet.")
+
+        if self.backbone_type == 'resnet':
+
+            backbone = Resnet(**self.backbone_param)
 
         elif self.backbone_type == 'efficientnet':
             width = self.backbone_param['width'] # width for EfficientNet, e.g. 1.0, 1.2, 1.4, ...
@@ -49,21 +51,14 @@ class BackboneFactory:
                                     global_params=global_params)
 
         elif self.backbone_type == 'swintransformer':
-            model_size = self.backbone_param['model_size']
-            img_size = self.backbone_param['image_size']
-            feat_dim = self.backbone_param['feat_dim'] # dimension of the output features, e.g. 512.
 
-            backbone = SwinTransformer(img_size = img_size, model_size = model_size, feat_dim = feat_dim)
+            backbone = SwinTransformer(**self.backbone_param)
 
         elif self.backbone_type == 'convnext':
-            model_size = self.backbone_param['model_size']
-            feat_dim = self.backbone_param['feat_dim']
-            image_size = self.backbone_param['image_size']
 
-            backbone = ConvNeXt(model_size = model_size,
-                                feat_dim=feat_dim,
-                                image_size=image_size)
+            backbone = ConvNeXt(**self.backbone_param)
+
         else:
-            raise NotImplemented("only resnet, efficientnet and swin transformer are supported now !")
+            raise NotImplemented(f"{self.backbone_type} is not supported now !")
 
         return backbone
