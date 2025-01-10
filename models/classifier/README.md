@@ -78,7 +78,7 @@ This script will automatically:
 ```yaml
 model:
   task: classification
-  name: timm-swin_base_patch4_window7_224  # Format: {framework}-{model_name}
+  name: timm-swin_base_patch4_window7_224  # Format: timm-{model_name}
   image_size: 224
   num_classes: 35
   pretrained: True
@@ -86,17 +86,10 @@ model:
 ```
  
 ### Available Models
-- **TorchVision Models** (100+ models): `torchvision-{model_name}`
-  ```python
-  import torchvision
-  torchvision.models.list_models()  # ['convnext_base', 'shufflenet_v2_x2_0', 'swin_b', ...]
-  ```
- 
-- **Timm Models** (1000+ models): `timm-{model_name}`
-  ```python
-  import timm
-  timm.list_models(pretrained=True)  # ['beit_base_patch16_224.in22k_ft_in22k', 'swin_base_patch4_window7_224.ms_in22k_ft_in1k', 'vit_base_patch16_siglip_224.webli', ...]
-  ```
+```python
+import timm
+timm.list_models(pretrained=True)  # ['beit_base_patch16_224.in22k_ft_in22k', 'swin_base_patch4_window7_224.ms_in22k_ft_in1k', 'vit_base_patch16_siglip_224.webli', ...]
+```
 
 ## 🚀 Training
  

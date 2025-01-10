@@ -45,28 +45,23 @@ mkdir -p ~/.config/Doraemon && cp misc/Arial.ttf ~/.config/Doraemon
 - **[Jun. 2023]** [Image Classification Task(ICT)](models/classifier/README.md) released with advanced training strategies
 - **[May. 2023]** Initial release of VisionDK
 
-## 🧠 Implemented Methods
+## 🎯 Implemented Methods
 
-| Category | Methods |
+|Category | Methods |
 |----------|---------|
 | Optimization | SAM, Progressive Learning, OHEM, Focal Loss, Cosine Annealing |
 | Regularization | Label Smoothing, Mixup, CutOut |
 | Attention & Visualization | Attention Pool, GradCAM |
 | Representation Learning | ArcFace, CircleLoss, MegFace, MV Softmax |
 
-## 📚 Supported Models
+## 🔮 Supported Models
  
-Doraemon now supports 1000+ models through integration with TorchVision and Timm:
+Doraemon now supports 1000+ models through integration with Timm:
  
-- **TorchVision Models** (100+)
-  - All models from `torchvision.models.list_models()`
-  - Including MobileNet, ShuffleNet, ResNet, ConvNext, EfficientNet, Swin, ViT and more
+- All models from `timm.list_models(pretrained=True)`
+- Including CLIP, SigLIP, DeiT, BEiT, MAE, EVA, DINO and more
  
-- **Timm Models** (1000+)
-  - All models from `timm.list_models(pretrained=True)`
-  - Including CLIP, SigLIP, DeiT, BEiT, MAE, EVA, DINO and more
- 
-## 🛠️ Utility Tools
+## ⚙️ Utility Tools
 
 | Tool | Description | Usage |
 |------|-------------|-------|
@@ -74,8 +69,3 @@ Doraemon now supports 1000+ models through integration with TorchVision and Timm
 | Query-Gallery Prep | Prepare data for image retrieval | `python tools/build_querygallery.py --src <path> --frac <ratio>` |
 | Augmentation Visualizer | Visualize data augmentations | `python -m tools.test_augment` |
 | Data Deduplicator | Remove duplicate entries | `python tools/deduplicate.py` |
-
-## 🤝 Contribute
-
-- For contributions: Submit a pull request
-- For questions or issues: Open an issue

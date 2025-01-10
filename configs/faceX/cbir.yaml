@@ -1,11 +1,22 @@
 model:
   task: cbir
   image_size: &imgsz 224
+  load_from: null
   backbone:
-    swintransformer: # tiny small base
-      model_size: base
+    timm-swin_base_patch4_window7_224.ms_in22k_ft_in1k: # imgsz 224
+    # timm-vit_base_patch8_224.dino: # imgsz 224
+    # timm-vit_large_patch16_224.mae: # imgsz 224
+    # timm-vit_huge_patch14_clip_224.laion2b_ft_in12k_in1k: # imgsz 224
+    # timm-swinv2_large_window12to16_192to256.ms_in22k_ft_in1k: # imgsz 256
+    # timm-vit_base_patch16_clip_224.laion2b_ft_in1k: # imgsz 224
+    # timm-swinv2_cr_small_ns_224.sw_in1k: # imgsz 224
+    # timm-vit_so400m_patch14_siglip_224.webli: # imgsz 224
+    # timm-wide_resnet101_2.tv2_in1k: # imgsz 224
+    # timm-tf_mobilenetv3_large_minimal_100.in1k: # imgsz 224
+    # timm-vit_large_patch14_dinov2.lvd142m: # imgsz 518
+      pretrained: False
       image_size: *imgsz
-      feat_dim: &featd 128
+      feat_dim: &featd 128 
   head:
     arcface:
       feat_dim: *featd

@@ -2,7 +2,7 @@ from typing import Tuple, Callable, Optional, List
 import numpy as np
 import torch
 import torch.nn as nn
-from torchvision.models import SwinTransformer, ResNet, MobileNetV2, MobileNetV3, ConvNeXt, ShuffleNetV2, EfficientNet
+from timm.models import VisionTransformer, SwinTransformer, ResNet, MobileNetV3, ConvNeXt, SwinTransformerV2
 from PIL.JpegImagePlugin import JpegImageFile
 from PIL.Image import Image as ImageType
 from torchvision.transforms import Compose
@@ -96,14 +96,9 @@ class ClassActivationMaper:
         return cam_image
 
     def _create_target_layers_and_transform(self, model: nn.Module) -> Tuple[list, Optional[Callable]]:
-        if type(model) is SwinTransformer:
-            return [model.features[-1][-1].norm2], lambda tensor: torch.permute(tensor, dims=[0, 3, 1, 2])
-        elif type(model) is ResNet:
-            return [model.layer4], None
-        elif type(model) in (MobileNetV2, MobileNetV3, ConvNeXt, EfficientNet):
-            return [model.features[-1]], None
-        elif type(model) is ShuffleNetV2:
-            return [model.conv5], None
+
+        if type(model) in (SwinTransformer):
+            return [model.norm], lambda tensor: torch.permute(tensor, dims=[0, 3, 1, 2]) 
         else: 
             raise KeyError(f'{type(model)} not support yet')
 

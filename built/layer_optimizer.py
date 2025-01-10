@@ -8,7 +8,6 @@ class SeperateLayerParams(BaseSeperateLayer):
 
     def create_ParamSequence(self, layer_wise: bool, lr: float) -> Union[Iterator, List[Dict]]:
         """
-        torchvision-swin_t
         Args:
             layer_wise: lr衰减系数
             lr: 基准学习率

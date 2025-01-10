@@ -36,8 +36,8 @@ class DistillCenterProcessor(CenterProcessor):
         super().__init__(cfgs=cfgs['student'], rank=rank, project= project)
 
         # init teacher model
-        self.teacher = TorchVisionWrapper(cfgs['teacher'], logger = logger)
-        self.opt = opt
+        # self.teacher = TorchVisionWrapper(cfgs['teacher'], logger = logger)
+        # self.opt = opt
 
 
 

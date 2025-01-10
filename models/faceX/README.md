@@ -71,7 +71,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/
                                                                  --load_from[Option: training from fine-tuning]
                                                         
 ## [CBIR] If want load ImageNet pretrained weight, run the command below. Refer to models/faceX/backbone/pretrained_models.py
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/faceX/cbir.yaml --print_freq 50 --save_freq 5 --load_from torchvision-swin_b
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py --cfgs configs/faceX/cbir.yaml --print_freq 50 --save_freq 5
 ```
 
 </details>

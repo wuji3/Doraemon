@@ -94,49 +94,34 @@ def check_cfgs_common(cfgs):
     train_normalize = find_normalize(data_cfg['train']['augment'])
     val_normalize = find_normalize(data_cfg['val']['augment'])
 
-    # 检查backbone配置
-    # Handle both old and new format model configurations
+    # Check backbone configuration
     if 'backbone' in model_cfg:
-        # New format with nested backbone structure
         backbone_cfg = next(iter(model_cfg['backbone'].items()))
         backbone_name, backbone_params = backbone_cfg
     else:
-        # Old format with direct parameters
         backbone_name = model_cfg['name']
         backbone_params = {
             'pretrained': model_cfg.get('pretrained', False),
             'image_size': model_cfg.get('image_size')
         }
 
-    # 检查 task 和 torchvision 模型的兼容性
-    is_torchvision = backbone_name.startswith('torchvision-')
-    if is_torchvision and model_cfg['task'] != 'classification':
-        raise ValueError(f"Torchvision models are only supported for classification tasks, "
-                        f"but got task: {model_cfg['task']}")
+    # Verify model type is timm
+    assert backbone_name.startswith('timm-'), \
+        "Only timm models are supported. Model name must start with 'timm-'"
 
-    is_timm = backbone_name.startswith('timm-')
+    # Check normalization requirements based on pretrained status
     is_pretrained = backbone_params.get('pretrained', False)
-    is_custom_weights = 'load_from' in model_cfg and os.path.isfile(model_cfg['load_from'])
-
-    if is_timm or is_torchvision or is_pretrained:
-        # Pretrained model requirements (包括 timm 和 torchvision 模型)
+    if is_pretrained:
         if train_normalize is None or val_normalize is None:
-            raise ValueError('Pretrained models (including timm/torchvision models) require normalization in both training and validation augmentations')
+            raise ValueError('Pretrained models require normalization in both training and validation augmentations')
         if train_normalize['mean'] != val_normalize['mean'] or train_normalize['std'] != val_normalize['std']:
             raise ValueError('Inconsistent normalization parameters: mean and std must be identical for training and validation')
-    elif is_custom_weights:
-        pass  # Custom weights can have flexible normalization settings
-    else:
-        # Non-pretrained model requirements
-        if train_normalize is not None or val_normalize is not None:
-            raise ValueError('Non-pretrained models should not use normalization in augmentations. Please remove normalize from both train and val augmentations')
-
+    
     # Check image size for backbone
-    if is_timm or is_torchvision:
-        assert 'image_size' in backbone_params, \
-            f'Image size must be specified for {backbone_name}'
-        assert backbone_params['image_size'] == model_cfg['image_size'], \
-            f'Image size mismatch: {backbone_params["image_size"]} in backbone config vs {model_cfg["image_size"]} in model config'
+    assert 'image_size' in backbone_params, \
+        f'Image size must be specified for {backbone_name}'
+    assert backbone_params['image_size'] == model_cfg['image_size'], \
+        f'Image size mismatch: {backbone_params["image_size"]} in backbone config vs {model_cfg["image_size"]} in model config'
 
 def check_cfgs_face(cfgs):
     """
@@ -227,8 +212,8 @@ def check_cfgs_classification(cfgs):
         f'Model configuration error: Number of classes mismatch. Expected {num_classes} from dataset, but got {model_cfg["num_classes"]} in model configuration'
 
     # Check model configuration
-    assert model_cfg['name'].split('-')[0] in {'torchvision', 'timm'}, \
-        'Model name error: Format should be [torchvision-ModelName] for torchvision models or timm models'
+    assert model_cfg['name'].split('-')[0] == 'timm', \
+        'Model name error: Format should be [timm-ModelName] for timm models'
 
     if model_cfg['kwargs'] and model_cfg['pretrained']:
         for k in model_cfg['kwargs'].keys():
@@ -633,19 +618,10 @@ class CenterProcessor:
         # load for fine-tune
         if 'load_from' in self.model_cfg:
             load_from = self.model_cfg['load_from']
-            if load_from.startswith("torchvision") and load_from in PreTrainedModels:
-                modelname = load_from.split('-')[1]
-                from torchvision.models import get_model as torchvision_get_model
-                if rank in (-1, 0): # make sure rank 0 download once
-                    torchvision_get_model(modelname, weights = PreTrainedModels[load_from])
-                if rank >= 0: 
-                    dist.barrier()
-                state_dict = torchvision_get_model(modelname, weights = PreTrainedModels[load_from]).state_dict()
-            else:
-                state_dict = torch.load(load_from, weights_only=False)
-                if 'ema' in state_dict: state_dict = state_dict['ema']
-                else: 
-                    state_dict = state_dict['model_state_dict']
+            state_dict = torch.load(load_from, weights_only=False)
+            if 'ema' in state_dict: state_dict = state_dict['ema']
+            else: 
+                state_dict = state_dict['model_state_dict']
             missing_keys, unexpected_keys = model.trainingwrapper['backbone'].load_state_dict(state_dict=state_dict, strict=False)
             if rank in (-1, 0): 
                 logger.both(f'load_from: {load_from}')

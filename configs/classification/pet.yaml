@@ -1,8 +1,19 @@
 model:
   task: classification # Task type: classification
-  name: timm-swin_base_patch4_window7_224.ms_in22k_ft_in1k # Model used please refer to README.md OR torchvision.models OR timm.models
+  # timm-swin_base_patch4_window7_224.ms_in22k_ft_in1k: # imgsz 224
+  # timm-vit_base_patch8_224.dino: # imgsz 224
+  # timm-vit_large_patch16_224.mae: # imgsz 224
+  # timm-vit_huge_patch14_clip_224.laion2b_ft_in12k_in1k: # imgsz 224
+  # timm-swinv2_large_window12to16_192to256.ms_in22k_ft_in1k: # imgsz 256
+  # timm-vit_base_patch16_clip_224.laion2b_ft_in1k: # imgsz 224
+  # timm-swinv2_cr_small_ns_224.sw_in1k: # imgsz 224
+  # timm-vit_so400m_patch14_siglip_224.webli: # imgsz 224
+  # timm-wide_resnet101_2.tv2_in1k: # imgsz 224
+  # timm-tf_mobilenetv3_large_minimal_100.in1k: # imgsz 224
+  # timm-vit_large_patch14_dinov2.lvd142m: # imgsz 518
+  name: timm-swin_base_patch4_window7_224.ms_in22k_ft_in1k # Model used please refer to timm.models
   image_size: &resize_size 224 # Input image size, using anchor for later reference
-  kwargs: {} # Additional parameters passed to model initialization into torchvision-style models.__init__ 'attention_dropout': 0.1,
+  kwargs: {} # Additional parameters passed to model initialization
   num_classes: 35 # Number of classification categories
   pretrained: True # Whether to use pre-trained weights
   backbone_freeze: False # Whether to freeze the backbone network
