@@ -14,7 +14,7 @@ model:
     # timm-wide_resnet101_2.tv2_in1k: # imgsz 224
     # timm-tf_mobilenetv3_large_minimal_100.in1k: # imgsz 224
     # timm-vit_large_patch14_dinov2.lvd142m: # imgsz 518
-      pretrained: False
+      pretrained: True
       image_size: *imgsz
       feat_dim: &featd 128 
   head:

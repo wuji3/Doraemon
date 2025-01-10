@@ -61,7 +61,7 @@ def main(opt):
             cpu.logger.both(f'{colorstr("yellow", "Attention")}: sync_bn is on')
     # run
     cpu.run_classifier(resume=opt.resume if opt.resume else None) \
-        if task == 'classification' else cpu.run_face(resume=opt.resume if opt.resume else None)
+        if task == 'classification' else cpu.run_embedding(resume=opt.resume if opt.resume else None)
 
 if __name__ == '__main__':
     opts = parse_opt()

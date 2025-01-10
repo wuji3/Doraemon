@@ -177,7 +177,6 @@ def check_cfgs_classification(cfgs):
     # Determine data source type
     is_csv = data_cfg['root'].endswith('.csv')
     is_local = os.path.isdir(data_cfg['root'])
-    is_huggingface = not (is_csv or is_local)
 
     # Check loss configuration based on data source
     if is_csv:
@@ -483,8 +482,8 @@ class CenterProcessor:
 
             if rank in (-1, 0): logger.both(f'resume: {resume}')
 
-        if 'load_from' in self.model_cfg:
-            load_from = self.model_cfg['load_from']
+        load_from = self.model_cfg.get('load_from', None)
+        if load_from is not None:
             state_dict = torch.load(load_from, weights_only=False)
             if 'ema' in state_dict: state_dict = state_dict['ema'].state_dict()
             else: 
@@ -610,7 +609,7 @@ class CenterProcessor:
                               f'\n             └── Optional: --remove_label # Hide prediction text'
                               f'\nValidate:        {validate_cmd}')
 
-    def run_face(self, resume = None):
+    def run_embedding(self, resume = None):
         model, data_processor, scaler, device, epochs, logger, rank, warm_ep, aug_epoch, task = self.model_processor.model, self.data_processor, \
             GradScaler(enabled = (self.device != torch.device('cpu'))), self.device, self.hyp_cfg['epochs'], self.logger, self.rank, self.hyp_cfg['warm_ep'], \
             self.data_cfg['train']['aug_epoch'], self.model_cfg['task']

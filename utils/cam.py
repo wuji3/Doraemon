@@ -2,7 +2,7 @@ from typing import Tuple, Callable, Optional, List
 import numpy as np
 import torch
 import torch.nn as nn
-from timm.models import VisionTransformer, SwinTransformer, ResNet, MobileNetV3, ConvNeXt, SwinTransformerV2
+from timm.models import VisionTransformer, SwinTransformer, ResNet, MobileNetV3, ConvNeXt, SwinTransformerV2, SwinTransformerV2Cr
 from PIL.JpegImagePlugin import JpegImageFile
 from PIL.Image import Image as ImageType
 from torchvision.transforms import Compose
@@ -96,10 +96,38 @@ class ClassActivationMaper:
         return cam_image
 
     def _create_target_layers_and_transform(self, model: nn.Module) -> Tuple[list, Optional[Callable]]:
+        if isinstance(model, (SwinTransformer, )):
+            return [model.norm], lambda tensor: torch.permute(tensor, dims=[0, 3, 1, 2])
 
-        if type(model) in (SwinTransformer):
-            return [model.norm], lambda tensor: torch.permute(tensor, dims=[0, 3, 1, 2]) 
-        else: 
+        elif isinstance(model, VisionTransformer):
+            # Get patch and image size information
+            patch_size = model.patch_embed.patch_size
+            if isinstance(patch_size, int):
+                patch_size = (patch_size, patch_size)
+            
+            img_size = model.patch_embed.img_size
+            if isinstance(img_size, int):
+                img_size = (img_size, img_size)
+            
+            # Calculate feature map size
+            feature_size = (img_size[0] // patch_size[0],
+                           img_size[1] // patch_size[1])
+            
+            def reshape_transform(tensor):
+                # Remove CLS token
+                tensor = tensor[:, 1:, :]
+                
+                # Reshape to [batch_size, height, width, channels]
+                B, _, C = tensor.shape
+                H, W = feature_size
+                tensor = tensor.reshape(B, H, W, C)
+                
+                # Convert to [batch_size, channels, height, width]
+                tensor = tensor.permute(0, 3, 1, 2)
+                return tensor
+            
+            return [model.norm], reshape_transform
+        else:
             raise KeyError(f'{type(model)} not support yet')
 
     @staticmethod

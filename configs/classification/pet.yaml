@@ -2,6 +2,7 @@ model:
   task: classification # Task type: classification
   # timm-swin_base_patch4_window7_224.ms_in22k_ft_in1k: # imgsz 224
   # timm-vit_base_patch8_224.dino: # imgsz 224
+  # timm-vit_base_patch16_224.augreg2_in21k_ft_in1k # imgsz 224
   # timm-vit_large_patch16_224.mae: # imgsz 224
   # timm-vit_huge_patch14_clip_224.laion2b_ft_in12k_in1k: # imgsz 224
   # timm-swinv2_large_window12to16_192to256.ms_in22k_ft_in1k: # imgsz 256
@@ -11,6 +12,7 @@ model:
   # timm-wide_resnet101_2.tv2_in1k: # imgsz 224
   # timm-tf_mobilenetv3_large_minimal_100.in1k: # imgsz 224
   # timm-vit_large_patch14_dinov2.lvd142m: # imgsz 518
+  load_from: null
   name: timm-swin_base_patch4_window7_224.ms_in22k_ft_in1k # Model used please refer to timm.models
   image_size: &resize_size 224 # Input image size, using anchor for later reference
   kwargs: {} # Additional parameters passed to model initialization
@@ -24,10 +26,10 @@ data:
   # Choose ONE of the following data sources:
 
   # 1. HuggingFace Dataset (Single-label)
-  root: StarQuestLab/oxford-iiit-pet  # Format: {username}/{dataset_name}
+  root: wuji3/oxford-iiit-pet
 
   # 2. Local Dataset (Single-label)
-  # root: data-favie/pet  # Format: path/to/dataset with train/ and val/ subdirs
+  # root: <path/to/dataset>  # Format: path/to/dataset with train/ and val/ subdirs
 
   # 3. CSV Dataset (Multi-label)
   # root: <Data>.csv  # Format: CSV file with image_path and label columns
