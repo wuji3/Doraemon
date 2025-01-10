@@ -616,8 +616,8 @@ class CenterProcessor:
             self.data_cfg['train']['aug_epoch'], self.model_cfg['task']
 
         # load for fine-tune
-        if 'load_from' in self.model_cfg:
-            load_from = self.model_cfg['load_from']
+        load_from = self.model_cfg.get('load_from', None)
+        if load_from is not None:
             state_dict = torch.load(load_from, weights_only=False)
             if 'ema' in state_dict: state_dict = state_dict['ema']
             else: 
