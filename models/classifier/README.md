@@ -7,7 +7,7 @@
    ```yaml
    # In your config file (e.g., configs/classification/pet.yaml)
    data:
-     root: StarQuestLab/oxford-iiit-pet
+     root: wuji3/oxford-iiit-pet
    ```
  
 2. **Download Pre-prepared Dataset**
