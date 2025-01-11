@@ -106,10 +106,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py \
 ### Advanced Options
 ```bash
 # Resume interrupted training
-python main.py --cfgs configs/classification/pet.yaml --resume
- 
-# Fine-tune from pretrained model
-python main.py --cfgs configs/classification/pet.yaml --load_from path/to/model.pt
+python main.py --cfgs configs/classification/pet.yaml --resume path/to/model.pt
  
 # Enable synchronized BatchNorm for multi-GPU
 python main.py --cfgs configs/classification/pet.yaml --sync_bn
