@@ -60,7 +60,21 @@ Doraemon now supports 1000+ models through integration with Timm:
  
 - All models from `timm.list_models(pretrained=True)`
 - Including CLIP, SigLIP, DeiT, BEiT, MAE, EVA, DINO and more
- 
+
+### Model Performance Benchmarks
+
+Performance metrics for all supported models can be found in Timm's benchmark results:
+- `benchmark-*`: Per-architecture inference and training throughput metrics
+- `results-*`: Per-weight instance accuracy on ImageNet and other test sets
+
+These metrics can help you select the most suitable model by comparing:
+- Inference speed
+- Training efficiency 
+- Accuracy across different datasets
+- Parameter count vs performance trade-offs
+
+> For detailed benchmark results, see [Timm's results directory](https://github.com/huggingface/pytorch-image-models/tree/main/results) | [@huggingface/pytorch-image-models#1933](https://github.com/huggingface/pytorch-image-models/issues/1933)
+
 ## ⚙️ Utility Tools
 
 | Tool | Description | Usage |
