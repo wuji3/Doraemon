@@ -126,7 +126,11 @@ class ClassActivationMaper:
                 tensor = tensor.permute(0, 3, 1, 2)
                 return tensor
             
-            return [model.norm], reshape_transform
+            return [model.blocks[-1].norm1], reshape_transform
+
+        elif isinstance(model, MobileNetV3):
+            return [model.blocks[-1][0].conv], None
+
         else:
             raise KeyError(f'{type(model)} not support yet')
 
