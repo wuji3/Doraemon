@@ -2,7 +2,16 @@ from typing import Tuple, Callable, Optional, List
 import numpy as np
 import torch
 import torch.nn as nn
-from timm.models import VisionTransformer, SwinTransformer, ResNet, MobileNetV3, ConvNeXt, SwinTransformerV2, SwinTransformerV2Cr
+
+from timm.models import VisionTransformer, \
+    SwinTransformer, \
+    ResNet, \
+    MobileNetV3, \
+    ConvNeXt, \
+    SwinTransformerV2, \
+    SENet, \
+    EfficientNet
+
 from PIL.JpegImagePlugin import JpegImageFile
 from PIL.Image import Image as ImageType
 from torchvision.transforms import Compose
@@ -65,6 +74,7 @@ class ClassActivationMaper:
 
         if reversed_fun is not None:
             self.reverse_pad2square = reversed_fun
+
     def __call__(self,
                  image,
                  input_tensor: torch.Tensor,
@@ -96,7 +106,8 @@ class ClassActivationMaper:
         return cam_image
 
     def _create_target_layers_and_transform(self, model: nn.Module) -> Tuple[list, Optional[Callable]]:
-        if isinstance(model, (SwinTransformer, )):
+
+        if isinstance(model, (SwinTransformer, SwinTransformerV2)):
             return [model.norm], lambda tensor: torch.permute(tensor, dims=[0, 3, 1, 2])
 
         elif isinstance(model, VisionTransformer):
@@ -130,6 +141,15 @@ class ClassActivationMaper:
 
         elif isinstance(model, MobileNetV3):
             return [model.blocks[-1][0].conv], None
+
+        elif isinstance(model, (SENet, ResNet)):
+            return [model.layer4[-1].conv3], None
+
+        elif isinstance(model, ConvNeXt):
+            return [model.norm_pre], None
+
+        elif isinstance(model, EfficientNet):
+            return [model.bn2], None
 
         else:
             raise KeyError(f'{type(model)} not support yet')

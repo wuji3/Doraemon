@@ -121,23 +121,59 @@ tail -f run/exp/log{timestamp}.log  # e.g., log20241113-155144.log
 ## 📊 Evaluation & Visualization
  
 ### Visualize Model Predictions
+
+#### Scenario 1: Case Analysis with Attention Maps
+Analyze model predictions and visualize attention maps to understand model behavior:
 ```bash
 python visualize.py \
-    --cfgs configs/classification/pet.yaml \
-    --weight path/to/best.pt \
-    --class_json class_indices.json \
-    --data val_data_path \
-    --target_class dog \
-    --sampling 10             # View 10 random samples
-    --cam                     # Show attention heatmaps
-    --badcase                 # Group wrong predictions
+    --cfgs <path/to/config.yaml> \
+    --weight <path/to/model.pt> \
+    --class_json <path/to/class_indices.json> \
+    --ema \
+    --data <path/to/dataset> \
+    --target_class <class_name> \
+    --cam \                    # Show attention heatmaps
+    --badcase \               # Group wrong predictions
+    --sampling 10             # Optional: analyze 10 random samples, default: all samples
 ```
- 
+
+This scenario helps you:
+- Visualize model's attention focus using GradCAM
+- Identify and group misclassified samples
+- Analyze specific class performance
+- Random sample subset for quick analysis
+
+<div align="center">
+  <img src="../../misc/gradcam.jpg" width="60%"/>
+</div>
+<p align="center">
+  <em>Example of GradCAM visualization showing model's attention regions</em>
+</p>
+
+#### Scenario 2: Semi-supervised Learning
+Generate pseudo labels for unlabeled data to support semi-supervised learning:
+```bash
+python visualize.py \
+    --cfgs <path/to/config.yaml> \
+    --weight <path/to/model.pt> \
+    --class_json <path/to/class_indices.json> \
+    --ema \
+    --data <path/to/unlabeled_data> \
+    --remove_label \          # Don't show predictions on the top-left corner of images
+    --no_save_image          # Optional: don't save inference images, output infer-result only
+```
+
+This scenario helps you:
+- Generate pseudo labels for unlabeled data
+- Save predictions in txt format for further filtering
+- Optionally skip saving inference images to save storage
+- Support iterative semi-supervised training
+
 ### Validate Model Performance
 ```bash
 python validate.py \
-    --cfgs configs/classification/pet.yaml \
-    --weight path/to/best.pt \
+    --cfgs <path/to/config.yaml> \
+    --weight <path/to/model.pt> \
     --eval_topk 5
 ```
  
