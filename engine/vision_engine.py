@@ -509,10 +509,20 @@ class CenterProcessor:
         total_epoch = epochs
 
         # trainer
-        trainer = Trainer(model, train_dataloader, val_dataloader, optimizer,
-                          scaler, device, total_epoch, logger, rank, scheduler, self.ema, sampler, thresh,
-                          self.teacher if hasattr(self, 'teacher') else None, 
-                          None,
+        trainer = Trainer(model=model, 
+                          train_dataloader=train_dataloader, 
+                          val_dataloader=val_dataloader, 
+                          optimizer=optimizer,
+                          scaler=scaler, 
+                          device=device, 
+                          epochs=total_epoch, 
+                          logger=logger, 
+                          rank=rank, 
+                          scheduler=scheduler, 
+                          ema=self.ema, 
+                          sampler=sampler, 
+                          thresh=thresh,
+                          teacher=self.teacher if hasattr(self, 'teacher') else None, 
                           cfgs=self.cfgs)
 
         t0 = time.time()

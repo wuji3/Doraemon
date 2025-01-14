@@ -84,7 +84,7 @@ class Trainer:
         self.data_cfg = cfgs['data']
         self.model_cfg = cfgs['model']
         self.hyp_cfg = cfgs['hyp']
-        if rank in (-1, 0):
+        if rank in (-1, 0) and out_dir is not None:
             self.writer = SummaryWriter(log_dir=out_dir)
 
     def train_one_epoch(self, epoch: int, criterion: Callable):
