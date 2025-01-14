@@ -1,10 +1,3 @@
-from .resnets import Resnet
-# from .swin_transformer import SwinTransformer
-from .swin import SwinTransformer
-from .efficientnets import efficientnet, EfficientNet
-from .convnext import ConvNeXt
-from .timm_wrapper import TimmWrapper
-
 class BackboneFactory:
     """Factory to produce backbone according the backbone_conf.yaml.
     
