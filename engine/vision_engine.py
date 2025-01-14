@@ -603,10 +603,11 @@ class CenterProcessor:
                     logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                               f"\nResults saved to {colorstr('bold', self.project)}"
                               f'\nPredict:         {predict_cmd}'
-                              f'\n             └── Optional: --cam          # Enable CAM visualization'
-                              f'\n             └── Optional: --badcase      # Organize incorrect predictions'
-                              f'\n             └── Optional: --sampling N   # Visualize N random samples'
-                              f'\n             └── Optional: --remove_label # Hide prediction text'
+                              f'\n             └── Optional: --cam              # Enable CAM visualization'
+                              f'\n             └── Optional: --badcase          # Organize incorrect predictions'
+                              f'\n             └── Optional: --sampling N       # Visualize N random samples'
+                              f'\n             └── Optional: --remove_label     # Hide prediction text'
+                              f'\n             └── Optional: --no_save_image    # Do not save images'
                               f'\nValidate:        {validate_cmd}')
 
     def run_embedding(self, resume = None):
