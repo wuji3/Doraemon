@@ -1,3 +1,5 @@
+from .timm_wrapper import TimmWrapper
+
 class BackboneFactory:
     """Factory to produce backbone according the backbone_conf.yaml.
     

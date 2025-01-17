@@ -25,7 +25,7 @@ import datetime
 import yaml
 from copy import deepcopy
 from models.ema import ModelEMA
-from models import get_model, PreTrainedModels
+from models import get_model
 from dataset.dataprocessor import SmartDataProcessor
 from utils.average_meter import AverageMeter
 

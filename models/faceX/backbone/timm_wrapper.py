@@ -16,20 +16,13 @@ class TimmWrapper(nn.Module):
         self.model = timm.create_model(
             model_name,
             pretrained=pretrained,
-            num_classes=0,  # remove classification head
-            global_pool='',  # remove global pooling
+            num_classes=0,  # classification head -> nn.Identity()
+            global_pool='',  # global pooling -> nn.Identity()
         )
-        
-        if not hasattr(self.model, 'forward_features'):
-            raise ValueError(f"Model {model_name} does not have forward_features method, which is required for all timm models")
-        
-        for layer in ['head', 'global_pool', 'fc', 'classifier', 'fc_norm', 'head_drop']:
-            if hasattr(self.model, layer):
-                delattr(self.model, layer)
         
         with torch.no_grad():
             dummy_input = torch.zeros(1, 3, image_size, image_size)
-            output = self.model.forward_features(dummy_input)
+            output = self.model(dummy_input)
             
             if isinstance(output, tuple):
                 output = output[0]
@@ -56,10 +49,6 @@ class TimmWrapper(nn.Module):
                 raise ValueError(f"Unexpected output shape: {output.shape}")
 
     def forward(self, x):
-        x = self.model.forward_features(x)
-        
-        if isinstance(x, tuple):
-            x = x[0]
-        
+        x = self.model(x)
         x = self.output_layer(x)
         return x
