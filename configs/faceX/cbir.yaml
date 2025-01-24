@@ -31,12 +31,13 @@ model:
   head:
     arcface:
       feat_dim: *featd
-      num_class: 58671
+      num_class: 5000
       margin_arc: 0.35
       margin_am: 0.0
       scale: 32
 data:
-  root: <your-data-path>
+  # root: data
+  root: wuji3/image-retrieval
   nw: 64 # if not multi-nw, set to 0
   train:
     bs: 80 # per gpu

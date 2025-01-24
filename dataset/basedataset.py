@@ -141,14 +141,7 @@ class ImageDatasets(Dataset):
         if hasattr(self, 'dataset'):  # Hugging Face dataset
             img = self.images[idx]
             label = self.labels[idx]
-            if isinstance(img, Image.Image):
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-            elif isinstance(img, np.ndarray):
-                if img.shape[-1] != 3:
-                    img = Image.fromarray(img).convert('RGB')
-            else:
-                raise ValueError(f"Unexpected image type: {type(img)}")
+            img = ImageDatasets.load_image_from_hf(img)
         else:  # Local dataset
             try:
                 img = self.read_image(self.images[idx])
@@ -246,6 +239,19 @@ class ImageDatasets(Dataset):
             img = cv2.imread(path)
             img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         return img
+    
+    @staticmethod
+    def load_image_from_hf(image):
+        if isinstance(image, Image.Image):
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+        elif isinstance(image, np.ndarray):
+            if image.shape[-1] != 3:
+                image = Image.fromarray(image).convert('RGB')
+        else:
+            raise ValueError(f"Unexpected image type: {type(image)}") 
+        
+        return image
     
     @staticmethod
     def tell_data_distribution(datasets, logger, nc: int, is_local_dataset: bool):
@@ -463,16 +469,33 @@ class CBIRDatasets(Dataset):
 
         assert transforms is not None, 'transforms would not be None'
         assert mode in ('query', 'gallery'), 'make sure mode is query or gallery'
-        query_dir, gallery_dir = os.path.join(opj(root, 'query')), os.path.join(opj(root, 'gallery'))
-        assert os.path.isdir(query_dir) and os.path.isdir(gallery_dir), 'make sure query dir and gallery dir exists'
+        
+        self.mode = mode
+        self.transforms = transforms
+        self.is_local_dataset = True
+        
+        try:
+            # Try local dataset first
+            query_dir, gallery_dir = os.path.join(opj(root, 'query')), os.path.join(opj(root, 'gallery'))
+            assert os.path.isdir(query_dir) and os.path.isdir(gallery_dir), 'make sure query dir and gallery dir exists'
+            self._init_from_local(postfix, query_dir, gallery_dir)
+        except (AssertionError, ValueError):
+            try:
+                # Try HuggingFace dataset if local fails
+                self._init_from_huggingface(root)
+                self.is_local_dataset = False
+            except Exception as e:
+                raise ValueError(f"Failed to load dataset from local path or Hugging Face. Error: {str(e)}")
 
-        is_subset, query_identity, gallery_identity = self._check_subset(query_dir, gallery_dir) 
+    def _init_from_local(self, postfix, query_dir, gallery_dir):
+        """Initialize from local directory structure"""
+        is_subset, query_identity, _ = self._check_subset(query_dir, gallery_dir) 
         if not is_subset:
             raise ValueError('query identity is not subset of gallery identity')
 
         data = {'query': [], 'pos': []}
         gallery = {'gallery': []}
-        if mode == 'query':
+        if self.mode == 'query':
             for q in query_identity:
                 one_identity_queries = glob.glob(opj(query_dir, q, f'*.{postfix[0]}')) + glob.glob(opj(query_dir, q, f'*.{postfix[1]}'))
                 one_identity_positives = glob.glob(opj(gallery_dir, q, f'*.{postfix[0]}')) + glob.glob(opj(gallery_dir, q, f'*.{postfix[1]}'))
@@ -482,12 +505,63 @@ class CBIRDatasets(Dataset):
         else:
             gallery['gallery'] = glob.glob(opj(gallery_dir, f'**/*.{postfix[0]}')) + glob.glob(opj(gallery_dir, f'**/*.{postfix[1]}'))
         
-        self.mode = mode
         self.data = datasets.Dataset.from_dict(data)
         self.gallery = datasets.Dataset.from_dict(gallery)
 
-        self.transforms = transforms
-    
+    def _init_from_huggingface(self, dataset_name):
+        """Initialize from HuggingFace dataset"""
+        dataset = load_dataset(dataset_name)
+
+        # Verify dataset structure
+        required_splits = ['query', 'gallery']
+        if not all(split in dataset for split in required_splits):
+            raise ValueError(f"Dataset must contain both 'query' and 'gallery' splits")
+        
+        if self.mode == 'query':
+            # Convert HuggingFace format to match local format
+            data = {'query': [], 'pos': []}
+            query_data = dataset['query']
+            gallery_data = dataset['gallery']
+            
+            # Group gallery images by class
+            gallery_by_class = defaultdict(list)
+            for item in gallery_data:
+                gallery_by_class[item['class_name']].append(item['image'])
+            
+            # Create query-positive pairs
+            for item in query_data:
+                data['query'].append(item['image'])
+                data['pos'].append(gallery_by_class[item['class_name']])
+            
+            self.data = datasets.Dataset.from_dict(data)
+            self.gallery = datasets.Dataset.from_dict({'gallery': []})  # query mode is empty
+        else:
+            # gallery mode, only store all gallery images
+            gallery_data = dataset['gallery']
+            gallery = {'gallery': [item['image'] for item in gallery_data]}
+            self.data = datasets.Dataset.from_dict({'query': [], 'pos': []})  # gallery mode is empty
+            self.gallery = datasets.Dataset.from_dict(gallery)
+
+    def __getitem__(self, idx: int):
+        if self.mode == 'query':
+            data = self.data[idx]['query']
+        else:
+            data = self.gallery[idx]['gallery']
+            
+        if self.is_local_dataset:
+            data_image = ImageDatasets.read_image(data)
+        else:
+            # Handle HuggingFace image format
+            if isinstance(data, Image.Image):
+                data_image = data if data.mode == 'RGB' else data.convert('RGB')
+            elif isinstance(data, np.ndarray):
+                data_image = Image.fromarray(data).convert('RGB')
+            else:
+                raise ValueError(f"Unexpected image type: {type(data)}")
+
+        tensor = self.transforms(data_image)
+        return tensor
+
     @classmethod
     def build(cls, root: str, transforms = None, postfix: tuple = ('jpg', 'png')):
         return cls(root, transforms, postfix, 'query'), cls(root, transforms, postfix, 'gallery')
@@ -495,15 +569,7 @@ class CBIRDatasets(Dataset):
     def _check_subset(self, query: str, gallery: str):
         query_identity = [q for q in os.listdir(query) if not q.startswith('.')]
         gallery_identity = [q for q in os.listdir(gallery) if not q.startswith('.')]
-
         return set(query_identity).issubset(set(gallery_identity)), query_identity, gallery_identity
-    
-    def __getitem__(self, idx: int):
-        data = self.data[idx]['query'] if self.mode == 'query' else self.gallery[idx]['gallery']
-        data_image = ImageDatasets.read_image(data)
-        tensor = self.transforms(data_image)
-
-        return tensor     
     
     def __len__(self):
         return self.data.num_rows if self.mode == 'query' else self.gallery.num_rows

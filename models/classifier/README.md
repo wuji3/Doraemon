@@ -4,6 +4,8 @@
  
 ### Quick Start with Pre-prepared Datasets
 1. **Using HuggingFace Dataset (Recommended)**
+   
+   Dataset: [wuji3/oxford-iiit-pet](https://huggingface.co/datasets/wuji3/oxford-iiit-pet)
    ```yaml
    # In your config file (e.g., configs/classification/pet.yaml)
    data:

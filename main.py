@@ -1,12 +1,13 @@
 import shutil
 import torch
 from torch.distributed import init_process_group
-from engine.vision_engine import CenterProcessor, yaml_load, increment_path, check_cfgs_classification, check_cfgs_face
+from engine.vision_engine import CenterProcessor, yaml_load, increment_path
 from utils.plots import colorstr
 from distills import DistillCenterProcessor
 import os
 import argparse
 from pathlib import Path
+from utils.checks import check
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -43,9 +44,7 @@ def main(opt):
     task: str= cfgs['model'].get('task', None)
 
     # check configs
-    if task in ('face', 'cbir'): check_cfgs_face(cfgs)
-    elif task == 'classification': check_cfgs_classification(cfgs)
-    else: raise ValueError(f'{task} is not supported')
+    check(task, cfgs)
 
     # init cpu
     cpu = CenterProcessor(cfgs, LOCAL_RANK, project=save_dir, opt=opt) \
