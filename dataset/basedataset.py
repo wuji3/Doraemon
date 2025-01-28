@@ -523,11 +523,15 @@ class CBIRDatasets(Dataset):
         if not query_identity.issubset(gallery_identity):
             raise ValueError('query identity is not subset of gallery identity')
 
-        # Create lookup dictionaries for quick image access
-        self.query_lookup = {item['file_name']: item['image'] for item in dataset['query']}
-        self.gallery_lookup = {item['file_name']: item['image'] for item in dataset['gallery']}
+        self.dataset = dataset
 
         if self.mode == 'query':
+            self.query_indices = {
+                filename: idx 
+            for idx, filename in enumerate(dataset['query']['file_name'])
+            }
+            self.gallery_indices = {}
+
             data = {
                 'query': [],  # Will store file_name
                 'pos': []     # Will store lists of file_names
@@ -551,6 +555,12 @@ class CBIRDatasets(Dataset):
             self.gallery = None
 
         else:  # gallery mode
+            self.gallery_indices = {
+                filename: idx 
+            for idx, filename in enumerate(dataset['gallery']['file_name'])
+            }
+            self.query_indices = {}
+
             gallery = {'gallery': [item['file_name'] for item in dataset['gallery']]}
             self.gallery = datasets.Dataset.from_dict(gallery)
             self.data = None
@@ -565,9 +575,10 @@ class CBIRDatasets(Dataset):
             data_image = ImageDatasets.read_image(file_name)
         else:
             if self.mode == 'query':
-                data_image = ImageDatasets.load_image_from_hf(self.query_lookup[file_name])
+                raw_image = self.dataset['query'][self.query_indices[file_name]]['image']
             else:
-                data_image = ImageDatasets.load_image_from_hf(self.gallery_lookup[file_name])
+                raw_image = self.dataset['gallery'][self.gallery_indices[file_name]]['image']
+            data_image = ImageDatasets.load_image_from_hf(raw_image)
 
         tensor = self.transforms(data_image)
         return tensor
