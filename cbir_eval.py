@@ -16,17 +16,18 @@ logger = logging.getLogger(__name__)
 
 device = torch.device('cuda:0')
 
-cfgs = yaml_load('/root/autodl-tmp/visiondk/configs/faceX/face.yaml')
+cfgs = yaml_load('/workspace/configs/faceX/cbir.yaml')
 is_load_default = True
 
 transforms = create_AugTransforms(cfgs['data']['val']['augment'])
-query_dataset, gallery_dataset = CBIRDatasets.build(root='/root/autodl-tmp/visiondk/facedata', transforms=transforms)
+query_dataset, gallery_dataset = CBIRDatasets.build(root='wuji3/image-retrieval', transforms=transforms)
 
 query_dataloader = SmartDataProcessor.set_dataloader(query_dataset, bs=256, nw=4, shuffle=False)
 gallery_dataloader = SmartDataProcessor.set_dataloader(gallery_dataset, bs=256, nw=4, shuffle=False)
 
 model_loader = FaceModelLoader(model_cfg=cfgs['model'])
-model = model_loader.load_weight(model_path='/root/autodl-tmp/visiondk/facedata/lfw/resnet152-irse.pt', ema=False)
+# model = model_loader.load_weight(model_path='/root/autodl-tmp/visiondk/facedata/lfw/resnet152-irse.pt', ema=False)
+model = model_loader.model
 feature_extractor = FeatureExtractor(model)
 
 # query_features = feature_extractor.extract_cbir(query_dataloader, device)

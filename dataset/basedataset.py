@@ -516,48 +516,58 @@ class CBIRDatasets(Dataset):
         required_splits = ['query', 'gallery']
         if not all(split in dataset for split in required_splits):
             raise ValueError(f"Dataset must contain both 'query' and 'gallery' splits")
-        
+    
+        # Check if query identities are subset of gallery identities
+        query_identity = set(dataset['query']['class_name'])
+        gallery_identity = set(dataset['gallery']['class_name'])
+        if not query_identity.issubset(gallery_identity):
+            raise ValueError('query identity is not subset of gallery identity')
+
+        # Create lookup dictionaries for quick image access
+        self.query_lookup = {item['file_name']: item['image'] for item in dataset['query']}
+        self.gallery_lookup = {item['file_name']: item['image'] for item in dataset['gallery']}
+
         if self.mode == 'query':
-            # Convert HuggingFace format to match local format
-            data = {'query': [], 'pos': []}
-            query_data = dataset['query']
-            gallery_data = dataset['gallery']
-            
-            # Group gallery images by class
+            data = {
+                'query': [],  # Will store file_name
+                'pos': []     # Will store lists of file_names
+            }
+
+            # Group gallery images by class_name
             gallery_by_class = defaultdict(list)
-            for item in gallery_data:
-                gallery_by_class[item['class_name']].append(item['image'])
-            
-            # Create query-positive pairs
-            for item in query_data:
-                data['query'].append(item['image'])
-                data['pos'].append(gallery_by_class[item['class_name']])
-            
+            for item in dataset['gallery']:
+                gallery_by_class[item['class_name']].append(item['file_name'])
+
+            # Create query-positive pairs using file_name
+            for item in dataset['query']:
+                query_file = item['file_name']
+                class_name = item['class_name']
+                positive_files = gallery_by_class[class_name]
+
+                data['query'].append(query_file)
+                data['pos'].append(positive_files)
+
             self.data = datasets.Dataset.from_dict(data)
-            self.gallery = datasets.Dataset.from_dict({'gallery': []})  # query mode is empty
-        else:
-            # gallery mode, only store all gallery images
-            gallery_data = dataset['gallery']
-            gallery = {'gallery': [item['image'] for item in gallery_data]}
-            self.data = datasets.Dataset.from_dict({'query': [], 'pos': []})  # gallery mode is empty
+            self.gallery = None
+
+        else:  # gallery mode
+            gallery = {'gallery': [item['file_name'] for item in dataset['gallery']]}
             self.gallery = datasets.Dataset.from_dict(gallery)
+            self.data = None
 
     def __getitem__(self, idx: int):
         if self.mode == 'query':
-            data = self.data[idx]['query']
+            file_name = self.data[idx]['query']
         else:
-            data = self.gallery[idx]['gallery']
-            
+            file_name = self.gallery[idx]['gallery']
+
         if self.is_local_dataset:
-            data_image = ImageDatasets.read_image(data)
+            data_image = ImageDatasets.read_image(file_name)
         else:
-            # Handle HuggingFace image format
-            if isinstance(data, Image.Image):
-                data_image = data if data.mode == 'RGB' else data.convert('RGB')
-            elif isinstance(data, np.ndarray):
-                data_image = Image.fromarray(data).convert('RGB')
+            if self.mode == 'query':
+                data_image = ImageDatasets.load_image_from_hf(self.query_lookup[file_name])
             else:
-                raise ValueError(f"Unexpected image type: {type(data)}")
+                data_image = ImageDatasets.load_image_from_hf(self.gallery_lookup[file_name])
 
         tensor = self.transforms(data_image)
         return tensor
