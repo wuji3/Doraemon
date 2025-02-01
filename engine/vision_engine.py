@@ -555,4 +555,7 @@ class CenterProcessor:
         if rank in (-1, 0):
             logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                         f"\nResults saved to {colorstr('bold', self.project)}"
-                        f'\nValidate:        python validate.py --cfgs {self.opt.cfgs} --weight {self.project}/{colorstr("blue", "which_weight")} --ema')
+                        f'\nValidate:        python validate.py '
+                        f'--cfgs {os.path.join(self.project, os.path.basename(self.opt.cfgs))} '
+                        f'--weight {self.project}/{colorstr("blue", "Your-Weight")} '
+                        f'--ema')
