@@ -74,7 +74,7 @@ This script will automatically:
 2. Split images from each class into training and validation sets
 3. Maintain the class folder structure in both sets
  
-## 🚀 Models
+## 🧊 Models
  
 ### Model Configuration
 ```yaml
