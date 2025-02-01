@@ -2,7 +2,16 @@ from typing import Tuple, Callable, Optional, List
 import numpy as np
 import torch
 import torch.nn as nn
-from torchvision.models import SwinTransformer, ResNet, MobileNetV2, MobileNetV3, ConvNeXt, ShuffleNetV2, EfficientNet
+
+from timm.models import VisionTransformer, \
+    SwinTransformer, \
+    ResNet, \
+    MobileNetV3, \
+    ConvNeXt, \
+    SwinTransformerV2, \
+    SENet, \
+    EfficientNet
+
 from PIL.JpegImagePlugin import JpegImageFile
 from PIL.Image import Image as ImageType
 from torchvision.transforms import Compose
@@ -65,6 +74,7 @@ class ClassActivationMaper:
 
         if reversed_fun is not None:
             self.reverse_pad2square = reversed_fun
+
     def __call__(self,
                  image,
                  input_tensor: torch.Tensor,
@@ -96,15 +106,52 @@ class ClassActivationMaper:
         return cam_image
 
     def _create_target_layers_and_transform(self, model: nn.Module) -> Tuple[list, Optional[Callable]]:
-        if type(model) is SwinTransformer:
-            return [model.features[-1][-1].norm2], lambda tensor: torch.permute(tensor, dims=[0, 3, 1, 2])
-        elif type(model) is ResNet:
-            return [model.layer4], None
-        elif type(model) in (MobileNetV2, MobileNetV3, ConvNeXt, EfficientNet):
-            return [model.features[-1]], None
-        elif type(model) is ShuffleNetV2:
-            return [model.conv5], None
-        else: 
+
+        if isinstance(model, (SwinTransformer, SwinTransformerV2)):
+            return [model.norm], lambda tensor: torch.permute(tensor, dims=[0, 3, 1, 2])
+
+        elif isinstance(model, VisionTransformer):
+            # Get patch and image size information
+            patch_size = model.patch_embed.patch_size
+            if isinstance(patch_size, int):
+                patch_size = (patch_size, patch_size)
+            
+            img_size = model.patch_embed.img_size
+            if isinstance(img_size, int):
+                img_size = (img_size, img_size)
+            
+            # Calculate feature map size
+            feature_size = (img_size[0] // patch_size[0],
+                           img_size[1] // patch_size[1])
+            
+            def reshape_transform(tensor):
+                # Remove CLS token
+                tensor = tensor[:, 1:, :]
+                
+                # Reshape to [batch_size, height, width, channels]
+                B, _, C = tensor.shape
+                H, W = feature_size
+                tensor = tensor.reshape(B, H, W, C)
+                
+                # Convert to [batch_size, channels, height, width]
+                tensor = tensor.permute(0, 3, 1, 2)
+                return tensor
+            
+            return [model.blocks[-1].norm1], reshape_transform
+
+        elif isinstance(model, MobileNetV3):
+            return [model.blocks[-1][0].conv], None
+
+        elif isinstance(model, (SENet, ResNet)):
+            return [model.layer4[-1].conv3], None
+
+        elif isinstance(model, ConvNeXt):
+            return [model.norm_pre], None
+
+        elif isinstance(model, EfficientNet):
+            return [model.bn2], None
+
+        else:
             raise KeyError(f'{type(model)} not support yet')
 
     @staticmethod

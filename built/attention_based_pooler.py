@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torchvision.models import MobileNetV3, ResNet, ConvNeXt, EfficientNet, SwinTransformer
+# from torchvision.models import MobileNetV3, ResNet, ConvNeXt, EfficientNet, SwinTransformer
 
 
 class AttentionPooling(nn.Module):
@@ -27,19 +27,19 @@ class AttentionPooling(nn.Module):
         return x
 
 def atten_pool_replace(model: nn.Module):
-    #--------------------------------定制池化函数-----------------------------------#
-    if type(model) is MobileNetV3:
-        model.avgpool = AttentionPooling(in_dim=model.classifier[0].in_features)
-    elif type(model) is ResNet:
-        model.avgpool = AttentionPooling(in_dim=model.fc.in_features)
-    elif type(model) is ConvNeXt:
-        model.avgpool = AttentionPooling(in_dim=model.classifier[-1].in_features)
-    elif type(model) is EfficientNet:
-        model.avgpool = AttentionPooling(in_dim=model.classifier[-1].in_features)
-    elif type(model) is SwinTransformer:
-        model.avgpool = AttentionPooling(in_dim=model.head.in_features)
-    else:
-        raise KeyError(f'{type(model)} not support attention-based pool')
+    #--------------------------------Custom Pooling-----------------------------------#
+    # if type(model) is MobileNetV3:
+    #     model.avgpool = AttentionPooling(in_dim=model.classifier[0].in_features)
+    # elif type(model) is ResNet:
+    #     model.avgpool = AttentionPooling(in_dim=model.fc.in_features)
+    # elif type(model) is ConvNeXt:
+    #     model.avgpool = AttentionPooling(in_dim=model.classifier[-1].in_features)
+    # elif type(model) is EfficientNet:
+    #     model.avgpool = AttentionPooling(in_dim=model.classifier[-1].in_features)
+    # elif type(model) is SwinTransformer:
+    #     model.avgpool = AttentionPooling(in_dim=model.head.in_features)
+    # else:
+    #     raise KeyError(f'{type(model)} not support attention-based pool')
 
     return model
     #-----------------------------------------------------------------------------#

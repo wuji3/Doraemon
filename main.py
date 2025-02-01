@@ -1,12 +1,13 @@
 import shutil
 import torch
 from torch.distributed import init_process_group
-from engine.vision_engine import CenterProcessor, yaml_load, increment_path, check_cfgs_classification, check_cfgs_face
+from engine.vision_engine import CenterProcessor, yaml_load, increment_path
 from utils.plots import colorstr
 from distills import DistillCenterProcessor
 import os
 import argparse
 from pathlib import Path
+from utils.checks import check
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -16,9 +17,8 @@ WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfgs', default = ROOT / 'configs/faceX/favie.yaml', help='configs for models, data, hyps')
+    parser.add_argument('--cfgs', default = ROOT / 'configs/classification/pet.yaml', help='configs for models, data, hyps')
     parser.add_argument('--resume', default = '', help='if no resume, not write')
-    parser.add_argument('--load_from', default = '', help='load weight for finetune')
     parser.add_argument('--sync_bn', action='store_true', help='turn on syncBN, if on, speed will be slower')
     parser.add_argument('--project', default=ROOT / 'run', help='save to project/name')
     parser.add_argument('--name', default='exp', help='save to project/name')
@@ -43,13 +43,8 @@ def main(opt):
     cfgs = yaml_load(opt.cfgs)
     task: str= cfgs['model'].get('task', None)
 
-    # add load_from if need
-    if opt.load_from:  cfgs['model']['load_from'] = opt.load_from
-
     # check configs
-    if task in ('face', 'cbir'): check_cfgs_face(cfgs)
-    elif task == 'classification': check_cfgs_classification(cfgs)
-    else: raise ValueError(f'{task} is not supported')
+    check(task, cfgs)
 
     # init cpu
     cpu = CenterProcessor(cfgs, LOCAL_RANK, project=save_dir, opt=opt) \
@@ -65,7 +60,7 @@ def main(opt):
             cpu.logger.both(f'{colorstr("yellow", "Attention")}: sync_bn is on')
     # run
     cpu.run_classifier(resume=opt.resume if opt.resume else None) \
-        if task == 'classification' else cpu.run_face(resume=opt.resume if opt.resume else None)
+        if task == 'classification' else cpu.run_embedding(resume=opt.resume if opt.resume else None)
 
 if __name__ == '__main__':
     opts = parse_opt()

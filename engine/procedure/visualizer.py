@@ -24,6 +24,7 @@ class Visualizer:
                        logger, 
                        thresh: Union[float, list[float]], 
                        remove_label: bool, 
+                       save_image: bool,
                        badcase: bool, 
                        is_cam: bool, 
                        target_class: Optional[str] = None):
@@ -64,12 +65,16 @@ class Visualizer:
             from utils.cam import ClassActivationMaper
             cam = ClassActivationMaper(model, method='gradcam', device=device, transforms=dataloader.dataset.transforms)
 
+
+        fixed_class_length = 15
+        progress_width = len(str(n))
+
         image_postfix_table = dict() # use for badcase
         for i, (img, inputs, img_path) in enumerate(dataloader):
             img = img[0]
             img_path = img_path[0]
 
-            if not remove_label and is_cam:
+            if is_cam:
                 cam_image = cam(image=img, input_tensor=inputs, dsize=img.size)
                 cam_image = cv2.resize(cam_image, img.size, interpolation=cv2.INTER_LINEAR)
 
@@ -87,8 +92,11 @@ class Visualizer:
             # post process using pre-determined activation function
             probs = activation_fn(logits)
             top5i = probs.argsort(0, descending=True)[:5].tolist()
-
-            text = '\n'.join(f'{probs[j].item():.2f} {class_indices[j]}' for j in top5i)
+            
+            text = '\n'.join(f'{class_indices[j]:<{fixed_class_length}} {probs[j].item():.2f}' for j in top5i)
+            
+            formatted_predictions = '      '.join(f'{class_indices[j]:<{fixed_class_length}}{probs[j].item():.2f}' for j in top5i)
+            logger.console(f"[{i+1:>{progress_width}}|{n:<{progress_width}}] {os.path.basename(img_path):<20} {formatted_predictions}")
 
             if not remove_label:
                 annotator.text((32, 32), text, txt_color=(0, 0, 0))
@@ -99,12 +107,11 @@ class Visualizer:
                 with open(os.path.join(visual_path, 'labels', os.path.basename(os.path.splitext(img_path)[0] + '.txt')), 'a') as f:
                     f.write(text + '\n')
 
-            logger.console(f"[{i+1}|{n}] " + os.path.basename(img_path) +" " + reduce(lambda x,y: x + " "+ y, text.split()))
-
-            if not remove_label and is_cam:
+            if is_cam and save_image:
                 img = np.hstack([cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR), cam_image])
                 cv2.imwrite(os.path.join(visual_path, os.path.basename(img_path)), img)
-            else: img.save(os.path.join(visual_path, os.path.basename(img_path)))
+            elif save_image:
+                img.save(os.path.join(visual_path, os.path.basename(img_path)))
 
         if badcase:
             os.makedirs(os.path.join(visual_path, 'bad_case'), exist_ok=True)

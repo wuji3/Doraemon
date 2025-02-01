@@ -25,8 +25,9 @@ def parse_opt():
 
     # classification
     parser.add_argument('--data', default = ROOT / 'data/val/a', help='Target data directory')
-    parser.add_argument('--target_class', type=str, required=True, help='Which class to check')
+    parser.add_argument('--target_class', type=str, default=None, help='Which class to check')
     parser.add_argument('--remove_label', action='store_true', help = 'Do not write result in top-left')
+    parser.add_argument('--no_save_image', action='store_true', help='If specified, do not save images')
     parser.add_argument('--cam', action='store_true', help = 'Advanced AI explainability')
     parser.add_argument('--ema', action='store_true', help = 'Exponential Moving Average for model weight')
     parser.add_argument('--class_json', default = 'run/exp/class_indices.json', type=str)
@@ -58,8 +59,8 @@ if __name__ == '__main__':
 
         if opt.badcase and opt.remove_label: 
             raise ValueError('remove_label and badcase are mutually exclusive. Only one can be True.')
-        elif opt.remove_label: 
-            opt.cam = False
+        if opt.badcase and opt.target_class is None:
+            raise ValueError('When badcase is True, target_class must be specified to identify ground truth labels.')
 
         cpu = CenterProcessor(cfgs, LOCAL_RANK, train=False, opt=opt)
         
@@ -92,6 +93,7 @@ if __name__ == '__main__':
                                 cpu.logger,
                                 cpu.thresh,
                                 opt.remove_label,
+                                not opt.no_save_image,
                                 opt.badcase,
                                 opt.cam,
                                 opt.target_class

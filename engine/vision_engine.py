@@ -25,7 +25,7 @@ import datetime
 import yaml
 from copy import deepcopy
 from models.ema import ModelEMA
-from models import get_model, PreTrainedModels
+from models import get_model
 from dataset.dataprocessor import SmartDataProcessor
 from utils.average_meter import AverageMeter
 
@@ -55,180 +55,6 @@ def increment_path(path, exist_ok=False, sep='', mkdir=False):
         path.mkdir(parents=True, exist_ok=True)  # make directory
 
     return path
-
-def check_cfgs_common(cfgs):
-    def find_normalize(augment_list):
-        for augment in augment_list:
-            if 'normalize' in augment:
-                return augment['normalize']
-        return None
-
-    hyp_cfg = cfgs['hyp']
-    data_cfg = cfgs['data']
-    model_cfg = cfgs['model']
-
-    # Check loss configuration
-    assert reduce(lambda x, y: int(x) + int(y[0]), list(hyp_cfg['loss'].values())) == 1, \
-        'Loss configuration error: Only one loss type should be enabled. Set either ce: true or bce: [true, ...] in hyp.loss'
-
-    # Check optimizer
-    assert hyp_cfg['optimizer'][0] in {'sgd', 'adam', 'sam'}, \
-        'Invalid optimizer selection. Please choose from: sgd, adam, or sam'
-
-    # Check scheduler and warm-up settings
-    valid_schedulers = {'linear', 'cosine', 'linear_with_warm', 'cosine_with_warm'}
-    assert hyp_cfg['scheduler'] in valid_schedulers, \
-        'Invalid scheduler selection. Supported options: linear, cosine, linear_with_warm, cosine_with_warm'
-
-    assert hyp_cfg['warm_ep'] >= 0 and isinstance(hyp_cfg['warm_ep'], int) and hyp_cfg['warm_ep'] < hyp_cfg['epochs'], \
-        f'Invalid warm-up epochs: must be a non-negative integer less than total epochs ({hyp_cfg["epochs"]})'
-
-    if hyp_cfg['warm_ep'] == 0:
-        assert hyp_cfg['scheduler'] in {'linear', 'cosine'}, \
-            'When warm-up is disabled (warm_ep: 0), only linear or cosine scheduler is supported'
-    if hyp_cfg['warm_ep'] > 0:
-        assert hyp_cfg['scheduler'] in {'linear_with_warm', 'cosine_with_warm'}, \
-            'When using warm-up (warm_ep > 0), scheduler must be either linear_with_warm or cosine_with_warm'
-
-    # Check normalization settings
-    train_normalize = find_normalize(data_cfg['train']['augment'])
-    val_normalize = find_normalize(data_cfg['val']['augment'])
-
-    is_pretrained = model_cfg.get('pretrained', False)
-    is_torchvision = model_cfg.get('load_from', '').startswith('torchvision')
-    is_custom_weights = 'load_from' in model_cfg and os.path.isfile(model_cfg['load_from'])
-
-    if is_pretrained or is_torchvision:
-        # Pretrained model requirements
-        if train_normalize is None or val_normalize is None:
-            raise ValueError('Pretrained models require normalization in both training and validation augmentations')
-        if train_normalize['mean'] != val_normalize['mean'] or train_normalize['std'] != val_normalize['std']:
-            raise ValueError('Inconsistent normalization parameters: mean and std must be identical for training and validation')
-    elif is_custom_weights:
-        pass  # Custom weights can have flexible normalization settings
-    else:
-        # Non-pretrained model requirements
-        if train_normalize is not None or val_normalize is not None:
-            raise ValueError('Non-pretrained models should not use normalization in augmentations. Please remove normalize from both train and val augmentations')
-
-def check_cfgs_face(cfgs):
-    """
-    Check configurations specific to face recognition tasks.
-    
-    Args:
-        cfgs: Configuration dictionary
-    """
-    check_cfgs_common(cfgs=cfgs)
-
-    model_cfg = cfgs['model']
-    data_cfg = cfgs['data']
-
-    # Check number of classes
-    train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') 
-                    if not (x.startswith('.') or x.startswith('_'))]
-    head_key = next(iter(model_cfg['head'].keys()))
-    model_classes = model_cfg['head'][head_key]['num_class']
-    
-    assert model_classes == len(train_classes), \
-        f'Model configuration error: Number of classes mismatch. Expected {len(train_classes)} from dataset, but got {model_classes} in model configuration'
-
-    # Check face recognition specific configurations
-    if cfgs['model']['task'] == 'face':
-        pair_txt_path = data_cfg['val']['pair_txt']
-        
-        # Verify pair text file existence
-        if not os.path.isfile(pair_txt_path):
-            raise ValueError(f'Validation data error: Pair text file not found at {pair_txt_path}')
-
-        # Validate pair list format
-        from engine.faceX.evaluation import Evaluator
-        try:
-            with open(pair_txt_path) as f:
-                pair_list = [line.strip() for line in f.readlines()]
-            Evaluator.check_nps(pair_list)
-        except Exception as e:
-            raise ValueError(f'Pair list validation error: Invalid format in {pair_txt_path}. Details: {str(e)}')
-
-def check_cfgs_classification(cfgs):
-    """
-    Check configurations specific to classification tasks.
-    
-    Args:
-        cfgs: Configuration dictionary
-    """
-    check_cfgs_common(cfgs=cfgs)
-
-    model_cfg = cfgs['model']
-    data_cfg = cfgs['data']
-    hyp_cfg = cfgs['hyp']
-
-    # Determine data source type
-    is_csv = data_cfg['root'].endswith('.csv')
-    is_local = os.path.isdir(data_cfg['root'])
-    is_huggingface = not (is_csv or is_local)
-
-    # Check loss configuration based on data source
-    if is_csv:
-        if hyp_cfg['loss']['ce']:
-            raise ValueError('Loss configuration error: Multi-label tasks (CSV format) require BCE loss. Please set ce: false in hyp.loss')
-        if not hyp_cfg['loss']['bce'][0]:
-            raise ValueError('Loss configuration error: Multi-label tasks (CSV format) require BCE loss. Please set bce: [true, ...] in hyp.loss')
-    else:
-        if not hyp_cfg['loss']['ce']:
-            raise ValueError('Loss configuration error: Single-label tasks (folder structure/HuggingFace) require CE loss. Please set ce: true in hyp.loss')
-        if hyp_cfg['loss']['bce'][0]:
-            raise ValueError('Loss configuration error: Single-label tasks (folder structure/HuggingFace) do not support BCE loss. Please set bce: [false, ...] in hyp.loss')
-
-    # Check num_classes
-    if is_local:
-        train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') 
-                        if not (x.startswith('.') or x.startswith('_'))]
-        num_classes = len(train_classes)
-    elif is_csv:
-        import pandas as pd
-        df = pd.read_csv(data_cfg['root'])
-        class_columns = [col for col in df.columns if col not in ['image_path', 'train']]
-        num_classes = len(class_columns)
-    else:
-        try:
-            dataset = load_dataset(data_cfg['root'], split='train')
-            num_classes = len(set(dataset['label']))
-        except Exception as e:
-            raise ValueError(f"Dataset loading error: Unable to load HuggingFace dataset from {data_cfg['root']}. Details: {str(e)}")
-
-    assert model_cfg['num_classes'] == num_classes, \
-        f'Model configuration error: Number of classes mismatch. Expected {num_classes} from dataset, but got {model_cfg["num_classes"]} in model configuration'
-
-    # Check model configuration
-    assert model_cfg['name'].split('-')[0] in {'torchvision', 'custom'}, \
-        'Model name error: Format should be [torchvision-ModelName] for torchvision models or [custom-ModelName] for custom models'
-
-    if model_cfg['kwargs'] and model_cfg['pretrained']:
-        for k in model_cfg['kwargs'].keys():
-            if k not in {'dropout', 'attention_dropout', 'stochastic_depth_prob'}:
-                raise KeyError('Model kwargs error: When using pretrained models, only [dropout, attention_dropout, stochastic_depth_prob] are allowed')
-
-    # Check training strategies
-    if hyp_cfg['strategy']['focal'][0]:
-        assert hyp_cfg['loss']['bce'], \
-            'Strategy configuration error: Focal loss requires BCE loss. Please enable BCE loss'
-    
-    if hyp_cfg['strategy']['ohem'][0]:
-        assert not hyp_cfg['loss']['bce'][0], \
-            'Strategy configuration error: OHEM is not compatible with BCE loss. Please disable BCE loss'
-
-    # Check mixup configuration
-    mix_ratio, mix_duration = hyp_cfg['strategy']['mixup']["ratio"], hyp_cfg['strategy']['mixup']["duration"]
-    
-    # Basic ratio check
-    assert 0 <= mix_ratio <= 1, 'Mixup configuration error: ratio must be in [0,1]'
-    
-    # Only check duration when mixup is enabled
-    if mix_ratio > 0:
-        assert 0 < mix_duration <= hyp_cfg['epochs'], \
-            f'Mixup configuration error: when mixup is enabled (ratio > 0), duration must be in (0,{hyp_cfg["epochs"]}]'
-    
-    hyp_cfg['strategy']['mixup'] = [mix_ratio, mix_duration]
 
 def get_imgsz(augment: dict):
     augments = create_AugTransforms(augment)
@@ -471,8 +297,8 @@ class CenterProcessor:
 
             if rank in (-1, 0): logger.both(f'resume: {resume}')
 
-        if 'load_from' in self.model_cfg:
-            load_from = self.model_cfg['load_from']
+        load_from = self.model_cfg.get('load_from', None)
+        if load_from is not None:
             state_dict = torch.load(load_from, weights_only=False)
             if 'ema' in state_dict: state_dict = state_dict['ema'].state_dict()
             else: 
@@ -498,10 +324,20 @@ class CenterProcessor:
         total_epoch = epochs
 
         # trainer
-        trainer = Trainer(model, train_dataloader, val_dataloader, optimizer,
-                          scaler, device, total_epoch, logger, rank, scheduler, self.ema, sampler, thresh,
-                          self.teacher if hasattr(self, 'teacher') else None, 
-                          None,
+        trainer = Trainer(model=model, 
+                          train_dataloader=train_dataloader, 
+                          val_dataloader=val_dataloader, 
+                          optimizer=optimizer,
+                          scaler=scaler, 
+                          device=device, 
+                          epochs=total_epoch, 
+                          logger=logger, 
+                          rank=rank, 
+                          scheduler=scheduler, 
+                          ema=self.ema, 
+                          sampler=sampler, 
+                          thresh=thresh,
+                          teacher=self.teacher if hasattr(self, 'teacher') else None, 
                           cfgs=self.cfgs)
 
         t0 = time.time()
@@ -592,33 +428,25 @@ class CenterProcessor:
                     logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                               f"\nResults saved to {colorstr('bold', self.project)}"
                               f'\nPredict:         {predict_cmd}'
-                              f'\n             └── Optional: --cam          # Enable CAM visualization'
-                              f'\n             └── Optional: --badcase      # Organize incorrect predictions'
-                              f'\n             └── Optional: --sampling N   # Visualize N random samples'
-                              f'\n             └── Optional: --remove_label # Hide prediction text'
+                              f'\n             └── Optional: --cam              # Enable CAM visualization'
+                              f'\n             └── Optional: --badcase          # Organize incorrect predictions'
+                              f'\n             └── Optional: --sampling N       # Visualize N random samples'
+                              f'\n             └── Optional: --remove_label     # Hide prediction text'
+                              f'\n             └── Optional: --no_save_image    # Do not save images'
                               f'\nValidate:        {validate_cmd}')
 
-    def run_face(self, resume = None):
+    def run_embedding(self, resume = None):
         model, data_processor, scaler, device, epochs, logger, rank, warm_ep, aug_epoch, task = self.model_processor.model, self.data_processor, \
             GradScaler(enabled = (self.device != torch.device('cpu'))), self.device, self.hyp_cfg['epochs'], self.logger, self.rank, self.hyp_cfg['warm_ep'], \
             self.data_cfg['train']['aug_epoch'], self.model_cfg['task']
 
         # load for fine-tune
-        if 'load_from' in self.model_cfg:
-            load_from = self.model_cfg['load_from']
-            if load_from.startswith("torchvision") and load_from in PreTrainedModels:
-                modelname = load_from.split('-')[1]
-                from torchvision.models import get_model as torchvision_get_model
-                if rank in (-1, 0): # make sure rank 0 download once
-                    torchvision_get_model(modelname, weights = PreTrainedModels[load_from])
-                if rank >= 0: 
-                    dist.barrier()
-                state_dict = torchvision_get_model(modelname, weights = PreTrainedModels[load_from]).state_dict()
-            else:
-                state_dict = torch.load(load_from, weights_only=False)
-                if 'ema' in state_dict: state_dict = state_dict['ema']
-                else: 
-                    state_dict = state_dict['model_state_dict']
+        load_from = self.model_cfg.get('load_from', None)
+        if load_from is not None:
+            state_dict = torch.load(load_from, weights_only=False)
+            if 'ema' in state_dict: state_dict = state_dict['ema']
+            else: 
+                state_dict = state_dict['model_state_dict']
             missing_keys, unexpected_keys = model.trainingwrapper['backbone'].load_state_dict(state_dict=state_dict, strict=False)
             if rank in (-1, 0): 
                 logger.both(f'load_from: {load_from}')
@@ -727,4 +555,7 @@ class CenterProcessor:
         if rank in (-1, 0):
             logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                         f"\nResults saved to {colorstr('bold', self.project)}"
-                        f'\nValidate:        python validate.py --cfgs {self.opt.cfgs} --weight {self.project}/{colorstr("blue", "which_weight")} --ema')
+                        f'\nValidate:        python validate.py '
+                        f'--cfgs {os.path.join(self.project, os.path.basename(self.opt.cfgs))} '
+                        f'--weight {self.project}/{colorstr("blue", "Your-Weight")} '
+                        f'--ema')
