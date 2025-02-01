@@ -68,12 +68,3 @@ mkdir -p ~/.config/Doraemon && cp misc/Arial.ttf ~/.config/Doraemon
 - Parameter count vs performance trade-offs
 
 > For detailed benchmark results, see [@huggingface/pytorch-image-models#1933](https://github.com/huggingface/pytorch-image-models/issues/1933)
-
-## ⚙️ Utility Tools
-
-| Tool | Description | Usage |
-|------|-------------|-------|
-| Data Splitter | Split dataset into train/val sets | `python tools/data_prepare.py --postfix <jpg\|png> --root <path> --frac <ratio>` |
-| Query-Gallery Prep | Prepare data for image retrieval | `python tools/build_querygallery.py --src <path> --frac <ratio>` |
-| Augmentation Visualizer | Visualize data augmentations | `python -m tools.test_augment` |
-| Data Deduplicator | Remove duplicate entries | `python tools/deduplicate.py` |
