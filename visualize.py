@@ -65,12 +65,7 @@ if __name__ == '__main__':
         cpu = CenterProcessor(cfgs, LOCAL_RANK, train=False, opt=opt)
         
         # checkpoint loading
-        model = cpu.model_processor.model
-        if opt.ema:
-            weights = torch.load(opt.weight, map_location=cpu.device, weights_only=False)['ema'].float().state_dict()
-        else:
-            weights = torch.load(opt.weight, map_location=cpu.device, weights_only=False)['model']
-        model.load_state_dict(weights)
+        model = cpu.model_processor.load_weight(opt.weight, ema=opt.ema, device=cpu.device)
 
         dataset = PredictImageDatasets(opt.data,
                                     transforms=create_AugTransforms(cpu.data_cfg['val']['augment']), 

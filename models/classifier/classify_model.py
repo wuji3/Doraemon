@@ -58,11 +58,14 @@ class VisionWrapper:
 
         return model
 
-    def load_weight(self, load_from_path: str):
-        weights = torch.load(load_from_path, map_location='cpu')
-        weights = weights['ema'].float().state_dict() if weights.get('ema', None) is not None else weights['model']
+    def load_weight(self, load_from_path: str, ema: bool = False, device: torch.device = None):
+        if ema:
+            weights = torch.load(load_from_path, map_location=device, weights_only=False)['ema'].float().state_dict()
+        else:
+            weights = torch.load(load_from_path, map_location=device, weights_only=False)['model']
+        self.model.load_state_dict(weights)
 
-        return weights
+        return self.model
 
     def init_parameters(self, m: nn.Module):
         if isinstance(m, nn.Conv2d):
