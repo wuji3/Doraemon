@@ -181,6 +181,9 @@ def check_cfgs_classification(cfgs):
         df = pd.read_csv(data_cfg['root'])
         class_columns = [col for col in df.columns if col not in ['image_path', 'train']]
         num_classes = len(class_columns)
+        if hyp_cfg['loss']['bce'][0]:
+            assert num_classes == len(hyp_cfg['loss']['bce'][1]), \
+                f'Loss configuration error: Number of classes mismatch. Expected {len(hyp_cfg["loss"]["bce"][1])} from dataset, but got {num_classes} in model configuration'
     else:
         try:
             dataset = load_dataset(data_cfg['root'], split='train')

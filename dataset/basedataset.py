@@ -272,7 +272,7 @@ class ImageDatasets(Dataset):
                 for label_vector in dataset.labels:
                     # label_vector is a list of 0/1 indicating presence of each class
                     for idx, is_present in enumerate(label_vector):
-                        if is_present == 1:
+                        if is_present > 0:
                             class_name = dataset.class_indices[idx]
                             data_distribution[class_name][split] += 1
             else:
