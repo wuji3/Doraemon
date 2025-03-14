@@ -2,6 +2,7 @@
 *.jpg
 *.log
 /run/
+/inference
 /visualization/
 /configs/catfood.yaml
 /dir/

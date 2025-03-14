@@ -15,7 +15,7 @@ class SmartDataProcessor:
         if training:
             self.train_dataset = self.create_dataset('train')
 
-    def create_dataset(self, mode: str, training: bool = True):
+    def create_dataset(self, mode: str, training: bool = True, id2label: Optional[dict] = None):
         assert mode in {'train', 'val'}
 
         cfg = self.data_cfgs.get(mode, -1)
@@ -23,8 +23,9 @@ class SmartDataProcessor:
             dataset = ImageDatasets(root_or_dataset=self.data_cfgs['root'], mode=mode,
                                     transforms=ClassWiseAugmenter(cfg['augment'], None, None) if mode == 'val' else \
                                ClassWiseAugmenter(cfg['augment'], cfg['class_aug'], cfg['base_aug']),
-                                    project=self.project, rank=self.rank, training = training)
-        else: dataset = None
+                                    project=self.project, rank=self.rank, training = training, id2label=id2label)
+        else: 
+            dataset = None
         return dataset
 
     def set_augment(self, mode: str, transforms = None): # sequence -> T.Compose([...])

@@ -1,5 +1,4 @@
 import torch
-from datasets import load_dataset
 from torchvision.transforms import CenterCrop, Resize, Compose, RandomChoice
 from dataset.transforms import ResizeAndPadding2Square, RandomResizedCrop
 import torch.nn as nn
@@ -12,10 +11,9 @@ from engine.optimizer import create_Optimizer
 from engine.scheduler import create_Scheduler
 from models.losses.loss import create_Lossfn
 from engine.procedure.train import Trainer
-from functools import reduce, partial
+from functools import partial
 from pathlib import Path
 from torch.nn.parallel import DistributedDataParallel as DDP
-import torch.distributed as dist
 from utils.plots import colorstr
 from structure.sampler import OHEMImageSampler
 from built.layer_optimizer import SeperateLayerParams
@@ -29,7 +27,7 @@ from models import get_model
 from dataset.dataprocessor import SmartDataProcessor
 from utils.average_meter import AverageMeter
 
-__all__ = ['yaml_load', 'CenterProcessor','increment_path', 'check_cfgs_classification']
+__all__ = ['yaml_load', 'CenterProcessor','increment_path']
 
 
 def yaml_load(file='data.yaml'):
@@ -259,7 +257,7 @@ class CenterProcessor:
 
         # tell data distribution
         if rank in (-1, 0):
-            ImageDatasets.tell_data_distribution({"train": train_dataset, "val": val_dataset}, logger, self.model_cfg['num_classes'], train_dataset.is_local_dataset)
+            ImageDatasets.tell_data_distribution({"train": train_dataset, "val": val_dataset}, logger, self.model_cfg['num_classes'])
 
         # optimizer
         params = SeperateLayerParams(model)
@@ -289,18 +287,21 @@ class CenterProcessor:
             if self.rank in {-1, 0}:
                 self.ema.ema.load_state_dict(ckp['ema'].float().state_dict())
                 self.ema.updates = ckp['updates']
+                self.cfgs = ckp['config']
             model.load_state_dict(ckp['model'])
             optimizer.load_state_dict(ckp['optimizer'])
             scheduler.load_state_dict(ckp['scheduler'])
             if device != torch.device('cpu'):
                 scaler.load_state_dict(ckp['scaler'])
 
-            if rank in (-1, 0): logger.both(f'resume: {resume}')
+            if rank in (-1, 0): 
+                logger.both(f'resume: {resume}')
 
         load_from = self.model_cfg.get('load_from', None)
         if load_from is not None:
             state_dict = torch.load(load_from, weights_only=False)
-            if 'ema' in state_dict: state_dict = state_dict['ema'].state_dict()
+            if 'ema' in state_dict: 
+                state_dict = state_dict['ema'].state_dict()
             else: 
                 state_dict = state_dict['model_state_dict'].state_dict()
             missing_keys, unexpected_keys = model.load_state_dict(state_dict=state_dict, strict=False)
@@ -392,6 +393,9 @@ class CenterProcessor:
                     'updates': self.ema.updates,
                     'optimizer': optimizer.state_dict(),  # optimizer.state_dict(),
                     'scheduler': scheduler.state_dict(),
+                    'config': self.cfgs,
+                    'id2label': train_dataset.id2label,
+                    'label2id': train_dataset.label2id
                 }
                 if device != torch.device('cpu'):
                     ckpt['scaler'] = scaler.state_dict()
@@ -408,31 +412,27 @@ class CenterProcessor:
                     
                     # Determine data path based on dataset type
                     data_path = (os.path.join(data_processor.data_cfgs["root"], 'val') 
-                               if dataset.is_local_dataset 
+                               if dataset.is_local_dataset and not dataset.multi_label
                                else data_processor.data_cfgs["root"])
                     
                     # Build base predict command
-                    predict_cmd = (f'python visualize.py '
-                                 f'--cfgs {os.path.join(os.path.dirname(best), os.path.basename(self.opt.cfgs))} '
-                                 f'--weight {best} '
-                                 f'--class_json {self.project}/class_indices.json '
-                                 f'--ema '
+                    predict_cmd = (f'python infer.py {os.path.dirname(best)} '  # model-path argument
                                  f'--data {data_path} '
-                                 f'--target_class {colorstr("blue", "YOUR_TARGET_CLASS")}')
+                                 f'--ema '
+                                 )
                     
                     # Build validation command
-                    validate_cmd = (f'python validate.py '
-                                  f'--cfgs {os.path.join(os.path.dirname(best), os.path.basename(self.opt.cfgs))} '
-                                  f'--eval_topk 5 --weight {best} --ema')
+                    validate_cmd = (f'python validate.py {os.path.dirname(best)} --ema')
+                    if self.hyp_cfg['loss']['ce']: 
+                        validate_cmd += " --eval_topk 5"
 
                     logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                               f"\nResults saved to {colorstr('bold', self.project)}"
                               f'\nPredict:         {predict_cmd}'
-                              f'\n             └── Optional: --cam              # Enable CAM visualization'
-                              f'\n             └── Optional: --badcase          # Organize incorrect predictions'
-                              f'\n             └── Optional: --sampling N       # Visualize N random samples'
-                              f'\n             └── Optional: --remove_label     # Hide prediction text'
-                              f'\n             └── Optional: --no_save_image    # Do not save images'
+                              f'\n             └── Optional: --classes {colorstr("blue", "<YOUR_TARGET_CLASSES> nargs = + ")}'
+                              f'\n             └── Optional: --infer-option default  # default: Infer + Visualize + CaseAnalysis, autolabel: Infer + Label'
+                              f'\n             └── Optional: --split val              # Specify split to visualize'
+                              f'\n             └── Optional: --sampling N             # Visualize N random samples'
                               f'\nValidate:        {validate_cmd}')
 
     def run_embedding(self, resume = None):
