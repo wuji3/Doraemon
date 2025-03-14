@@ -12,7 +12,6 @@ from timm.models import VisionTransformer, \
     SENet, \
     EfficientNet
 
-from PIL.JpegImagePlugin import JpegImageFile
 from PIL.Image import Image as ImageType
 from torchvision.transforms import Compose
 from dataset.transforms import SPATIAL_TRANSFORMS
@@ -87,7 +86,8 @@ class ClassActivationMaper:
 
         grayscale_cam = grayscale_cam[0, :]
 
-        if type(image) not in (JpegImageFile, ImageType): raise ValueError("Only images read by PIL.Image are allowed")
+        if not isinstance(image, ImageType):
+            raise ValueError("Only images read by PIL.Image are allowed")
 
         image = self.spatial_transforms(image)
         image = np.array(image, dtype=np.float32)

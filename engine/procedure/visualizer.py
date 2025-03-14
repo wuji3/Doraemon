@@ -1,12 +1,11 @@
 import glob
 from utils.plots import Annotator
-from functools import reduce
 import platform
 import shutil
 import os
 import torch.nn.functional as F
 import cv2
-from typing import Optional, Union
+from typing import Union
 from dataset.basedataset import ImageDatasets
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,18 +16,19 @@ class Visualizer:
     @staticmethod
     def predict_images(model, 
                        dataloader, 
-                       root, 
                        device, 
                        visual_path, 
                        class_indices: dict, 
                        logger, 
                        thresh: Union[float, list[float]], 
-                       remove_label: bool, 
-                       save_image: bool,
-                       badcase: bool, 
-                       is_cam: bool, 
-                       target_class: Optional[str] = None):
-
+                       infer_option: str = 'default',
+                       ):
+        """
+        Args:
+            infer_option: 
+                - 'default': Infer + Visualize + GradCAM + Badcase
+                - 'autolabel': Infer + Label
+        """
         os.makedirs(visual_path, exist_ok=True)
         is_single_label = isinstance(thresh, (int, float)) and thresh == 0
         
@@ -36,45 +36,49 @@ class Visualizer:
         class_head = 'ce' if is_single_label else 'bce'
         activation_fn = partial(F.softmax, dim=0) if class_head == 'ce' else partial(F.sigmoid)
 
-        # Get target class index for multi-label case
-        target_idx = None
-        if not is_single_label:
-            if isinstance(thresh, list):
-                # Find target class index and its threshold
+        target_classes = dataloader.dataset.classes if dataloader.dataset.classes is not None else None
+        if target_classes and not isinstance(target_classes, list):
+            target_classes = [target_classes]
+            
+        # 获取每个目标类别的索引和阈值
+        target_indices = []
+        target_thresholds = []
+        if not is_single_label and isinstance(thresh, list):
+            for target_class in target_classes:
+                target_idx = None
                 for idx, class_name in class_indices.items():
                     if class_name == target_class:
                         target_idx = idx
+                        target_indices.append(idx)
                         break
-            if target_idx is None:
-                raise ValueError(f"Target class {target_class} not found in class indices")
+                if target_idx is None:
+                    raise ValueError(f"Target class {target_class} not found in class indices")
                 
-            # Get and validate threshold for target class
-            target_thresh = thresh[target_idx]
-            if not isinstance(target_thresh, float):
-                raise ValueError(f"Invalid threshold type for target class: {type(target_thresh)}. Must be float")
+                # 获取并验证目标类别的阈值
+                target_thresh = thresh[target_idx]
+                if not isinstance(target_thresh, float):
+                    raise ValueError(f"Invalid threshold type for target class: {type(target_thresh)}. Must be float")
+                target_thresholds.append(target_thresh)
                 
-            # Update threshold to use only the target class threshold
-            thresh = target_thresh
-                
+        # Initialize CAM if in default mode
+        if infer_option == 'default':
+            from utils.cam import ClassActivationMaper
+            cam = ClassActivationMaper(model, method='gradcam', device=device, transforms=dataloader.dataset.transforms)
+
         # eval mode
         model.eval()
         n = len(dataloader)
 
-        # cam
-        if is_cam:
-            from utils.cam import ClassActivationMaper
-            cam = ClassActivationMaper(model, method='gradcam', device=device, transforms=dataloader.dataset.transforms)
-
-
         fixed_class_length = 15
         progress_width = len(str(n))
 
-        image_postfix_table = dict() # use for badcase
-        for i, (img, inputs, img_path) in enumerate(dataloader):
+        image_postfix_table = dict()
+        for i, (img, inputs, img_path, gt_labels) in enumerate(dataloader):
             img = img[0]
             img_path = img_path[0]
+            gt_label = gt_labels[0] if gt_labels is not None else None
 
-            if is_cam:
+            if infer_option == 'default':
                 cam_image = cam(image=img, input_tensor=inputs, dsize=img.size)
                 cam_image = cv2.resize(cam_image, img.size, interpolation=cv2.INTER_LINEAR)
 
@@ -98,46 +102,72 @@ class Visualizer:
             formatted_predictions = '      '.join(f'{class_indices[j]:<{fixed_class_length}}{probs[j].item():.2f}' for j in top5i)
             logger.console(f"[{i+1:>{progress_width}}|{n:<{progress_width}}] {os.path.basename(img_path):<20} {formatted_predictions}")
 
-            if not remove_label:
-                annotator.text((32, 32), text, txt_color=(0, 0, 0))
+            annotator.text((32, 32), text, txt_color=(0, 0, 0))
 
-            if remove_label or badcase:  # Write to file
-                os.makedirs(os.path.join(visual_path, 'labels'), exist_ok=True)
-                image_postfix_table[os.path.basename(os.path.splitext(img_path)[0] + '.txt')] = os.path.splitext(img_path)[1]
-                with open(os.path.join(visual_path, 'labels', os.path.basename(os.path.splitext(img_path)[0] + '.txt')), 'a') as f:
-                    f.write(text + '\n')
+            # Save predictions and ground truth
+            save_dir = os.path.join(visual_path, 'labels')
+            os.makedirs(save_dir, exist_ok=True)
+            image_postfix_table[os.path.basename(os.path.splitext(img_path)[0] + '.txt')] = {
+                'ext': os.path.splitext(img_path)[1],
+                'gt': gt_label
+            }
+            with open(os.path.join(save_dir, os.path.basename(os.path.splitext(img_path)[0] + '.txt')), 'a') as f:
+                f.write(text + '\n')
 
-            if is_cam and save_image:
+            if infer_option == 'default':
                 img = np.hstack([cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR), cam_image])
                 cv2.imwrite(os.path.join(visual_path, os.path.basename(img_path)), img)
-            elif save_image:
-                img.save(os.path.join(visual_path, os.path.basename(img_path)))
 
-        if badcase:
-            os.makedirs(os.path.join(visual_path, 'bad_case'), exist_ok=True)
+        # Process badcases only in default mode
+        if infer_option == 'default':
+            badcase_root = os.path.join(visual_path, 'badcase')
+            if target_classes:
+                for target_class in target_classes:
+                    os.makedirs(os.path.join(badcase_root, target_class), exist_ok=True)
+            else:
+                os.makedirs(badcase_root, exist_ok=True)
+
             for txt in glob.glob(os.path.join(visual_path, 'labels', '*.txt')):
                 with open(txt, 'r') as f:
                     lines = f.readlines()
+                    gt = image_postfix_table[os.path.basename(txt)]['gt']
+                    
+                    if gt is None:
+                        continue
+                    
                     if is_single_label:
-                        # Single-label case: check if top prediction matches target class
-                        is_badcase = lines[0].split()[1] != target_class
+                        # 单标签情况保持不变
+                        pred_class = lines[0].split()[0]
+                        is_badcase = pred_class != gt
+                        target_class = gt  # 用于确定保存路径
                     else:
-                        # Multi-label case: check if target class probability exceeds threshold
-                        is_badcase = True
-                        for line in lines:
-                            prob, class_name = float(line.split()[0]), line.split()[1]
-                            if class_name == target_class and prob >= thresh:
-                                is_badcase = False
-                                break
+                        # 多标签情况，检查每个目标类别
+                        is_badcase = False
+                        target_class = None  # 用于确定保存路径
+                        for target, thresh in zip(target_classes, target_thresholds):
+                            found_correct_pred = False
+                            for line in lines:
+                                class_name, prob = line.split()[0], float(line.split()[1])
+                                if class_name == target:
+                                    if prob < thresh:
+                                        is_badcase = True
+                                        target_class = target  # 记录导致badcase的类别
+                                    found_correct_pred = True
+                                    break
+                            if not found_correct_pred:
+                                is_badcase = True
+                                target_class = target
                 
                 if is_badcase:
                     try:
-                        shutil.move(
-                            os.path.join(visual_path, 
-                                       os.path.basename(txt).replace('.txt', 
-                                       image_postfix_table[os.path.basename(txt)])), 
-                            os.path.dirname(txt).replace('labels','bad_case')
-                        )
+                        source_path = os.path.join(visual_path, 
+                                                 os.path.basename(txt).replace('.txt', 
+                                                 image_postfix_table[os.path.basename(txt)]['ext']))
+                        if target_class and target_classes:
+                            dest_path = os.path.join(badcase_root, target_class)
+                        else:
+                            dest_path = badcase_root
+                        shutil.move(source_path, dest_path)
                     except FileNotFoundError:
                         print(f'FileNotFoundError->{txt}')
 

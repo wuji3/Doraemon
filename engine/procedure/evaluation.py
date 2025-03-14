@@ -9,6 +9,7 @@ import itertools
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import Sequence
+from prettytable import PrettyTable
 
 
 __all__ = ['valuate']
@@ -68,8 +69,8 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar,
     # Check threshold type
     if isinstance(thresh, (list, tuple, np.ndarray)):
         # Multi-threshold case: each class uses a different threshold
-        assert len(thresh) == len(dataloader.dataset.class_indices), \
-            f'Number of thresholds ({len(thresh)}) must match number of classes ({len(dataloader.dataset.class_indices)})'
+        assert len(thresh) == len(dataloader.dataset.id2label), \
+            f'Number of thresholds ({len(thresh)}) must match number of classes ({len(dataloader.dataset.id2label)})'
         thresh = torch.tensor(thresh, device=device)
         # Verify that all thresholds are within the valid range
         assert (thresh > 0).all() and (thresh < 1).all(), \
@@ -81,7 +82,7 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar,
         else:
             # Multi-label classification (BCE), use the same threshold
             assert 0 < thresh < 1, 'For multi-label (BCE), threshold should be in (0, 1)'
-            thresh = torch.full((len(dataloader.dataset.class_indices),), 
+            thresh = torch.full((len(dataloader.dataset.id2label),), 
                               thresh, 
                               device=device)
     else:
@@ -111,8 +112,7 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar,
                     # Predict using threshold for each class
                     pred.append(pred_prob >= thresh)
                     # Convert to hard labels
-                    hard_labels = labels.round()
-                    hard_labels = torch.where(hard_labels == 1, hard_labels, 0)
+                    hard_labels = (labels >= 0.5).float()
                     targets.append(hard_labels)
                 if lossfn:
                     loss += lossfn(y, labels)
@@ -120,24 +120,37 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar,
     loss /= n
     pred, targets = torch.cat(pred), torch.cat(targets)
     
-    if not is_training and is_single_label and len(dataloader.dataset.class_indices) <= 10:
-        conm = ConfusedMatrix(len(dataloader.dataset.class_indices))
+    if not is_training and is_single_label and len(dataloader.dataset.id2label) <= 10:
+        conm = ConfusedMatrix(len(dataloader.dataset.id2label))
         conm.update(targets, pred[:, 0])
-        conm.save_conm(conm.mat.detach().cpu().numpy(), dataloader.dataset.class_indices, conm_path if conm_path is not None else 'conm.png')
+        conm.save_conm(conm.mat.detach().cpu().numpy(), dataloader.dataset.id2label, conm_path if conm_path is not None else 'conm.png')
 
     if is_single_label:
         correct = (targets[:, None] == pred).float()
         acc = torch.stack((correct[:, 0], correct.max(1).values), dim=1)  # (top1, top5) accuracy
         top1, top5 = acc.mean(0).tolist()
-        if not is_training: logger.console(f'{"name":<15}{"nums":>8}{"top1":>10}{f"top{top_k}":>10}')
-        for i, c in enumerate(dataloader.dataset.class_indices):
-            acc_i = acc[targets == i]
-            top1i, top5i = acc_i.mean(0).tolist()
-            if not is_training: logger.console(f'{c:<15}{acc_i.shape[0]:>8}{top1i:>10.3f}{top5i:>10.3f}')
-            else: logger.log(f'{c:<8}{acc_i.shape[0]:>8}{top1i:>10.3f}{top5i:>10.3f}')
-        if not is_training: logger.console(f'{"    ":<15}{acc.shape[0]:>8}{top1:>10.3f}{round(top5, 3):>10.3f}')
+        
+        if not is_training:
+            table = PrettyTable(['Class', 'Samples', 'Top1', f'Top{top_k}'])
+            
+            for i, c in dataloader.dataset.id2label.items():
+                acc_i = acc[targets == i]
+                top1i, top5i = acc_i.mean(0).tolist()
+                table.add_row([c, acc_i.shape[0], f'{top1i:.3f}', f'{top5i:.3f}'])
+            
+            table.add_row(['MEAN', acc.shape[0], f'{top1:.3f}', f'{top5:.3f}'])
+            
+            logger.console('\n' + str(table))
+        else:
+            table = PrettyTable(['Class', 'Samples', 'Top1', f'Top{top_k}'])
+            for i, c in dataloader.dataset.id2label.items():
+                acc_i = acc[targets == i]
+                top1i, top5i = acc_i.mean(0).tolist()
+                table.add_row([c, acc_i.shape[0], f'{top1i:.3f}', f'{top5i:.3f}'])
+            table.add_row(['MEAN', acc.shape[0], f'{top1:.3f}', f'{top5:.3f}'])
+            logger.log('\n' + str(table))
     else:
-        num_classes = len(dataloader.dataset.class_indices)
+        num_classes = len(dataloader.dataset.id2label)
         # Compute precision, recall, and F1-score for each class
         precisioner = Precision(task='multilabel', threshold=0.5, num_labels=num_classes, average=None).to(device)
         recaller = Recall(task='multilabel', threshold=0.5, num_labels=num_classes, average=None).to(device)
@@ -148,28 +161,52 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar,
         recall = recaller(pred.float(), targets)
         f1score = f1scorer(pred.float(), targets)
 
-        if not is_training: 
-            logger.console(f'{"name":<8}{"nums":>8}{"precision":>10}{"recall":>10}{"f1-score":>10}{"thresh":>10}')
         cls_numbers = targets.sum(0).int().tolist()
-        for i, c in enumerate(dataloader.dataset.class_indices):
-            if not is_training: 
-                logger.console(
-                    f'{c:<8}{cls_numbers[i]:>8}{precision[i].item():>10.3f}'
-                    f'{recall[i].item():>10.3f}{f1score[i].item():>10.3f}'
-                    f'{thresh[i].item():>10.3f}'
-                )
-            else: 
-                logger.log(
-                    f'{c:<8}{cls_numbers[i]:>8}{precision[i].item():>15.3f}'
-                    f'{recall[i].item():>10.3f}{f1score[i].item():>10.3f}'
-                )
-
-        if not is_training: 
-            logger.console(
-                f'mprecision:{precision.mean().item():.3f}, '
-                f'mrecall:{recall.mean().item():.3f}, '
-                f'mf1-score:{f1score.mean().item():.3f}'
-            )
+        
+        if is_training:
+            table = PrettyTable(['Class', 'Samples', 'Precision', 'Recall', 'F1-Score', 'Threshold'])
+            for i, c in dataloader.dataset.id2label.items():
+                table.add_row([
+                    c, 
+                    cls_numbers[i], 
+                    f'{precision[i].item():.3f}',
+                    f'{recall[i].item():.3f}',
+                    f'{f1score[i].item():.3f}',
+                    f'{thresh[i].item():.3f}' if isinstance(thresh, torch.Tensor) else f'{thresh:.3f}'
+                ])
+            table.add_row([
+                'MEAN',
+                sum(cls_numbers),
+                f'{precision.mean().item():.3f}',
+                f'{recall.mean().item():.3f}',
+                f'{f1score.mean().item():.3f}',
+                '-'
+            ])
+            logger.log('\n' + str(table))
+        else:
+            table = PrettyTable(['Class', 'Samples', 'Precision', 'Recall', 'F1-Score', 'Threshold'])
+            
+            for i, c in dataloader.dataset.id2label.items():
+                table.add_row([
+                    c, 
+                    cls_numbers[i], 
+                    f'{precision[i].item():.3f}',
+                    f'{recall[i].item():.3f}',
+                    f'{f1score[i].item():.3f}',
+                    f'{thresh[i].item():.3f}' if isinstance(thresh, torch.Tensor) else f'{thresh:.3f}'
+                ])
+            
+            table.add_row([
+                'MEAN',
+                sum(cls_numbers),
+                f'{precision.mean().item():.3f}',
+                f'{recall.mean().item():.3f}',
+                f'{f1score.mean().item():.3f}',
+                '-'
+            ])
+            
+            # 显示表格
+            logger.console('\n' + str(table))
 
     if pbar:
         if is_single_label:
@@ -177,9 +214,30 @@ def valuate(model: nn.Module, dataloader, device: torch.device, pbar,
         else:
             pbar.desc = f'{pbar.desc[:-36]}{loss:>12.3g}{precision.mean().item():>12.3g}{recall.mean().item():>12.3g}{f1score.mean().item():>12.3g}'
 
+    # filename = 'train_results.txt' if is_training else 'val_results.txt'
+    # with open(filename, 'w') as f:
+    #     if is_single_label:
+    #         # Save each sample's prediction and true label
+    #         for i in range(len(targets)):
+    #             f.write(f'Sample {i}: GT={targets[i].item()}, Pred={pred[i, 0].item()}, Top{top_k}={[pred[i, j].item() for j in range(top_k)]}\n')
+    #     else:
+    #         # Save each sample's multi-label prediction and true label
+    #         for i in range(len(targets)):
+    #             gt = targets[i].cpu().numpy()
+    #             pd = pred[i].cpu().numpy()
+    #             gt_indices = np.where(gt == 1)[0]
+    #             pred_indices = np.where(pd == 1)[0]
+    #             f.write(f'Sample {i}:\n')
+    #             f.write(f'  GT classes: {gt_indices.tolist()}\n')
+    #             f.write(f'  Pred classes: {pred_indices.tolist()}\n')
+
     if lossfn:
-        if is_single_label: return top1, top5, loss
-        else: return precision.mean().item(), recall.mean().item(), f1score.mean().item(), loss
+        if is_single_label: 
+            return top1, top5, loss
+        else: 
+            return precision.mean().item(), recall.mean().item(), f1score.mean().item(), loss
     else:
-        if is_single_label: return top1, top5
-        else: return precision.mean().item(), recall.mean().item(), f1score.mean().item()
+        if is_single_label: 
+            return top1, top5
+        else: 
+            return precision.mean().item(), recall.mean().item(), f1score.mean().item()

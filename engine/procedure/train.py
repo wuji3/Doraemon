@@ -125,20 +125,18 @@ class Trainer:
                 pbar.postfix = f'lr:{self.optimizer.param_groups[0]["lr"]:.5f}, imgsz:{print_imgsz(images)}'
 
                 if i == len(pbar) - 1:  # last batch
-                    self.logger.log(f'epoch:{epoch + 1:d}  t_loss:{tloss:4f}  lr:{self.optimizer.param_groups[0]["lr"]:.5f}')
+                    self.logger.log(f'EPOCH:{epoch + 1:d}  Train-Loss:{tloss:4f}  LR:{self.optimizer.param_groups[0]["lr"]:.5f}')
                     if self.thresh == 0:
-                        self.logger.log(f'{"name":<8}{"nums":>8}{"top1":>10}{"top5":>10}')
                         # val
                         top1, top5, v_loss = valuate(self.ema.ema, self.val_dataloader, self.device, pbar, True, criterion, self.logger,
                                                      self.thresh)
-                        self.logger.log(f'v_loss:{v_loss:4f}  mtop1:{top1:.3g}  mtop5:{top5:.3g}\n')
+                        self.logger.log(f'VAL-LOSS:{v_loss:4f}\n')
                     else:
                         self.logger.log(f'{"name":<8}{"nums":>8}{"precision":>15}{"recall":>10}{"f1score":>10}')
                         # val
                         precision, recall, f1score, v_loss = valuate(self.ema.ema, self.val_dataloader, self.device, pbar, True,
                                                                      criterion, self.logger, self.thresh)
-                        self.logger.log(
-                            f'v_loss:{v_loss:4f}  precision:{precision:.3g}  recall:{recall:.3g}  f1score:{f1score:.3g}\n')
+                        self.logger.log(f'VAL-Loss:{v_loss:4f}\n')
 
                     fitness = top1 if self.thresh == 0 else f1score  # define fitness as top1 accuracy
 

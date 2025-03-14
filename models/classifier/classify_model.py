@@ -44,7 +44,7 @@ class VisionWrapper:
             )
 
         if self.rank >= 0: 
-            dist.barrier()
+            dist.barrier(device_ids=[self.rank])
         
         model = timm.create_model(
             choice,
@@ -58,14 +58,20 @@ class VisionWrapper:
 
         return model
 
-    def load_weight(self, load_from_path: str, ema: bool = False, device: torch.device = None):
-        if ema:
-            weights = torch.load(load_from_path, map_location=device, weights_only=False)['ema'].float().state_dict()
+    def load_weight(self, load_from_path: str | dict, ema: bool = False, device: torch.device = None):
+        if isinstance(load_from_path, str):
+            checkpoint = torch.load(load_from_path, map_location='cpu', weights_only=False)
+            if ema:
+                weights = checkpoint['ema'].float().state_dict()
+            else:
+                weights = checkpoint['model']
+        elif isinstance(load_from_path, dict):
+            weights = load_from_path['ema'].float().state_dict() if ema else load_from_path['model']
         else:
-            weights = torch.load(load_from_path, map_location=device, weights_only=False)['model']
+            raise TypeError(f"load_from_path must be str or dict, got {type(load_from_path)}")
+            
         self.model.load_state_dict(weights)
-
-        return self.model
+        return self.model.to(device)
 
     def init_parameters(self, m: nn.Module):
         if isinstance(m, nn.Conv2d):

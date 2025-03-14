@@ -16,11 +16,26 @@ from typing import Optional
 import pandas as pd
 
 class ImageDatasets(Dataset):
-    def __init__(self, root_or_dataset, mode='train', transforms=None, label_transforms=None, project=None, rank=None, training=True):
+    def __init__(self, 
+                 root_or_dataset, 
+                 mode='train', 
+                 transforms=None, 
+                 label_transforms=None, 
+                 project=None, 
+                 rank=None, 
+                 training=True,
+                 id2label=None):
+
         self.transforms = transforms
         self.label_transforms = label_transforms
         self.is_local_dataset = True
         self.training = training
+        self.id2label = id2label
+        self.label2id = {label: i for i, label in id2label.items()} if id2label is not None else None
+
+        if not training and id2label is not None:
+            self.id2label = id2label
+            self.label2id = {label: i for i, label in id2label.items()}
 
         try:
             if os.path.isfile(root_or_dataset) and root_or_dataset.endswith('.csv'):
@@ -52,90 +67,72 @@ class ImageDatasets(Dataset):
         data_class.sort()
         
         if self.training:
-            class_indices = dict((k, v) for v, k in enumerate(data_class))
-            self._save_class_indices(class_indices, mode, project, rank)
-        else:
-            class_indices = self._load_class_indices(project)
-            data_class = list(class_indices.keys())
+            self.id2label = {i: label for i, label in enumerate(data_class)}
+            self.label2id = {label: i for i, label in self.id2label.items()}
+            if rank in {-1, 0}:
+                self._save_mappings(project)
         
         # Vectorize labels
         self.labels = df[data_class].values.tolist()  # shape: (num_samples, num_classes)
-        self.class_indices = data_class
     
     def _init_from_local(self, root, mode, project, rank):
         assert os.path.isdir(root), f"Dataset root: {root} does not exist."
         src_path = os.path.join(root, mode)
+        
+        classes = [cla for cla in os.listdir(src_path) if os.path.isdir(os.path.join(src_path, cla))]
+        classes.sort()
 
         if self.training:
-            data_class = [cla for cla in os.listdir(src_path) if os.path.isdir(os.path.join(src_path, cla))]
-            data_class.sort()
-            class_indices = dict((k, v) for v, k in enumerate(data_class))
-            self._save_class_indices(class_indices, mode, project, rank)
-        else:
-            class_indices = self._load_class_indices(project)
-            data_class: list[str] = list(class_indices.keys())
+            self.id2label = {i: label for i, label in enumerate(classes)}
+            self.label2id = {label: i for i, label in self.id2label.items()}
+            if rank in {-1, 0}:
+                self._save_mappings(project)
 
         support = [".jpg", ".png"]
 
         images_path = []
         images_label = []
 
-        for cla in data_class:
+        for cla in classes:
             cla_path = os.path.join(src_path, cla)
             images = [os.path.join(src_path, cla, i) for i in os.listdir(cla_path)
                       if os.path.splitext(i)[-1].lower() in support]
-            image_class = class_indices[cla]
+            class_id = self.label2id[cla]
             images_path.extend(images)
-            images_label += [image_class] * len(images)
+            images_label += [class_id] * len(images)
 
         self.images = images_path
         self.labels = images_label
-        self.class_indices = data_class
 
     def _init_from_huggingface(self, dataset_name, split, project, rank):
-        if split == "val": split = "validation"
-
+        if split.startswith("val"):
+            split = "validation"
         self.dataset = load_dataset(dataset_name, split=split)
         
-        if 'label' in self.dataset.features:
-            label_feature = self.dataset.features['label']
-            if isinstance(label_feature, datasets.ClassLabel):
-                data_class: list[str] = label_feature.names
-            else:
-                raise ValueError("Dataset 'label' feature is not of type ClassLabel")
-        else:
+        if 'label' not in self.dataset.features:
             raise ValueError("Dataset does not contain 'label' feature")
 
+        label_feature = self.dataset.features['label']
+        if not isinstance(label_feature, datasets.ClassLabel):
+            raise ValueError("Dataset 'label' feature is not of type ClassLabel")
+
         if self.training:
-            data_class.sort()
-            class_indices = dict((k, v) for v, k in enumerate(data_class))
-            self._save_class_indices(class_indices, split, project, rank)
-        else:
-            class_indices = self._load_class_indices(project)
-            data_class = list(class_indices.keys())
+            classes = label_feature.names
+            self.id2label = {i: label for i, label in enumerate(classes)}
+            self.label2id = {label: i for i, label in self.id2label.items()}
+            if rank in {-1, 0}:
+                self._save_mappings(project)
 
         self.images = self.dataset['image']
         self.labels = self.dataset['label']
-        self.class_indices = data_class
 
-    def _save_class_indices(self, class_indices, mode, project, rank):
-        if mode in ("val", "validation"): return
-        if rank in {-1, 0}:
-            json_str = json.dumps(dict((val, key) for key, val in class_indices.items()), indent=4)
-            if project is not None:
-                os.makedirs('./run', exist_ok=True)
-                with open(Path(project) / 'class_indices.json', 'w') as json_file:
-                    json_file.write(json_str)
-
-    def _load_class_indices(self, project):
-        class_indices_path = Path(project) / 'class_indices.json'
-        if not class_indices_path.exists():
-            raise FileNotFoundError(f"Class indices file not found at {class_indices_path}")
-        
-        with open(class_indices_path, 'r') as f:
-            class_indices = json.load(f)
-        
-        return {v: int(k) for k, v in class_indices.items()}
+    def _save_mappings(self, project):
+        if project is not None:
+            id2label_path = Path(project) / 'id2label.json'
+            if not id2label_path.exists():
+                os.makedirs(id2label_path.parent, exist_ok=True)
+                with open(id2label_path, 'w') as f:
+                    json.dump(self.id2label, f, indent=4)
 
     def __getitem__(self, idx):
         if hasattr(self, 'dataset'):  # Hugging Face dataset
@@ -153,7 +150,7 @@ class ImageDatasets(Dataset):
             label = self.labels[idx]
 
         if self.transforms is not None:
-            img = self.transforms(img, label, self.class_indices) if type(self.transforms) is ClassWiseAugmenter else self.transforms(img)
+            img = self.transforms(img, label, self.id2label) if type(self.transforms) is ClassWiseAugmenter else self.transforms(img)
 
         if self.label_transforms is not None:
             label = self.label_transforms(label)
@@ -254,7 +251,7 @@ class ImageDatasets(Dataset):
         return image
     
     @staticmethod
-    def tell_data_distribution(datasets, logger, nc: int, is_local_dataset: bool):
+    def tell_data_distribution(datasets, logger, nc: int):
         """
         Display the distribution of samples across classes for both train and val sets.
         
@@ -262,7 +259,6 @@ class ImageDatasets(Dataset):
             datasets: Dictionary containing train and val datasets
             logger: Logger instance for output
             nc: Number of classes
-            is_local_dataset: Boolean indicating if dataset is local
         """
         data_distribution = defaultdict(lambda: {'train': 0, 'val': 0})
         
@@ -273,12 +269,12 @@ class ImageDatasets(Dataset):
                     # label_vector is a list of 0/1 indicating presence of each class
                     for idx, is_present in enumerate(label_vector):
                         if is_present > 0:
-                            class_name = dataset.class_indices[idx]
+                            class_name = dataset.id2label[idx]
                             data_distribution[class_name][split] += 1
             else:
                 # For single-label data
                 for label in dataset.labels:
-                    class_name = dataset.class_indices[label]
+                    class_name = dataset.id2label[label]
                     data_distribution[class_name][split] += 1
 
         # Create and populate the distribution table
@@ -308,8 +304,8 @@ class ImageDatasets(Dataset):
 
 class PredictImageDatasets(Dataset):
     def __init__(self, root=None, transforms=None, postfix: tuple=('jpg', 'png'), 
-                 sampling: Optional[int]=None, class_indices: Optional[list]=None,
-                 target_class: Optional[str]=None):
+                 sampling: Optional[int]=None, id2label: Optional[list]=None,
+                 classes: Optional[list]=None, split: Optional[str] = None, require_gt: bool = False):
         """
         Dataset for prediction, supporting directory, CSV file, and HuggingFace dataset inputs
         
@@ -318,15 +314,21 @@ class PredictImageDatasets(Dataset):
             transforms: Image transformations
             postfix: Tuple of image extensions (for directory mode)
             sampling: Number of samples to use (for subset testing)
-            class_indices: List of class names
-            target_class: Filter dataset to only include specific class
+            id2label: List of class names
+            classes: Filter dataset to only include specific class
+            split: Split to filter dataset
+            require_gt: Boolean indicating if ground truth labels are required
         """
         assert transforms is not None, 'transforms would not be None'
+
         self.transforms = transforms
-        self.class_indices = class_indices
+        self.id2label = id2label
         self.is_local_dataset = True
         self.multi_label = False
-        self.target_class = target_class
+        self.classes = classes
+        self.split = split
+        self.require_gt = require_gt
+        self.gt_labels = []
 
         if root is None:  # used for face embedding infer
             self.images = []
@@ -334,12 +336,12 @@ class PredictImageDatasets(Dataset):
             try:
                 if os.path.isfile(root) and root.endswith('.csv'):
                     self.multi_label = True
-                    self._init_from_csv(root)
+                    self._init_from_csv(root, split=split)
                 else:
-                    self._init_from_dir(root, postfix)
+                    self._init_from_dir(root, postfix, split=split)
             except (ValueError, FileNotFoundError):
                 try:
-                    self._init_from_huggingface(root)
+                    self._init_from_huggingface(root, split=split)
                     self.is_local_dataset = False
                 except Exception as e:
                     raise ValueError(f"Failed to load dataset from {root}. Error: {str(e)}")
@@ -347,64 +349,123 @@ class PredictImageDatasets(Dataset):
         if sampling is not None:
             self.images = self.images[:sampling]
 
-    def _init_from_csv(self, csv_path):
-        """Initialize dataset from CSV file"""
+    def _init_from_csv(self, csv_path, split=None):
         df = pd.read_csv(csv_path)
+        
+        # Filter split
+        if split is not None:
+            if 'train' not in df.columns:
+                raise ValueError("CSV must contain 'train' column for split filtering")
+            df = df[df['train'] == (split == 'train')]
+
         assert 'image_path' in df.columns, 'CSV must contain image_path column'
         
-        # Filter by target_class if specified
-        if self.target_class is not None:
-            assert self.target_class in df.columns, f'Target class {self.target_class} not found in CSV columns'
-            df = df[df[self.target_class] == 1].reset_index(drop=True)
+        if self.require_gt:
+            # default task：ground truth needed
+            available_classes = [col for col in df.columns if col not in ['image_path', 'train']]
+            if not available_classes:
+                raise ValueError("GT labels required but no label columns found in CSV")
+            
+            if self.classes is not None:
+                target_classes = self.classes if isinstance(self.classes, list) else [self.classes]
+                # verify target classes
+                for class_name in target_classes:
+                    assert class_name in available_classes, f'Target class {class_name} not found in CSV columns'
+            else:
+                target_classes = available_classes
+
+            # filter samples by classes
+            if self.classes is not None:
+                mask = df[target_classes].any(axis=1)
+                df = df[mask].reset_index(drop=True)
+
+            # process labels
+            for _, row in df.iterrows():
+                sample_labels = [c for c in target_classes if row[c] > 0.5]
+                self.gt_labels.append(sample_labels if sample_labels else None)
+        else:
+            # autolabel task: only image paths
+            self.gt_labels = [None] * len(df)
             
         self.images = df['image_path'].tolist()
         assert len(self.images) > 0, 'No valid image paths found in CSV'
-        
-        # Verify all image paths exist
-        for img_path in self.images:
-            if not os.path.exists(img_path):
-                raise FileNotFoundError(f"Image not found: {img_path}")
 
-    def _init_from_dir(self, root, postfix):
-        """Initialize dataset from directory"""
+    def _init_from_dir(self, root, postfix, split=None):
         if not os.path.isdir(root):
             raise ValueError(f"The provided path {root} is not a directory")
 
+        # 处理split
+        if split is not None:
+            split_dir = os.path.join(root, split)
+            if not os.path.isdir(split_dir):
+                raise ValueError(f"Split directory not found: {split_dir}")
+            root = split_dir
+
         self.images = []
-        if self.target_class is not None:
-            # If target_class is specified, only look in that directory
-            target_dir = os.path.join(root, self.target_class)
-            if not os.path.isdir(target_dir):
-                raise ValueError(f"Target class directory not found: {target_dir}")
+
+        if self.require_gt:
+            # default task: get labels from directory structure
+            available_classes = [d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d))]
+            if not available_classes:
+                raise ValueError("GT labels required but no class directories found")
             
-            # Search in target directory
-            for ext in postfix:
-                self.images.extend(glob.glob(os.path.join(target_dir, f'*.{ext}')))
+            if self.classes is not None:
+                target_classes = self.classes if isinstance(self.classes, list) else [self.classes]
+                # verify target classes
+                for class_name in target_classes:
+                    if class_name not in available_classes:
+                        raise ValueError(f"Target class {class_name} not found in directory")
+            else:
+                target_classes = available_classes
+
+            # iterate target classes
+            for class_name in target_classes:
+                class_dir = os.path.join(root, class_name)
+                for ext in postfix:
+                    class_images = glob.glob(os.path.join(class_dir, f'*.{ext}'))
+                    self.images.extend(class_images)
+                    self.gt_labels.extend([class_name] * len(class_images))
         else:
-            # Search recursively in all subdirectories
+            # autolabel task: flat directory structure, get all images
             for ext in postfix:
                 self.images.extend(glob.glob(os.path.join(root, f'**/*.{ext}'), recursive=True))
-        
+            self.gt_labels = [None] * len(self.images)
+
         assert len(self.images) > 0, f'No files found with postfix {postfix}'
 
-    def _init_from_huggingface(self, dataset_name):
+    def _init_from_huggingface(self, dataset_name, split=None):
         """Initialize dataset from HuggingFace"""
         try:
             from datasets import load_dataset
             # Load validation split by default for prediction
-            self.dataset = load_dataset(dataset_name, split='validation')
+            if split is None:
+                dataset = load_dataset(dataset_name)
+                all_splits = list(dataset.keys())
+                if len(all_splits) > 1:
+                    self.dataset = datasets.concatenate_datasets([dataset[s] for s in all_splits])
+                else:
+                    self.dataset = dataset[all_splits[0]]
+            elif split.startswith("val") or split.startswith("test"):
+                self.dataset = load_dataset(dataset_name, split='validation')
+            else:
+                self.dataset = load_dataset(dataset_name, split=split)
             
-            # Filter by target_class if specified
-            if self.target_class is not None:
+            # Filter by target classes if specified
+            if self.classes is not None:
                 if 'label' not in self.dataset.features:
                     raise ValueError("Dataset does not contain 'label' feature")
                 
+                classes = self.classes if isinstance(self.classes, list) else [self.classes]
                 label_feature = self.dataset.features['label']
                 if isinstance(label_feature, datasets.ClassLabel):
-                    if self.target_class not in label_feature.names:
-                        raise ValueError(f"Target class {self.target_class} not found in dataset classes")
-                    target_idx = label_feature.names.index(self.target_class)
-                    self.dataset = self.dataset.filter(lambda x: x['label'] == target_idx)
+                    # Get indices of all target classes
+                    target_indices = []
+                    for class_name in classes:
+                        if class_name not in label_feature.names:
+                            raise ValueError(f"Target class {class_name} not found in dataset classes")
+                        target_indices.append(label_feature.names.index(class_name))
+                    # Filter dataset to keep samples from any of the target classes
+                    self.dataset = self.dataset.filter(lambda x: x['label'] in target_indices)
             
             # Get image feature
             if 'image' in self.dataset.features:
@@ -414,12 +475,17 @@ class PredictImageDatasets(Dataset):
             else:
                 raise ValueError("Dataset does not contain 'image' feature")
             
-            # Get class names if available
-            if 'label' in self.dataset.features:
+            # Initialize gt_labels based on requirements
+            if self.require_gt and 'label' in self.dataset.features:
                 label_feature = self.dataset.features['label']
                 if isinstance(label_feature, datasets.ClassLabel):
-                    self.class_indices = label_feature.names
-                
+                    self.id2label = label_feature.names
+                    self.gt_labels = [label_feature.names[label] for label in self.dataset['label']]
+                else:
+                    self.gt_labels = [None] * len(self.images)
+            else:
+                self.gt_labels = [None] * len(self.images)
+            
         except Exception as e:
             raise ValueError(f"Error loading HuggingFace dataset: {str(e)}")
 
@@ -442,7 +508,8 @@ class PredictImageDatasets(Dataset):
                 img = ImageDatasets.read_image(img_path)
             
             tensor = self.transforms(img)
-            return img, tensor, img_path
+            gt_label = self.gt_labels[idx] if self.require_gt else None
+            return img, tensor, img_path, gt_label
             
         except Exception as e:
             print(f"Error loading image at index {idx}: {str(e)}")
@@ -454,11 +521,11 @@ class PredictImageDatasets(Dataset):
     @staticmethod
     def collate_fn(batch):
         """Collate function for DataLoader"""
-        images, tensors, image_paths = tuple(zip(*batch))
-        return images, torch.stack(tensors, dim=0), image_paths
+        images, tensors, image_paths, gt_labels = tuple(zip(*batch))
+        return images, torch.stack(tensors, dim=0), image_paths, gt_labels
 
-    def get_class_indices(self):
-        return self.class_indices
+    def get_id2label(self):
+        return self.id2label
 
 class CBIRDatasets(Dataset):
     def __init__(self, 
