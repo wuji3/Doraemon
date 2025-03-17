@@ -98,20 +98,19 @@ timm.list_models(pretrained=True)  # ['beit_base_patch16_224.in22k_ft_in22k', 's
 ### Basic Training
 ```bash
 # Single GPU training
-python main.py --cfgs configs/classification/pet.yaml
+python main.py configs/classification/pet.yaml
  
 # Multi-GPU training
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py \
-    --cfgs configs/classification/pet.yaml
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 main.py configs/classification/pet.yaml
 ```
  
 ### Advanced Options
 ```bash
 # Resume interrupted training
-python main.py --cfgs configs/classification/pet.yaml --resume path/to/model.pt
+python main.py configs/classification/pet.yaml --resume path/to/model.pt
  
 # Enable synchronized BatchNorm for multi-GPU
-python main.py --cfgs configs/classification/pet.yaml --sync_bn
+python main.py configs/classification/pet.yaml --sync_bn
 ```
  
 ### Monitor Training
@@ -127,16 +126,19 @@ tail -f run/exp/log{timestamp}.log  # e.g., log20241113-155144.log
 #### Scenario 1: Case Analysis with Attention Maps
 Analyze model predictions and visualize attention maps to understand model behavior:
 ```bash
-python visualize.py \
-    --cfgs <path/to/config.yaml> \
-    --weight <path/to/model.pt> \
-    --class_json <path/to/class_indices.json> \
-    --ema \
-    --data <path/to/dataset> \
-    --target_class <class_name> \
-    --cam \                    # Show attention heatmaps
-    --badcase \               # Group wrong predictions
-    --sampling 10             # Optional: analyze 10 random samples, default: all samples
+python infer.py run/exp --data <path/to/dataset> --infer-option default
+```
+
+Additional options:
+```bash
+# Filter specific classes
+python infer.py run/exp --data <path/to/dataset> --classes A B C
+
+# Only analyze validation set
+python infer.py run/exp --data <path/to/dataset> --split val
+
+# Analyze a random subset of samples
+python infer.py run/exp --data <path/to/dataset> --sampling 10
 ```
 
 This scenario helps you:
@@ -155,28 +157,17 @@ This scenario helps you:
 #### Scenario 2: Semi-supervised Learning
 Generate pseudo labels for unlabeled data to support semi-supervised learning:
 ```bash
-python visualize.py \
-    --cfgs <path/to/config.yaml> \
-    --weight <path/to/model.pt> \
-    --class_json <path/to/class_indices.json> \
-    --ema \
-    --data <path/to/unlabeled_data> \
-    --remove_label \          # Don't show predictions on the top-left corner of images
-    --no_save_image          # Optional: don't save inference images, output infer-result only
+python infer.py run/exp --data <path/to/unlabeled_data> --infer-option autolabel
 ```
 
 This scenario helps you:
 - Generate pseudo labels for unlabeled data
 - Save predictions in txt format for further filtering
-- Optionally skip saving inference images to save storage
 - Support iterative semi-supervised training
 
 ### Validate Model Performance
 ```bash
-python validate.py \
-    --cfgs <path/to/config.yaml> \
-    --weight <path/to/model.pt> \
-    --eval_topk 5
+python validate.py <path/to/config.yaml> --ema
 ```
  
 ## 🖼️ Example

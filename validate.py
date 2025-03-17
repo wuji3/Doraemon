@@ -18,10 +18,10 @@ ROOT = Path(os.path.dirname(__file__))
 def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('model-path', default='run/exp', help='Path to model configs')
+    parser.add_argument('--ema', action='store_true', help='Exponential Moving Average for model weight')
     
     # classifier
     parser.add_argument('--eval_topk', default=5, type=int, help='Tell topk_acc, maybe top5, top3...')
-    parser.add_argument('--ema', action='store_true', help='Exponential Moving Average for model weight')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
     
     return parser.parse_args()
