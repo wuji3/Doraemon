@@ -167,7 +167,7 @@ This scenario helps you:
 
 ### Validate Model Performance
 ```bash
-python validate.py <path/to/config.yaml> --ema
+python validate.py run/exp --ema
 ```
  
 ## 🖼️ Example
