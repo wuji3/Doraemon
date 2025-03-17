@@ -468,7 +468,7 @@ class CenterProcessor:
                                                          persistent_workers=True)
         # tell data distribution
         if self.rank in (-1, 0):
-            ImageDatasets.tell_data_distribution({"train": train_dataset}, logger, self.model_cfg['head'][next(iter(self.model_cfg['head'].keys()))]['num_class'], train_dataset.is_local_dataset)
+            ImageDatasets.tell_data_distribution({"train": train_dataset}, logger, self.model_cfg['head'][next(iter(self.model_cfg['head'].keys()))]['num_class'])
 
 
         # optimizer
