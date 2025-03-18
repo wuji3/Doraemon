@@ -17,7 +17,7 @@ ROOT = Path(os.path.dirname(__file__))
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('model-path', default='run/exp', help='Path to model configs')
+    parser.add_argument('model-path', default='run/exp/best.pt', help='Path to model configs')
     parser.add_argument('--ema', action='store_true', help='Exponential Moving Average for model weight')
     
     # classifier
@@ -35,7 +35,7 @@ def main(opt):
     
     logger = SmartLogger(filename=None, level=1) if LOCAL_RANK in {-1,0} else None
 
-    pt_file = Path(getattr(opt, 'model-path')) / 'best.pt'
+    pt_file = Path(getattr(opt, 'model-path'))
     pt = torch.load(pt_file, weights_only=False)
     config = pt['config']
     task: str = config['model']['task']
@@ -63,11 +63,11 @@ def main(opt):
         logger = SmartLogger(filename=None)
 
         # checkpoint loading
-        logger.console(f'loading model, ema is {opt.ema}')
+        logger.console(f'Loading Model, EMA is {opt.ema}')
         model_loader = FaceModelLoader(model_cfg=config['model'])
         model = model_loader.load_weight(model_path=pt_file, ema=opt.ema)
 
-        logger.console('valuating...')
+        logger.console('Evaluating...')
         if task == 'face':
             mean, std = valuate_face(model, config['data'], torch.device('cuda'))
             pretty_tabel = PrettyTable(["model_name", "mean accuracy", "standard error"])

@@ -51,7 +51,7 @@ if __name__ == '__main__':
     opt = parse_opt()
     visual_dir = increment_path(Path(opt.show_path) / opt.name)
 
-    pt_file = Path(getattr(opt, 'model-path')) / 'best.pt'
+    pt_file = Path(getattr(opt, 'model-path'))
     pt = torch.load(pt_file, weights_only=False)
     config = pt['config']
     task: str = config['model']['task']    
@@ -96,7 +96,7 @@ if __name__ == '__main__':
         logger = SmartLogger(filename=None)
 
         # checkpoint loading
-        logger.console(f'loading model, ema is {opt.ema}')
+        logger.console(f'Loading Model, EMA Is {opt.ema}')
         model_loader = FaceModelLoader(model_cfg=config['model'])
         model = model_loader.load_weight(model_path=pt_file, ema=opt.ema)
 
@@ -104,7 +104,7 @@ if __name__ == '__main__':
             config['data']['root'] = opt.root
 
         config['data']['val']['metrics']['cutoffs'] = [opt.max_rank]
-        retrieval_results, scores, ground_truths, queries = valuate_cbir(model, 
+        metrics, retrieval_results, scores, ground_truths, queries, query_dataset, gallery_dataset = valuate_cbir(model, 
                                                                          config['data'], 
                                                                          device,
                                                                          logger, 
@@ -116,8 +116,12 @@ if __name__ == '__main__':
                                          scores[idx], 
                                          ground_truths[idx],
                                          visual_dir,
-                                         opt.max_rank
+                                         opt.max_rank,
+                                         query_dataset,
+                                         gallery_dataset
                                          )
+
+        logger.console(f'Metrics: {metrics}')
 
     else:
         raise ValueError(f'Unknown task {task}')
