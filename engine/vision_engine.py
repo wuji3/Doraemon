@@ -556,5 +556,5 @@ class CenterProcessor:
             logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                         f"\nResults saved to {colorstr('bold', self.project)}"
                         f'\nValidate:        python validate.py '
-                        f'{os.path.join(self.project, 'Epoch_?.pt')} '
+                        f'{os.path.join(self.project, "Epoch_?.pt")} '
                         f'--ema')
