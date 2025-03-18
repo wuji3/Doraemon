@@ -178,6 +178,8 @@ class Visualizer:
                           ground_truths, 
                           savedir,
                           max_rank=5,
+                          query_dataset=None,
+                          gallery_dataset=None
                           ):
 
         os.makedirs(savedir, exist_ok=True)
@@ -187,7 +189,7 @@ class Visualizer:
         for ax in axes.ravel():
             ax.set_axis_off()
         # Display the query image in the first position of the second row
-        query_img = ImageDatasets.read_image(query)
+        query_img = query_dataset.get_image(query)
         ax = fig.add_subplot(2, max_rank + 1, max_rank + 2)
         ax.imshow(query_img)
         ax.set_title('Query')
@@ -195,7 +197,7 @@ class Visualizer:
 
         # Display the ground truth images
         for i in range(min(5, len(ground_truths))):
-            gt_img = ImageDatasets.read_image(ground_truths[i])
+            gt_img = gallery_dataset.get_image(ground_truths[i])
             ax = fig.add_subplot(2, max_rank + 1, i + 1)
             ax.imshow(gt_img)
             ax.set_title('Ground Truth')
@@ -203,7 +205,7 @@ class Visualizer:
 
         # Display the retrieval images
         for i in range(max_rank):
-            retrieval_img = ImageDatasets.read_image(retrieval_results[i])
+            retrieval_img = gallery_dataset.get_image(retrieval_results[i])
 
             score = scores[i]
             is_tp = retrieval_results[i] in ground_truths

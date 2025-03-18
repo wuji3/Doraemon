@@ -130,7 +130,6 @@ def index(extractor: FeatureExtractor,
     
     else:
         gallery_embeddings = extractor.extract_cbir(gallery_dataloader, device)
-        dim = gallery_embeddings.shape[-1]
         
         if memmap_save_path is not None:
             logger.console(f"saving embeddings at {memmap_save_path}...")
@@ -151,15 +150,18 @@ def index(extractor: FeatureExtractor,
             else:
                 memmap[:] = gallery_embeddings
     
+    dim = gallery_embeddings.shape[-1]
     # create faiss index
-    faiss_index = faiss.index_factory(dim, index_factory, faiss.METRIC_INNER_PRODUCT)
 
-    if device.type == 'cuda':
-        # co = faiss.GpuClonerOptions()
-        co = faiss.GpuMultipleClonerOptions()
-        co.useFloat16 = True
-        # faiss_index = faiss.index_cpu_to_gpu(faiss.StandardGpuResources(), 0, faiss_index, co)
-        faiss_index = faiss.index_cpu_to_all_gpus(faiss_index, co)
+    faiss_index = faiss.index_factory(dim, index_factory, faiss.METRIC_INNER_PRODUCT)
+    logger.console(f"Creating CPU FAISS index with dimension {dim}...")
+
+    # if device.type == 'cuda':
+    #     # co = faiss.GpuClonerOptions()
+    #     co = faiss.GpuMultipleClonerOptions()
+    #     co.useFloat16 = True
+    #     # faiss_index = faiss.index_cpu_to_gpu(faiss.StandardGpuResources(), 0, faiss_index, co)
+    #     faiss_index = faiss.index_cpu_to_all_gpus(faiss_index, co)
 
     # NOTE: faiss only accepts float32
     logger.console("Adding embeddings...")
@@ -276,9 +278,6 @@ def valuate(model,
     for pos in query_dataset.data['pos']:
         ground_truths.append(pos)
 
-    # visualization 
-    if vis: return retrieval_results, scores, ground_truths, query_dataset.data['query']
-
     metrics = compute_metrics(retrieval_results, 
                               scores, 
                               ground_truths, 
@@ -288,5 +287,8 @@ def valuate(model,
     for k, v in metrics.items():
         metrics[k] = float(v)
     
+    if vis:
+        return metrics, retrieval_results, scores, ground_truths, query_dataset.data['query'], query_dataset, gallery_dataset
+
     return metrics
 

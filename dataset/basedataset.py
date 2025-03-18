@@ -638,17 +638,25 @@ class CBIRDatasets(Dataset):
         else:
             file_name = self.gallery[idx]['gallery']
 
-        if self.is_local_dataset:
-            data_image = ImageDatasets.read_image(file_name)
-        else:
-            if self.mode == 'query':
-                raw_image = self.dataset['query'][self.query_indices[file_name]]['image']
-            else:
-                raw_image = self.dataset['gallery'][self.gallery_indices[file_name]]['image']
-            data_image = ImageDatasets.load_image_from_hf(raw_image)
-
+        data_image = self.get_image(file_name)
         tensor = self.transforms(data_image)
+
         return tensor
+    
+    def get_image(self, file_name):
+        """Access image by file name, support local and HuggingFace dataset"""
+        if self.is_local_dataset:
+            return ImageDatasets.read_image(file_name)
+        else:
+            # find image by file name
+            if file_name in self.query_indices:
+                raw_image = self.dataset['query'][self.query_indices[file_name]]['image']
+                return ImageDatasets.load_image_from_hf(raw_image)
+            elif file_name in self.gallery_indices:
+                raw_image = self.dataset['gallery'][self.gallery_indices[file_name]]['image']
+                return ImageDatasets.load_image_from_hf(raw_image)
+            else:
+                raise ValueError(f"Image {file_name} not found in dataset")
 
     @classmethod
     def build(cls, root: str, transforms = None, postfix: tuple = ('jpg', 'png')):

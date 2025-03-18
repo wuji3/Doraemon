@@ -216,6 +216,12 @@ class Trainer:
         """Tain one epoch by traditional training.
         """
 
+        # config
+        config = {}
+        config["model"] = self.model_cfg
+        config["data"] = self.data_cfg
+        config["hyp"] = self.hyp_cfg
+
         self.model.train()
         iters_per_epoch = len(self.train_dataloader)
 
@@ -270,6 +276,7 @@ class Trainer:
                     'updates': self.ema.updates,
                     'optimizer': self.optimizer.state_dict(),  # optimizer.state_dict(),
                     'scheduler': self.scheduler.state_dict(),
+                    'config': config
                 }
                 if self.device != torch.device('cpu'): ckpt['scaler'] = self.scaler.state_dict()
 

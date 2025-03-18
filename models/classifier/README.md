@@ -126,19 +126,19 @@ tail -f run/exp/log{timestamp}.log  # e.g., log20241113-155144.log
 #### Scenario 1: Case Analysis with Attention Maps
 Analyze model predictions and visualize attention maps to understand model behavior:
 ```bash
-python infer.py run/exp --data <path/to/dataset> --infer-option default
+python infer.py run/exp/best.pt --data <path/to/dataset> --infer-option default
 ```
 
 Additional options:
 ```bash
 # Filter specific classes
-python infer.py run/exp --data <path/to/dataset> --classes A B C
+python infer.py run/exp/best.pt --data <path/to/dataset> --classes A B C
 
 # Only analyze validation set
-python infer.py run/exp --data <path/to/dataset> --split val
+python infer.py run/exp/best.pt --data <path/to/dataset> --split val
 
 # Analyze a random subset of samples
-python infer.py run/exp --data <path/to/dataset> --sampling 10
+python infer.py run/exp/best.pt --data <path/to/dataset> --sampling 10
 ```
 
 This scenario helps you:
@@ -157,7 +157,7 @@ This scenario helps you:
 #### Scenario 2: Semi-supervised Learning
 Generate pseudo labels for unlabeled data to support semi-supervised learning:
 ```bash
-python infer.py run/exp --data <path/to/unlabeled_data> --infer-option autolabel
+python infer.py run/exp/best.pt --data <path/to/unlabeled_data> --infer-option autolabel
 ```
 
 This scenario helps you:
@@ -167,7 +167,7 @@ This scenario helps you:
 
 ### Validate Model Performance
 ```bash
-python validate.py run/exp --ema
+python validate.py run/exp/best.pt --ema
 ```
  
 ## 🖼️ Example
