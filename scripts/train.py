@@ -1,13 +1,17 @@
 import shutil
 import torch
 from torch.distributed import init_process_group
-from engine.vision_engine import CenterProcessor, yaml_load, increment_path
-from utils.plots import colorstr
-from distills import DistillCenterProcessor
+from doraemon import (
+    CenterProcessor,
+    yaml_load,
+    increment_path,
+    DistillCenterProcessor,
+    colorstr,
+    check
+)
 import os
 import argparse
 from pathlib import Path
-from utils.checks import check
 import warnings
 warnings.filterwarnings('ignore')
 
