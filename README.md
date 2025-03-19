@@ -5,6 +5,7 @@
 </p>
 
 <p align="center">
+<img src="https://img.shields.io/badge/doraemon-0.0.4a0-brightgreen.svg">
 <img src="https://img.shields.io/badge/python-3.10-blue.svg">
 <img src="https://img.shields.io/badge/pytorch-2.0+-orange.svg">
 <img src="https://img.shields.io/badge/torchmetrics-0.11.4-green.svg">
