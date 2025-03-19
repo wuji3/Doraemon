@@ -34,7 +34,7 @@ pip install -e .
 
 - 🎁 2025.03.16: Doraemon v0.1.0 released
 - 🎁 2024.10.01: Content-Based Image Retrieval (CBIR): Training on a real Amazon product dataset with a complete pipeline for training, end-to-end validation, and visualization. Please check [README.md](doraemon/models/representation/README_CBIR.md)
-- 🎁 2024.04.01: Face Recognition: Based on a cleaned face dataset with over 70,000 IDs and 3.6 million images, validated with LFW. Includes loss functions like ArcFace, CircleLoss, and MagFace.
+- 🎁 2024.04.01: Face Recognition: Based on a cleaned MS-Celeb-1M-v1c with over 70,000 IDs and 3.6 million images, validated with LFW. Includes loss functions like ArcFace, CircleLoss, and MagFace.
 - 🎁 2023.06.01: Image Classification (IC): Given the Oxford-IIIT Pet dataset. Supports different learning rates for different layers, hard example mining, multi-label and single-label training, bad case analysis, GradCAM visualization, automatic labeling to aid semi-supervised training, and category-specific data augmentation. Refer to [README.md](doraemon/models/classifier/README.md)
 
 ## ✨ Highlights
@@ -65,9 +65,9 @@ For detailed guidance on specific tasks, please refer to the following resources
 
 Doraemon integrates the following datasets, allowing users to quickly start training:
 
-- **Image Retrieval**: Available at [Hugging Face Image Retrieval Dataset](https://huggingface.co/datasets/wuji3/image-retrieval)
-- **Face Recognition**: Available at [Hugging Face Face Recognition Dataset](https://huggingface.co/datasets/wuji3/face-recognition)
-- **Image Classification**: Available at [Oxford-IIIT Pet Dataset](https://huggingface.co/datasets/wuji3/oxford-iiit-pet)
+- **Image Retrieval**: Available at [Image Retrieval](https://huggingface.co/datasets/wuji3/image-retrieval)
+- **Face Recognition**: Available at [MS-Celeb-1M-v1c](https://huggingface.co/datasets/wuji3/face-recognition)
+- **Image Classification**: Available at [Oxford-IIIT Pet](https://huggingface.co/datasets/wuji3/oxford-iiit-pet)
 
 ## 🧩 Supported Models
  
