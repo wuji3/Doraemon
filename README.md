@@ -32,9 +32,9 @@ pip install -e .
 ## 📢 What's New
 
 - 🎁 2025.03.16: Doraemon v0.0.3 released
-- 🎁 2024.10.01: Content-Based Image Retrieval (CBIR): Training on a real Amazon product dataset with a complete pipeline for training, end-to-end validation, and visualization. Please check [README.md](models/faceX/README_CBIR.md)
+- 🎁 2024.10.01: Content-Based Image Retrieval (CBIR): Training on a real Amazon product dataset with a complete pipeline for training, end-to-end validation, and visualization. Please check [README.md](doraemon/models/representation/README_CBIR.md)
 - 🎁 2024.04.01: Face Recognition: Based on a cleaned face dataset with over 70,000 IDs and 3.6 million images, validated with LFW. Includes loss functions like ArcFace, CircleLoss, and MagFace.
-- 🎁 2023.06.01: Image Classification (IC): Given the Oxford-IIIT Pet dataset. Supports different learning rates for different layers, hard example mining, multi-label and single-label training, bad case analysis, GradCAM visualization, automatic labeling to aid semi-supervised training, and category-specific data augmentation. Refer to [README.md](models/classifier/README.md)
+- 🎁 2023.06.01: Image Classification (IC): Given the Oxford-IIIT Pet dataset. Supports different learning rates for different layers, hard example mining, multi-label and single-label training, bad case analysis, GradCAM visualization, automatic labeling to aid semi-supervised training, and category-specific data augmentation. Refer to [README.md](doraemon/models/classifier/README.md)
 
 ## ✨ Highlights
 - [Optimization Algorithms](doraemon/engine/optimizer.py): Various optimization techniques to enhance model training efficiency, including SGD, Adam, and SAM (Sharpness-Aware Minimization).

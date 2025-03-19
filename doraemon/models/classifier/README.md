@@ -99,10 +99,10 @@ timm.list_models(pretrained=True)  # ['beit_base_patch16_224.in22k_ft_in22k', 's
 
 ```bash
 # Single GPU training
-python -m scripts.main configs/recognition/pet.yaml
+python -m scripts.train configs/recognition/pet.yaml
 
 # Multi-GPU training
-OMP_NUM_THREADS=8 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 -m scripts.main configs/recognition/pet.yaml [options]
+OMP_NUM_THREADS=8 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 -m scripts.train configs/recognition/pet.yaml [options]
 ```
 
 **Options:**

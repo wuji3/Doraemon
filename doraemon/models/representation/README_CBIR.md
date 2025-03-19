@@ -122,10 +122,10 @@ timm.list_models(pretrained=True)  # ['beit_base_patch16_224.in22k_ft_in22k', 's
 ### Basic Training
 ```bash
 # Single GPU training
-python -m scripts.main configs/representation/image-retrieval.yaml
+python -m scripts.train configs/representation/image-retrieval.yaml
 
 # Multi-GPU training
-OMP_NUM_THREADS=8 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 -m scripts.main configs/representation/image-retrieval.yaml 
+OMP_NUM_THREADS=8 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node 4 -m scripts.train configs/representation/image-retrieval.yaml 
 ```
 
 **Options:**
