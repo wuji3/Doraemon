@@ -2,15 +2,16 @@ import os
 from os.path import join as opj
 import argparse
 from pathlib import Path
-from engine import valuate as valuate_classifier
+from doraemon import (valuate_classifier,
+                      valuate_cbir,
+                      valuate_face,
+                      FaceModelLoader,
+                      get_model,
+                      SmartDataProcessor,
+                      SmartLogger,
+                      )
 import torch
-from models.faceX.face_model import FaceModelLoader
-from engine.faceX.evaluation import valuate as valuate_face
-from engine.cbir.evaluation import valuate as valuate_cbir
 from prettytable import PrettyTable
-from utils.logger import SmartLogger
-from models import get_model
-from dataset.dataprocessor import SmartDataProcessor
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))
 ROOT = Path(os.path.dirname(__file__))

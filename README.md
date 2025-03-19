@@ -15,46 +15,60 @@
 
 ## 🚀 Quick Start
 
-<details>
 <summary><b>Installation Guide</b></summary>
 
 ```bash
 # Create and activate environment
-conda create -n doraemon python=3.10 -y && conda activate doraemon
+python -m venv doraemon
+source doraemon/bin/activate
 
-# Install PyTorch (CUDA or CPU version)
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
-# or
-conda install pytorch torchvision torchaudio cpuonly -c pytorch -y
+# Install Doraemon
+pip install doraemon-torch
 
-# Install dependencies
-pip install -r requirements.txt
-
-# For CBIR functionality
-conda install faiss-gpu=1.8.0 -c pytorch -y
-
-# Optional: Install Arial font for faster inference
-mkdir -p ~/.config/Doraemon && cp misc/Arial.ttf ~/.config/Doraemon
+# If you need to install in editable mode (for development)
+pip install -e .
 ```
-</details>
 
 ## 📢 What's New
 
-- **[Oct. 2024]** [Content-Based Image Retrieval(CBIR)](models/faceX/README_CBIR.md) support added with ConvNext backbone
-- **[Apr. 2024]** [Face Recognition Task(FRT)] launched with various backbones and loss functions
-- **[Jun. 2023]** [Image Classification Task(ICT)](models/classifier/README.md) released with advanced training strategies
-- **[May. 2023]** Initial release of Doraemon
+- 🎁 2025.03.16: Doraemon v0.0.3 released
+- 🎁 2024.10.01: Content-Based Image Retrieval (CBIR): Training on a real Amazon product dataset with a complete pipeline for training, end-to-end validation, and visualization. Please check [README.md](doraemon/models/representation/README_CBIR.md)
+- 🎁 2024.04.01: Face Recognition: Based on a cleaned face dataset with over 70,000 IDs and 3.6 million images, validated with LFW. Includes loss functions like ArcFace, CircleLoss, and MagFace.
+- 🎁 2023.06.01: Image Classification (IC): Given the Oxford-IIIT Pet dataset. Supports different learning rates for different layers, hard example mining, multi-label and single-label training, bad case analysis, GradCAM visualization, automatic labeling to aid semi-supervised training, and category-specific data augmentation. Refer to [README.md](doraemon/models/classifier/README.md)
 
-## 🎯 Implemented Methods
+## ✨ Highlights
+- [Optimization Algorithms](doraemon/engine/optimizer.py): Various optimization techniques to enhance model training efficiency, including SGD, Adam, and SAM (Sharpness-Aware Minimization).
 
-|Category | Methods |
-|----------|---------|
-| Optimization | SAM, Progressive Learning, OHEM, Focal Loss, Cosine Annealing |
-| Regularization | Label Smoothing, Mixup, CutOut |
-| Attention & Visualization | Attention Pool, GradCAM |
-| Representation Learning | ArcFace, CircleLoss, MegFace, MV Softmax |
+- [Data Augmentation](doraemon/dataset/transforms.py): A variety of data augmentation techniques to improve model robustness, such as CutOut, Color-Jitter, and Copy-Paste etc.
 
-## 🔮 Supported Models
+- [Regularization](doraemon/engine/optimizer.py): Techniques to prevent overfitting and improve model generalization, including Label Smoothing, OHEM, Focal Loss, and Mixup.
+
+- [Visualization](doraemon/utils/cam.py): Integrated visualization tool to understand model decision-making, featuring GradCAM.
+
+- [Personalized Data Augmentation](doraemon/built/class_augmenter.py): Apply exclusive data augmentation to specific classes with Class-Specific Augmentation.
+
+- [Personalized Hyperparameter Tuning](doraemon/built/layer_optimizer.py): Apply different learning rates to specific layers using Layer-Specific Learning Rates.
+
+
+## 📚 Tutorials
+
+For detailed guidance on specific tasks, please refer to the following resources:
+
+- **Image Classification**: If you are working on image classification tasks, please refer to [Doc: Image Classification](doraemon/models/classifier/README.md).
+
+- **Image Retrieval**: For image retrieval tasks, please refer to [Doc: Image Retrieval](doraemon/models/representation/README_CBIR.md).
+
+- **Face Recognition**: Stay tuned.
+
+## 📊 Datasets
+
+Doraemon integrates the following datasets, allowing users to quickly start training:
+
+- **Image Retrieval**: Available at [Hugging Face Image Retrieval Dataset](https://huggingface.co/datasets/wuji3/image-retrieval)
+- **Face Recognition**: Available at [Hugging Face Face Recognition Dataset](https://huggingface.co/datasets/wuji3/face-recognition)
+- **Image Classification**: Available at [Oxford-IIIT Pet Dataset](https://huggingface.co/datasets/wuji3/oxford-iiit-pet)
+
+## 🧩 Supported Models
  
 **Doraemon** now supports 1000+ models through integration with Timm:
  

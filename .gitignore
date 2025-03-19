@@ -2,6 +2,7 @@
 *.jpg
 *.log
 /run/
+/inference
 /visualization/
 /configs/catfood.yaml
 /dir/
@@ -12,3 +13,5 @@ __pycache__*/
 .jpg
 .png
 .npy
+doraemon_torch.egg-info/
+
