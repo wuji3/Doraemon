@@ -1,243 +1,37 @@
 {
-  "class_dict": {
-    "0": "Abyssinian",
-    "1": "Bengal",
-    "2": "Birman",
-    "3": "Bombay",
-    "4": "British",
-    "5": "Egyptian",
-    "6": "Maine",
-    "7": "Persian",
-    "8": "Ragdoll",
-    "9": "Russian",
-    "10": "Siamese",
-    "11": "Sphynx",
-    "12": "american",
-    "13": "basset",
-    "14": "beagle",
-    "15": "boxer",
-    "16": "chihuahua",
-    "17": "english",
-    "18": "german",
-    "19": "great",
-    "20": "havanese",
-    "21": "japanese",
-    "22": "keeshond",
-    "23": "leonberger",
-    "24": "miniature",
-    "25": "newfoundland",
-    "26": "pomeranian",
-    "27": "pug",
-    "28": "saint",
-    "29": "samoyed",
-    "30": "scottish",
-    "31": "shiba",
-    "32": "staffordshire",
-    "33": "wheaten",
-    "34": "yorkshire"
-  },
   "config": {
-    "data": {
-      "nw": 16,
-      "root": "wuji3/oxford-iiit-pet",
-      "train": {
-        "aug_epoch": 14,
-        "augment": [
-          {
-            "random_choice": {
-              "transforms": [
-                {
-                  "random_color_jitter": {
-                    "brightness": 0.1,
-                    "contrast": 0.1,
-                    "hue": 0.1,
-                    "saturation": 0.1
-                  }
-                },
-                {
-                  "random_cutout": {
-                    "color": [
-                      0,
-                      255
-                    ],
-                    "length": 12,
-                    "n_holes": 3,
-                    "prob": 0.1
-                  }
-                },
-                {
-                  "random_gaussianblur": {
-                    "kernel_size": 5
-                  }
-                },
-                {
-                  "random_rotate": {
-                    "degrees": 10
-                  }
-                },
-                {
-                  "random_autocontrast": {
-                    "p": 0.5
-                  }
-                },
-                {
-                  "random_adjustsharpness": {
-                    "p": 0.5
-                  }
-                },
-                {
-                  "random_augmix": {
-                    "severity": 3
-                  }
-                }
-              ]
-            }
-          },
-          {
-            "random_horizonflip": {
-              "p": 0.5
-            }
-          },
-          {
-            "random_choice": {
-              "p": [
-                0.9,
-                0.1
-              ],
-              "transforms": [
-                {
-                  "resize_and_padding": {
-                    "size": 224,
-                    "training": true
-                  }
-                },
-                {
-                  "random_crop_and_resize": {
-                    "scale": [
-                      0.7,
-                      1
-                    ],
-                    "size": 224
-                  }
-                }
-              ]
-            }
-          },
-          {
-            "to_tensor": "no_params"
-          },
-          {
-            "normalize": {
-              "mean": [
-                0.485,
-                0.456,
-                0.406
-              ],
-              "std": [
-                0.229,
-                0.224,
-                0.225
-              ]
-            }
-          }
-        ],
-        "base_aug": null,
-        "bs": 80,
-        "class_aug": null
+    "augment": [
+      {
+        "resize_and_padding": {
+          "size": 224,
+          "training": false
+        }
       },
-      "val": {
-        "augment": [
-          {
-            "resize_and_padding": {
-              "size": 224,
-              "training": false
-            }
-          },
-          {
-            "to_tensor": "no_params"
-          },
-          {
-            "normalize": {
-              "mean": [
-                0.485,
-                0.456,
-                0.406
-              ],
-              "std": [
-                0.229,
-                0.224,
-                0.225
-              ]
-            }
-          }
-        ],
-        "bs": 320
-      }
-    },
-    "hyp": {
-      "epochs": 15,
-      "label_smooth": 0.05,
-      "loss": {
-        "bce": [
-          false,
-          [
-            0.5,
-            0.5,
-            0.5,
-            0.5,
-            0.5
+      {
+        "to_tensor": "no_params"
+      },
+      {
+        "normalize": {
+          "mean": [
+            0.485,
+            0.456,
+            0.406
+          ],
+          "std": [
+            0.229,
+            0.224,
+            0.225
           ]
-        ],
-        "ce": true
-      },
-      "lr0": 0.006,
-      "lrf_ratio": null,
-      "momentum": 0.937,
-      "optimizer": [
-        "sgd",
-        false
-      ],
-      "scheduler": "cosine_with_warm",
-      "strategy": {
-        "focal": [
-          false,
-          0.25,
-          1.5
-        ],
-        "mixup": {
-          "duration": 10,
-          "ratio": 0.0
-        },
-        "ohem": [
-          false,
-          8,
-          0.7,
-          255
-        ],
-        "prog_learn": false
-      },
-      "warm_ep": 1,
-      "warmup_momentum": 0.8,
-      "weight_decay": 0.0005
-    },
-    "model": {
-      "attention_pool": false,
-      "backbone_freeze": false,
-      "bn_freeze": false,
-      "bn_freeze_affine": false,
-      "image_size": 224,
-      "kwargs": {},
-      "load_from": "/workspace/run/exp109/best.pt",
-      "name": "swin_base_patch4_window7_224.ms_in22k_ft_in1k",
-      "num_classes": 35,
-      "pretrained": true,
-      "task": "classification"
-    }
+        }
+      }
+    ],
+    "load_from": "Epoch_26.pt",
+    "revision": "v4"
   },
-  "model_type": "doraemon_classifier",
+  "model_type": "doraemon_embedding",
   "auto_map":{
     "AutoConfig": "doraemon_modeling.DoraemonConfig",
-    "AutoModel": "doraemon_modeling.DoraemonClassifier",
+    "AutoModel": "doraemon_modeling.DoraemonEmbedding",
     "AutoProcessor": "doraemon_modeling.DoraemonImageProcessor"
   },
   "transformers_version": "4.48.3"
