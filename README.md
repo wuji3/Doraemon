@@ -65,7 +65,7 @@ For detailed guidance on specific tasks, please refer to the following resources
 
 Doraemon integrates the following datasets, allowing users to quickly start training:
 
-- **Image Retrieval**: Available at [Ecommerce Product Dataset](https://huggingface.co/datasets/wuji3/image-retrieval)
+- **Image Retrieval**: Available at [Ecommerce Product](https://huggingface.co/datasets/wuji3/image-retrieval)
 - **Face Recognition**: Available at [MS-Celeb-1M-v1c](https://huggingface.co/datasets/wuji3/face-recognition)
 - **Image Classification**: Available at [Oxford-IIIT Pet](https://huggingface.co/datasets/wuji3/oxford-iiit-pet)
 
