@@ -1,0 +1,10 @@
+{
+    "model_type": "doraemon", 
+    "model_path": "/path/to/xxx.pt OR user/repo/filename.pt:v1(revision)",
+    "auto_map":{
+      "AutoConfig": "doraemon_modeling.DoraemonConfig",
+      "AutoModel": "doraemon_modeling.DoraemonClassifier",
+      "AutoProcessor": "doraemon_modeling.DoraemonProcessor"
+    },
+    "transformers_version": "4.48.3"
+  }

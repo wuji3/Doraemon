@@ -50,6 +50,17 @@ pip install -e .
 
 - [Personalized Hyperparameter Tuning](doraemon/built/layer_optimizer.py): Apply different learning rates to specific layers using Layer-Specific Learning Rates.
 
+## 🚀 Deployment API
+
+Doraemon offers incredibly simple yet powerful deployment options:
+
+- **Local API Inference**: Deploy models with just a single weight file (*.pt) - one command setup for high-performance local inference
+- **Seamless HuggingFace Integration**: Effortlessly deploy to the Huggingface ecosystem with full support for:
+  - `AutoModel.from_pretrained()`
+  - `AutoProcessor.from_pretrained()`
+  - And all standard Hugging Face API interfaces
+
+For detailed deployment instructions and ready-to-use examples, see our [Deployment Guide](doraemon/deploy/README.md).
 
 ## 📚 Tutorials
 
