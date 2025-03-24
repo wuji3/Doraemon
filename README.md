@@ -60,7 +60,7 @@ Doraemon offers incredibly simple yet powerful deployment options:
   - `AutoProcessor.from_pretrained()`
   - And all standard Hugging Face API interfaces
 
-For detailed deployment instructions and ready-to-use examples, see our [Deployment Guide](doraemon/deploy/README.md).
+For detailed deployment instructions and ready-to-use examples, see our [Deployment Guide](deploy/README.md).
 
 ## 📚 Tutorials
 
