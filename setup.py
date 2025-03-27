@@ -5,7 +5,7 @@ with open("README.md", mode="r", encoding="utf-8") as readme_file:
 
 setup(
     name='doraemon-torch', 
-    version='0.0.05a',
+    version='0.0.10a',
     author='duke',
     author_email='dk812821001@163.com',
     description='Doraemon',
