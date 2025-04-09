@@ -19,6 +19,7 @@ model:
   # timm-legacy_seresnet50.in1k: # imgsz 224
   # timm-tf_mobilenetv3_large_minimal_100.in1k: # imgsz 224
   # timm-convnext_base.clip_laion2b_augreg_ft_in1k: # imgsz 224
+  # timm-convnext_base.clip_laiona_augreg_ft_in1k_384: # imgsz 384
   # timm-convnext_large.fb_in22k_ft_in1k: # imgsz 224
   # timm-tf_efficientnetv2_l.in21k_ft_in1k: # imgsz 224
   load_from: null
