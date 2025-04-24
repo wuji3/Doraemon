@@ -245,7 +245,7 @@ class Trainer:
                 self.writer.add_scalar('Train_lr', lr, global_batch_idx)
                 loss_meter.reset()
 
-            if self.rank in (-1, 0) and (cur_epoch * iters_per_epoch + batch_idx + 1) % (self.save_freq * iters_per_epoch)== 0:
+            if self.rank in (-1, 0) and ((cur_epoch * iters_per_epoch + batch_idx + 1) % (self.save_freq * iters_per_epoch)== 0) or ((cur_epoch * iters_per_epoch + batch_idx + 1) == (self.epochs * iters_per_epoch)):
                 saved_name = 'Epoch_%d.pt' % (cur_epoch+1)
                 if self.task == 'face':
 

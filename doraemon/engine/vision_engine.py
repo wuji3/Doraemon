@@ -557,7 +557,7 @@ class CenterProcessor:
             trainer.train_one_epoch_face(self.lossfn, epoch, self.loss_meter)
 
         if rank in (-1, 0):
-            predict_cmd = (f'python -m scripts.infer {os.path.join(self.project, "Epoch_?.pt")} ')
+            predict_cmd = (f'python -m scripts.infer {os.path.join(self.project, "Epoch_?.pt")} --ema')
 
             logger.both(f'\nTraining complete ({(time.time() - t0) / 3600:.3f} hours)'
                         f"\nResults saved to {colorstr('bold', self.project)}"
