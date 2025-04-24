@@ -53,7 +53,7 @@ def create_and_upload_dataset(data_dir):
          
     # 上传到Hub
     dataset.push_to_hub(
-        "wuji3/face-recognition",
+        "User/DatasetName",
         private=False,
         max_shard_size="500MB"
     )    
