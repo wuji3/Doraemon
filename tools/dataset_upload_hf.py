@@ -34,13 +34,13 @@ class FaceDataset:
         return examples
          
 def create_and_upload_dataset(data_dir):
-    # 创建数据集实例
+    # Create dataset instance
     face_dataset = FaceDataset(data_dir)
          
-    # 生成示例
+    # Generate examples
     examples = face_dataset.generate_examples()
          
-    # 创建Dataset对象
+    # Create Dataset object
     dataset = Dataset.from_list(
         examples,
         features=Features({
@@ -51,7 +51,7 @@ def create_and_upload_dataset(data_dir):
         })
     )    
          
-    # 上传到Hub
+    # Upload to Hub
     dataset.push_to_hub(
         "User/DatasetName",
         private=False,
