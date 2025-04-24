@@ -135,22 +135,22 @@ class Visualizer:
                         continue
                     
                     if is_single_label:
-                        # 单标签情况保持不变
-                        pred_class = lines[0].split()[0]
+                        pred_class = lines[0].rsplit(' ',1)[0]
                         is_badcase = pred_class != gt
-                        target_class = gt  # 用于确定保存路径
+                        target_class = gt  # For determining save path
                     else:
-                        # 多标签情况，检查每个目标类别
+                        # Multi-label case, check each target class
                         is_badcase = False
-                        target_class = None  # 用于确定保存路径
+                        target_class = None  # For determining save path
                         for target, thresh in zip(target_classes, target_thresholds):
                             found_correct_pred = False
                             for line in lines:
-                                class_name, prob = line.split()[0], float(line.split()[1])
+                                class_name, prob = line.rsplit(' ', 1)
+                                prob = float(prob)
                                 if class_name == target:
                                     if prob < thresh:
                                         is_badcase = True
-                                        target_class = target  # 记录导致badcase的类别
+                                        target_class = target  # Record the class causing the badcase
                                     found_correct_pred = True
                                     break
                             if not found_correct_pred:

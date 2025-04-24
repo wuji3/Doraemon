@@ -88,7 +88,7 @@ class ImageDatasets(Dataset):
             if rank in {-1, 0}:
                 self._save_mappings(project)
 
-        support = [".jpg", ".png"]
+        support = [".jpg", ".png", ".jpeg", ".webp", ".bmp", ".tiff", ".gif"]
 
         images_path = []
         images_label = []
