@@ -554,7 +554,7 @@ class CenterProcessor:
             self.data_processor.auto_aug_weaken(epoch, milestone=aug_epoch, sequence = create_AugTransforms(self.data_cfg['val']['augment']))
 
             # train for one epoch
-            trainer.train_one_epoch_face(self.lossfn, epoch, self.loss_meter)
+            trainer.train_one_epoch_emb(self.lossfn, epoch, self.loss_meter)
 
         if rank in (-1, 0):
             predict_cmd = (f'python -m scripts.infer {os.path.join(self.project, "Epoch_?.pt")} --ema')

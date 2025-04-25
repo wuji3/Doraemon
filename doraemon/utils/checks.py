@@ -82,31 +82,44 @@ def check_cfgs_face(cfgs):
     model_cfg = cfgs['model']
     data_cfg = cfgs['data']
 
-    # Check number of classes
-    train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') 
-                    if not (x.startswith('.') or x.startswith('_'))]
+        # Determine data source type
+    is_local = os.path.isdir(data_cfg['root'])
+
+    # Check number of classes based on data source
+    if is_local:
+        train_classes = [x for x in os.listdir(Path(data_cfg['root'])/'train') 
+                        if not (x.startswith('.') or x.startswith('_'))]
+        num_classes = len(train_classes)
+    else:
+        try:
+            dataset = load_dataset(data_cfg['root'], split='train')
+            num_classes = len(set(dataset['label']))
+        except Exception as e:
+            raise ValueError(f"Dataset loading error: Unable to load HuggingFace dataset from {data_cfg['root']}. Details: {str(e)}")
+
+    # Check model configuration
     head_key = next(iter(model_cfg['head'].keys()))
     model_classes = model_cfg['head'][head_key]['num_class']
     
-    assert model_classes == len(train_classes), \
-        f'Model configuration error: Number of classes mismatch. Expected {len(train_classes)} from dataset, but got {model_classes} in model configuration'
+    assert model_classes == num_classes, \
+        f'Model configuration error: Number of classes mismatch. Expected {num_classes} from dataset, but got {model_classes} in model configuration'
 
-    # Check face recognition specific configurations
-    if cfgs['model']['task'] == 'face':
-        pair_txt_path = data_cfg['val']['pair_txt']
-        
-        # Verify pair text file existence
-        if not os.path.isfile(pair_txt_path):
-            raise ValueError(f'Validation data error: Pair text file not found at {pair_txt_path}')
+    # # Check face recognition specific configurations
+    # if cfgs['model']['task'] == 'face':
+    #     pair_txt_path = data_cfg['val']['pair_txt']
+    #     
+    #     # Verify pair text file existence
+    #     if not os.path.isfile(pair_txt_path):
+    #         raise ValueError(f'Validation data error: Pair text file not found at {pair_txt_path}')
 
-        # Validate pair list format
-        from doraemon.engine.representation.eval_face import Evaluator
-        try:
-            with open(pair_txt_path) as f:
-                pair_list = [line.strip() for line in f.readlines()]
-            Evaluator.check_nps(pair_list)
-        except Exception as e:
-            raise ValueError(f'Pair list validation error: Invalid format in {pair_txt_path}. Details: {str(e)}')
+    #     # Validate pair list format
+    #     from doraemon.engine.representation.eval_face import Evaluator
+    #     try:
+    #         with open(pair_txt_path) as f:
+    #             pair_list = [line.strip() for line in f.readlines()]
+    #         Evaluator.check_nps(pair_list)
+    #     except Exception as e:
+    #         raise ValueError(f'Pair list validation error: Invalid format in {pair_txt_path}. Details: {str(e)}')
 
 def check_cfgs_cbir(cfgs):
     """

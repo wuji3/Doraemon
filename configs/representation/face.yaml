@@ -3,27 +3,28 @@ model:
   image_size: &imgsz 224
   load_from: null
   backbone:
-    #----------------------------Transformer-----------------------------------------#
-    # timm-swin_base_patch4_window7_224.ms_in22k_ft_in1k: # imgsz 224
-    # timm-vit_base_patch8_224.dino: # imgsz 224
-    # timm-vit_base_patch16_224.augreg2_in21k_ft_in1k # imgsz 224
-    # timm-vit_large_patch16_224.mae: # imgsz 224
-    # timm-vit_huge_patch14_clip_224.laion2b_ft_in12k_in1k: # imgsz 224
-    # timm-swinv2_base_window8_256.ms_in1k: # imgsz 256
-    # timm-swinv2_large_window12to16_192to256.ms_in22k_ft_in1k: # imgsz 256
-    # timm-vit_base_patch16_clip_224.laion2b_ft_in1k: # imgsz 224
-    # timm-vit_large_patch14_dinov2.lvd142m: # imgsz 518
-    # timm-vit_so400m_patch14_siglip_224.webli: # imgsz 224
-    #--------------------------------CNN---------------------------------------------#
-    # timm-wide_resnet101_2.tv2_in1k: # imgsz 224
-    # timm-resnet50d.gluon_in1k: # imgsz 224
-    # timm-resnext50_32x4d.a3_in1k: # imgsz 224
-    # timm-resnest50d_4s2x40d.in1k: # imgsz 224
-    # timm-legacy_seresnet50.in1k: # imgsz 224
-    # timm-tf_mobilenetv3_large_minimal_100.in1k: # imgsz 224
-    # timm-convnext_base.clip_laion2b_augreg_ft_in1k: # imgsz 224
-    # timm-convnext_large.fb_in22k_ft_in1k: # imgsz 224
-    # timm-tf_efficientnetv2_l.in21k_ft_in1k: # imgsz 224
+  #----------------------------Transformer-----------------------------------------#
+  # timm-swin_base_patch4_window7_224.ms_in22k_ft_in1k: # imgsz 224
+  # timm-vit_base_patch8_224.dino: # imgsz 224
+  # timm-vit_base_patch16_224.augreg2_in21k_ft_in1k # imgsz 224
+  # timm-vit_large_patch16_224.mae: # imgsz 224
+  # timm-vit_huge_patch14_clip_224.laion2b_ft_in12k_in1k: # imgsz 224
+  # timm-swinv2_base_window8_256.ms_in1k: # imgsz 256
+  # timm-swinv2_large_window12to16_192to256.ms_in22k_ft_in1k: # imgsz 256
+  # timm-vit_base_patch16_clip_224.laion2b_ft_in1k: # imgsz 224
+  # timm-vit_large_patch14_dinov2.lvd142m: # imgsz 518
+  # timm-vit_so400m_patch14_siglip_224.webli: # imgsz 224
+  #--------------------------------CNN---------------------------------------------#
+  # timm-wide_resnet101_2.tv2_in1k: # imgsz 224
+  # timm-resnet50d.gluon_in1k: # imgsz 224
+  # timm-resnext50_32x4d.a3_in1k: # imgsz 224
+  # timm-resnest50d_4s2x40d.in1k: # imgsz 224
+  # timm-legacy_seresnet50.in1k: # imgsz 224
+  # timm-tf_mobilenetv3_large_minimal_100.in1k: # imgsz 224
+  # timm-convnext_base.clip_laion2b_augreg_ft_in1k: # imgsz 224
+  # timm-convnext_base.clip_laiona_augreg_ft_in1k_384: # imgsz 384
+  # timm-convnext_large.fb_in22k_ft_in1k: # imgsz 224
+  # timm-tf_efficientnetv2_l.in21k_ft_in1k: # imgsz 224
     timm-swin_base_patch4_window7_224.ms_in22k_ft_in1k: # imgsz 224
       pretrained: True
       image_size: *imgsz
@@ -31,16 +32,23 @@ model:
   head:
     arcface:
       feat_dim: *featd
-      num_class: 58671
+      num_class: 74726
       margin_arc: 0.35
       margin_am: 0.0
       scale: 32
 data:
-  root: /home/duke/facedata
+  # Choose ONE of the following data sources:
+
+  # 1. HuggingFace Dataset
+  root: wuji3/face-recognition
+
+  # 2. Local Dataset
+  # root: <path/to/data>  # Format: path/to/data with train/ and query/ gallery/ subdirs
+
   nw: 64 # if not multi-nw, set to 0
   train:
-    bs: 160 # per gpu
-    common_aug: null 
+    bs: 320 # per gpu
+    base_aug: null 
     class_aug: null
     augment: # refer to utils/augment.py
        - random_choice:
@@ -66,9 +74,9 @@ data:
        - normalize: 
             mean: [0.485, 0.456, 0.406]
             std: [0.229, 0.224, 0.225]
-    aug_epoch: 28
+    aug_epoch: 9
   val:
-    bs: 32
+    bs: 64
     pair_txt: <pairs.txt>
     augment:
         - resize_and_padding:
@@ -79,7 +87,7 @@ data:
             mean: [0.485, 0.456, 0.406]
             std: [0.229, 0.224, 0.225]
 hyp:
-  epochs: 30
+  epochs: 10
   lr0: 0.006
   lrf_ratio: null # decay to lrf_ratio * lr0, if None, 0.1
   momentum: 0.937

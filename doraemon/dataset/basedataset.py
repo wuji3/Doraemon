@@ -113,18 +113,22 @@ class ImageDatasets(Dataset):
             raise ValueError("Dataset does not contain 'label' feature")
 
         label_feature = self.dataset.features['label']
-        if not isinstance(label_feature, datasets.ClassLabel):
-            raise ValueError("Dataset 'label' feature is not of type ClassLabel")
+        if not (isinstance(label_feature, datasets.ClassLabel) or isinstance(label_feature, datasets.Value)):
+            raise ValueError("Dataset.features['label'] is not ClassLabel OR Value type")
 
         if self.training:
-            classes = label_feature.names
-            self.id2label = {i: label for i, label in enumerate(classes)}
-            self.label2id = {label: i for i, label in self.id2label.items()}
+            if isinstance(label_feature, datasets.ClassLabel):
+                classes = label_feature.names
+                self.id2label = {i: label for i, label in enumerate(classes)}
+                self.label2id = {label: i for i, label in self.id2label.items()}
+            elif isinstance(label_feature, datasets.Value):
+                self.id2label = {i: label for i, label in zip(self.dataset['label'], self.dataset['class_name'])}
+                self.label2id = {label: i for i, label in self.id2label.items()}
             if rank in {-1, 0}:
                 self._save_mappings(project)
 
-        self.images = self.dataset['image']
-        self.labels = self.dataset['label']
+        # self.images = self.dataset['image']
+        # self.labels = self.dataset['label']
 
     def _save_mappings(self, project):
         if project is not None:
@@ -136,9 +140,15 @@ class ImageDatasets(Dataset):
 
     def __getitem__(self, idx):
         if hasattr(self, 'dataset'):  # Hugging Face dataset
-            img = self.images[idx]
-            label = self.labels[idx]
-            img = ImageDatasets.load_image_from_hf(img)
+            try:
+                img = self.dataset[idx]['image']
+                label = self.dataset[idx]['label']
+                img = ImageDatasets.load_image_from_hf(img)
+            except Exception as e:
+                random_idx = np.random.randint(0, len(self.dataset))
+                while random_idx == idx:
+                    random_idx = np.random.randint(0, len(self.dataset))
+                return self.__getitem__(random_idx)
         else:  # Local dataset
             try:
                 img = self.read_image(self.images[idx])
@@ -158,7 +168,7 @@ class ImageDatasets(Dataset):
         return img, label
 
     def __len__(self):
-        return len(self.images)
+        return self.dataset.shape[0] if hasattr(self, 'dataset') else len(self.images)
 
     @staticmethod
     def collate_fn(batch):
@@ -273,9 +283,14 @@ class ImageDatasets(Dataset):
                             data_distribution[class_name][split] += 1
             else:
                 # For single-label data
-                for label in dataset.labels:
-                    class_name = dataset.id2label[label]
-                    data_distribution[class_name][split] += 1
+                if hasattr(dataset, 'labels'): # For local dataset
+                    for label in dataset.labels:
+                        class_name = dataset.id2label[label]
+                        data_distribution[class_name][split] += 1
+                else: # For HuggingFace dataset
+                    for label in dataset.dataset['label']:
+                        class_name = dataset.id2label[label]
+                        data_distribution[class_name][split] += 1
 
         # Create and populate the distribution table
         pretty_table = PrettyTable(['Class', 'Train Samples', 'Val Samples'])
@@ -458,6 +473,7 @@ class PredictImageDatasets(Dataset):
                 classes = self.classes if isinstance(self.classes, list) else [self.classes]
                 label_feature = self.dataset.features['label']
                 if isinstance(label_feature, datasets.ClassLabel):
+                    breakpoint()
                     # Get indices of all target classes
                     target_indices = []
                     for class_name in classes:

@@ -212,7 +212,7 @@ class Trainer:
         if ema:
             ema.update(model)
 
-    def train_one_epoch_face(self, criterion, cur_epoch, loss_meter):
+    def train_one_epoch_emb(self, criterion, cur_epoch, loss_meter):
         """Tain one epoch by traditional training.
         """
 
@@ -245,10 +245,9 @@ class Trainer:
                 self.writer.add_scalar('Train_lr', lr, global_batch_idx)
                 loss_meter.reset()
 
-            if self.rank in (-1, 0) and ((cur_epoch * iters_per_epoch + batch_idx + 1) % (self.save_freq * iters_per_epoch)== 0) or ((cur_epoch * iters_per_epoch + batch_idx + 1) == (self.epochs * iters_per_epoch)):
+            if self.rank in (-1, 0) and (((cur_epoch * iters_per_epoch + batch_idx + 1) % (self.save_freq * iters_per_epoch)== 0) or ((cur_epoch * iters_per_epoch + batch_idx + 1) == (self.epochs * iters_per_epoch))):
                 saved_name = 'Epoch_%d.pt' % (cur_epoch+1)
                 if self.task == 'face':
-
                     mean, std = valuate_face(self.ema.ema.trainingwrapper['backbone'],
                                             self.data_cfg,
                                             self.device)
@@ -278,7 +277,8 @@ class Trainer:
                     'scheduler': self.scheduler.state_dict(),
                     'config': config
                 }
-                if self.device != torch.device('cpu'): ckpt['scaler'] = self.scaler.state_dict()
+                if self.device != torch.device('cpu'): 
+                    ckpt['scaler'] = self.scaler.state_dict()
 
                 torch.save(ckpt, os.path.join(self.writer.log_dir, saved_name))
                 self.logger.both(fitness)
