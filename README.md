@@ -32,6 +32,7 @@ pip install -e .
 
 ## 📢 What's New
 
+- 🎁 2025.11.07: [Doraemon paper](https://arxiv.org/abs/2511.04394) paper released; welcome to <a href='#citation'> cite our paper </a> if you find the project useful for your research or development.
 - 🎁 2025.03.16: Doraemon v0.1.0 released
 - 🎁 2024.10.01: Content-Based Image Retrieval (CBIR): We collect a product dataset from Kaggle & TianChi with a complete pipeline for training, end-to-end validation, and visualization. Please check [ImageRetrieval.md](doraemon/models/representation/README_CBIR.md)
 - 🎁 2024.04.01: Face Recognition: Based on a cleaned MS-Celeb-1M-v1c with over 70,000 IDs and 3.6 million images, validated with LFW. Includes loss functions like ArcFace, CircleLoss, and MagFace.
@@ -94,3 +95,17 @@ Doraemon integrates the following datasets, allowing users to quickly start trai
 - Parameter count vs performance trade-offs
 
 > For detailed benchmark results, see [@huggingface/pytorch-image-models#1933](https://github.com/huggingface/pytorch-image-models/issues/1933)
+
+## Citation 
+<span id='citation'/>
+If you find **Doraemon** useful for your research or development, please cite the following <a href="https://arxiv.org/abs/2511.04394" target="_blank">paper</a>:
+
+```
+@misc{du2025visual,
+      title={DORAEMON: A Unified Library for Visual Object Modeling and Representation Learning at Scale}, 
+      author={Ke Du and Yimin Peng and Chao Gao and Fan Zhou and Siqiao Xue},
+      year={2025},
+      journal={arXiv preprint arXiv:2511.04394},
+      url={https://arxiv.org/abs/2511.04394}, 
+}
+```
