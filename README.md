@@ -5,107 +5,106 @@
 </p>
 
 <p align="center">
-<img src="https://img.shields.io/badge/doraemon-0.0.4a0-brightgreen.svg">
+<img src="https://img.shields.io/badge/doraemon-0.0.10a-brightgreen.svg">
 <img src="https://img.shields.io/badge/python-3.10-blue.svg">
-<img src="https://img.shields.io/badge/pytorch-2.0+-orange.svg">
+<img src="https://img.shields.io/badge/pytorch-2.5.1%2B-orange.svg">
 <img src="https://img.shields.io/badge/torchmetrics-0.11.4-green.svg">
 <img src="https://img.shields.io/badge/timm-0.9.16-red.svg">
 <img src="https://img.shields.io/badge/opencv-4.7.0-lightgrey.svg">
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 
-## 🚀 Quick Start
+**Doraemon** is a PyTorch-based visual modeling library for image classification, content-based image retrieval, face recognition, and model deployment. It integrates `timm` backbones, common metric-learning heads, training utilities, evaluation tools, visualization, and Hugging Face-compatible deployment APIs.
 
-<summary><b>Installation Guide</b></summary>
+## Highlights
+
+- [Training engine](doraemon/engine/vision_engine.py): Unified training flow for classification and embedding-based recognition tasks.
+- [Optimization algorithms](doraemon/engine/optimizer.py): SGD, Adam, SAM, layer-specific learning rates, and related training strategies.
+- [Data augmentation](doraemon/dataset/transforms.py): CutOut, ColorJitter, Copy-Paste, Mixup, and class-specific augmentation.
+- [Regularization and losses](doraemon/engine/optimizer.py): Label smoothing, OHEM, Focal Loss, ArcFace, CircleLoss, MagFace, and more.
+- [Visualization](doraemon/utils/cam.py): GradCAM-based model interpretation and bad-case analysis.
+- [Deployment](deploy/README.md): Local inference and Hugging Face `AutoModel` / `AutoProcessor` integration.
+
+## Installation
 
 ```bash
 # Create and activate environment
 python -m venv doraemon
 source doraemon/bin/activate
 
-# Install Doraemon
+# Install from PyPI
 pip install doraemon-torch
 
-# If you need to install in editable mode (for development)
+# Or install in editable mode for development
 pip install -e .
 ```
 
-## 📢 What's New
+## Task Status
 
-- 🎁 2025.11.07: [Doraemon paper](https://arxiv.org/abs/2511.04394) paper released; welcome to <a href='#citation'> cite our paper </a> if you find the project useful for your research or development.
-- 🎁 2025.03.16: Doraemon v0.1.0 released
-- 🎁 2024.10.01: Content-Based Image Retrieval (CBIR): We collect a product dataset from Kaggle & TianChi with a complete pipeline for training, end-to-end validation, and visualization. Please check [ImageRetrieval.md](doraemon/models/representation/README_CBIR.md)
-- 🎁 2024.04.01: Face Recognition: Based on a cleaned MS-Celeb-1M-v1c with over 70,000 IDs and 3.6 million images, validated with LFW. Includes loss functions like ArcFace, CircleLoss, and MagFace.
-- 🎁 2023.06.01: Image Classification (IC): Given the Oxford-IIIT Pet dataset. Supports different learning rates for different layers, hard example mining, multi-label and single-label training, bad case analysis, GradCAM visualization, automatic labeling to aid semi-supervised training, and category-specific data augmentation. Refer to [ImageClassification.md](doraemon/models/classifier/README.md)
+| Task | Status | Docs |
+| --- | --- | --- |
+| Image Classification | Supported | [Image Classification](doraemon/models/classifier/README.md) |
+| Content-Based Image Retrieval | Supported | [Image Retrieval](doraemon/models/representation/README_CBIR.md) |
+| Face Recognition | In progress | Training on MS-Celeb-1M-v1c and evaluation on LFW are supported internally; the end-to-end public pipeline is still being organized. |
 
-## ✨ Highlights
-- [Optimization Algorithms](doraemon/engine/optimizer.py): Various optimization techniques to enhance model training efficiency, including SGD, Adam, and SAM (Sharpness-Aware Minimization).
+## Tutorials
 
-- [Data Augmentation](doraemon/dataset/transforms.py): A variety of data augmentation techniques to improve model robustness, such as CutOut, Color-Jitter, and Copy-Paste etc.
+For task-specific data preparation, model configuration, training, evaluation, and visualization examples:
 
-- [Regularization](doraemon/engine/optimizer.py): Techniques to prevent overfitting and improve model generalization, including Label Smoothing, OHEM, Focal Loss, and Mixup.
-
-- [Visualization](doraemon/utils/cam.py): Integrated visualization tool to understand model decision-making, featuring GradCAM.
-
-- [Personalized Data Augmentation](doraemon/built/class_augmenter.py): Apply exclusive data augmentation to specific classes with Class-Specific Augmentation.
-
-- [Personalized Hyperparameter Tuning](doraemon/built/layer_optimizer.py): Apply different learning rates to specific layers using Layer-Specific Learning Rates.
-
-## 🚀 Deployment API
-
-Doraemon offers incredibly simple yet powerful deployment options:
-
-- **Local API Inference**: Deploy models with just a single weight file (*.pt) - one command setup for high-performance local inference
-- **Seamless HuggingFace Integration**: Effortlessly deploy to the Huggingface ecosystem with full support for:
-  - `AutoModel.from_pretrained()`
-  - `AutoProcessor.from_pretrained()`
-  - And all standard Hugging Face API interfaces
-
-For detailed deployment instructions and ready-to-use examples, see our [Deployment Guide](deploy/README.md).
-
-## 📚 Tutorials
-
-For detailed guidance on specific tasks, please refer to the following resources:
-
-- **Image Classification**: If you are working on image classification tasks, please refer to [Doc: Image Classification](doraemon/models/classifier/README.md).
-
-- **Image Retrieval**: For image retrieval tasks, please refer to [Doc: Image Retrieval](doraemon/models/representation/README_CBIR.md).
-
+- **Image Classification**: [Doc: Image Classification](doraemon/models/classifier/README.md)
+- **Image Retrieval**: [Doc: Image Retrieval](doraemon/models/representation/README_CBIR.md)
 - **Face Recognition**: Stay tuned.
 
-## 📊 Datasets
+## Datasets
 
-Doraemon integrates the following datasets, allowing users to quickly start training:
+Doraemon provides dataset entry points for quickly starting experiments:
 
-- **Image Retrieval**: Available at [Ecommerce Product](https://huggingface.co/datasets/wuji3/image-retrieval)
-- **Face Recognition**: Available at [MS-Celeb-1M-v1c](https://huggingface.co/datasets/wuji3/face-recognition)
-- **Image Classification**: Available at [Oxford-IIIT Pet](https://huggingface.co/datasets/wuji3/oxford-iiit-pet)
+- **Image Classification**: [Oxford-IIIT Pet](https://huggingface.co/datasets/wuji3/oxford-iiit-pet)
+- **Image Retrieval**: [Ecommerce Product](https://huggingface.co/datasets/wuji3/image-retrieval)
+- **Face Recognition**: [MS-Celeb-1M-v1c](https://huggingface.co/datasets/wuji3/face-recognition)
 
-## 🧩 Supported Models
- 
-**Doraemon** now supports 1000+ models through integration with Timm:
- 
+## Supported Models
+
+Doraemon supports 1000+ visual backbones through `timm`:
+
 - All models from `timm.list_models(pretrained=True)`
-- Including CLIP, SigLIP, DeiT, BEiT, MAE, EVA, DINO and more
+- CLIP, SigLIP, DeiT, BEiT, MAE, EVA, DINO, ResNet, Swin Transformer, ViT, and more
 
-[Model Performance Benchmarks](https://github.com/huggingface/pytorch-image-models/tree/main/results) can help you select the most suitable model by comparing:
-- Inference speed
-- Training efficiency 
-- Accuracy across different datasets
-- Parameter count vs performance trade-offs
+[Model Performance Benchmarks](https://github.com/huggingface/pytorch-image-models/tree/main/results) can help select backbones by inference speed, training efficiency, accuracy, and parameter count.
 
-> For detailed benchmark results, see [@huggingface/pytorch-image-models#1933](https://github.com/huggingface/pytorch-image-models/issues/1933)
+> For detailed benchmark results, see [@huggingface/pytorch-image-models#1933](https://github.com/huggingface/pytorch-image-models/issues/1933).
 
-## Citation 
-<span id='citation'/>
+## Deployment API
+
+Doraemon supports deployment with a trained weight file plus model configuration and inference code:
+
+- **Local inference**: Run a trained `*.pt` model with the deployment config.
+- **Hugging Face integration**: Publish models that can be loaded with:
+  - `AutoModel.from_pretrained()`
+  - `AutoProcessor.from_pretrained()`
+
+For detailed deployment instructions and examples, see the [Deployment Guide](deploy/README.md).
+
+## What's New
+
+- 2025.11.07: [Doraemon paper](https://arxiv.org/abs/2511.04394) released; welcome to <a href="#citation">cite our paper</a> if you find the project useful for your research or development.
+- 2025.03.16: Doraemon v0.1.0 released.
+- 2024.10.01: Content-Based Image Retrieval (CBIR) pipeline released with product data collected from Kaggle and TianChi. See [Image Retrieval](doraemon/models/representation/README_CBIR.md).
+- 2024.04.01: Face Recognition support added with MS-Celeb-1M-v1c training data and LFW validation. Public end-to-end documentation is still in progress.
+- 2023.06.01: Image Classification support released with Oxford-IIIT Pet examples, hard example mining, GradCAM visualization, auto-labeling, and class-specific augmentation. See [Image Classification](doraemon/models/classifier/README.md).
+
+## Citation
+
+<span id="citation"></span>
+
 If you find **Doraemon** useful for your research or development, please cite the following <a href="https://arxiv.org/abs/2511.04394" target="_blank">paper</a>:
 
-```
+```bibtex
 @misc{du2025visual,
-      title={DORAEMON: A Unified Library for Visual Object Modeling and Representation Learning at Scale}, 
+      title={DORAEMON: A Unified Library for Visual Object Modeling and Representation Learning at Scale},
       author={Ke Du and Yimin Peng and Chao Gao and Fan Zhou and Siqiao Xue},
       year={2025},
       journal={arXiv preprint arXiv:2511.04394},
-      url={https://arxiv.org/abs/2511.04394}, 
+      url={https://arxiv.org/abs/2511.04394},
 }
 ```
